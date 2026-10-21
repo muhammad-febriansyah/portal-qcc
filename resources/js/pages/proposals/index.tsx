@@ -8,6 +8,7 @@ import {
     Eye,
     PencilLine,
     Send,
+    UsersRound,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -16,6 +17,7 @@ import type {
     DataTableColumnDef,
     DataTableSort,
 } from '@/components/data-table';
+import { DataTableRowActions } from '@/components/data-table-row-actions';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -28,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import type { BadgeVariant } from '@/lib/badge-variants';
 import { dashboard } from '@/routes';
-import { index } from '@/routes/proposals';
+import { candidates, index } from '@/routes/proposals';
 
 type ProposalRow = {
     id: number;
@@ -39,6 +41,7 @@ type ProposalRow = {
     organization: string | null;
     members_count: number;
     status: string;
+    can_find_candidates: boolean;
     updated_at: string | null;
 };
 
@@ -261,6 +264,32 @@ export default function ProposalsIndex({
                             : '—'}
                     </span>
                 ),
+            },
+            {
+                id: 'actions',
+                header: () => <span className="sr-only">Aksi</span>,
+                cell: ({ row }) => {
+                    const proposal = row.original;
+
+                    return (
+                        <div className="flex justify-end">
+                            <DataTableRowActions
+                                label={`Aksi untuk ${proposal.code}`}
+                                actions={[
+                                    {
+                                        label: 'Cari kandidat tim',
+                                        icon: UsersRound,
+                                        hidden: !proposal.can_find_candidates,
+                                        onSelect: () =>
+                                            router.visit(
+                                                candidates.url(proposal.id),
+                                            ),
+                                    },
+                                ]}
+                            />
+                        </div>
+                    );
+                },
             },
         ],
         [statusLabels],

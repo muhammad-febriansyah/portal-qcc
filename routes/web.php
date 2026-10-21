@@ -11,6 +11,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('proposals', [ProposalController::class, 'index'])->name('proposals.index');
+    Route::get('proposals/{project}/candidates', [ProposalController::class, 'candidates'])->name('proposals.candidates');
 
     Route::resource('competencies', MyCompetencyController::class)
         ->only(['index', 'store', 'update', 'destroy'])

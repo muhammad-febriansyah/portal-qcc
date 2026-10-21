@@ -47,6 +47,16 @@ class ProjectPolicy
                 ->exists();
     }
 
+    /**
+     * Search team candidates: reviewers, or the Team Leader who proposed the project.
+     */
+    public function findCandidates(User $user, Project $project): bool
+    {
+        return $user->can('projects.view')
+            && ($user->can('projects.viewAny')
+                || ($user->hasRole('Team Leader') && $project->proposer_id === $user->id));
+    }
+
     public function submit(User $user, Project $project): bool
     {
         return $user->can('projects.submit') && $this->isActiveMember($user, $project);

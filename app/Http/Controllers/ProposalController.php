@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Enums\ProposalStatus;
 use App\Models\Project;
 use App\Models\QccBatch;
+use App\Services\Teams\CandidateShortlist;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -65,6 +67,9 @@ class ProposalController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
+        $canFindCandidates = fn (Project $project): bool => $user->can('projects.viewAny')
+            || ($user->hasRole('Team Leader') && $project->proposer_id === $user->id);
+
         return Inertia::render('proposals/index', [
             'proposals' => $proposals->through(fn (Project $project): array => [
                 'id' => $project->id,
@@ -75,6 +80,7 @@ class ProposalController extends Controller
                 'organization' => $project->proposer?->organization?->name,
                 'members_count' => $project->members_count,
                 'status' => $project->proposal_status->value,
+                'can_find_candidates' => $canFindCandidates($project),
                 'updated_at' => $project->updated_at?->toIso8601String(),
             ]),
             'filters' => [
@@ -88,6 +94,24 @@ class ProposalController extends Controller
             'statusOptions' => ProposalStatus::options(),
             'batchOptions' => QccBatch::query()->orderByDesc('starts_on')->get(['id', 'name'])
                 ->map(fn (QccBatch $batch): array => ['value' => (string) $batch->id, 'label' => $batch->name])->all(),
+        ]);
+    }
+
+    public function candidates(Project $project, CandidateShortlist $shortlist): Response
+    {
+        Gate::authorize('findCandidates', $project);
+
+        $result = $shortlist->for($project);
+
+        return Inertia::render('proposals/candidates', [
+            'proposal' => [
+                'id' => $project->id,
+                'code' => sprintf('PRP-%04d', $project->id),
+                'title' => $project->title,
+            ],
+            'requirements' => $result['requirements'],
+            'candidates' => $result['candidates'],
+            'limit' => CandidateShortlist::DEFAULT_LIMIT,
         ]);
     }
 }
