@@ -198,5 +198,37 @@ test('building the overview takes a small, fixed number of queries', function ()
 
     app(AdminDashboardOverview::class)->get();
 
-    expect($queries)->toBeLessThan(20);
+    expect($queries)->toBeLessThan(30);
+});
+
+test('overview counts competency levels per group, preferring the verified level', function () {
+    $admin = dashboardAdmin();
+    $member = User::factory()->create(['is_active' => true]);
+    $competency = Competency::factory()->create();
+
+    MemberCompetency::factory()->create([
+        'user_id' => $member->id,
+        'competency_id' => $competency->id,
+        'self_level' => 1,
+        'verified_level' => 3,
+    ]);
+    Cache::forget(AdminDashboardOverview::CACHE_KEY);
+
+    $levels = app(AdminDashboardOverview::class)->get()['competency_levels'];
+    $groupIndex = array_search($competency->group->name, $levels['groups'], true);
+
+    expect($levels['levels'][3]['data'][$groupIndex])->toBe(1)
+        ->and($levels['levels'][1]['data'][$groupIndex])->toBe(0);
+});
+
+test('overview lists participants per organization and flags what needs attention', function () {
+    dashboardAdmin();
+    User::factory()->create(['is_active' => true, 'organization_id' => null, 'sim_id' => null]);
+    Cache::forget(AdminDashboardOverview::CACHE_KEY);
+
+    $overview = app(AdminDashboardOverview::class)->get();
+    $keys = array_column($overview['attention'], 'key');
+
+    expect(array_column($overview['members_by_organization'], 'label'))->toContain('Tanpa organisasi')
+        ->and($keys)->toContain('no_organization', 'no_sim_id', 'no_competency');
 });

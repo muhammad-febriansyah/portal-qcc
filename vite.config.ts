@@ -28,6 +28,13 @@ export default defineConfig({
             formVariants: true,
         }),
     ]),
+    resolve: {
+        // One copy of React for the app and for libraries such as react-apexcharts.
+        dedupe: ['react', 'react-dom'],
+    },
+    optimizeDeps: {
+        include: ['react-apexcharts', 'apexcharts'],
+    },
     server: {
         watch: {
             ignored: [
