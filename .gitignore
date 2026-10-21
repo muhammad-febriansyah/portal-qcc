@@ -42,7 +42,6 @@ yarn-error.log
 /boost.json
 /opencode.json
 /opencode.jsonc
-/.playwright-mcp
 
 # AI agent files and project docs (local only)
 /.ai
@@ -52,3 +51,11 @@ yarn-error.log
 /GEMINI.md
 /docs
 /qcc0*.png
+
+# Playwright output and browser QA artifacts (local only)
+/.playwright-mcp
+/.playwright-cli
+/playwright-report
+/blob-report
+/test-results
+/playwright/.cache

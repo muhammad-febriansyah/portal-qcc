@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
+import WhatsAppIcon from '@/components/whatsapp-icon';
 import {
     Sidebar,
     SidebarContent,
@@ -255,12 +256,9 @@ export function AppSidebar() {
                         href={developerWhatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-3 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+                        className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] text-[12px] font-semibold text-white transition-colors hover:bg-[#1EBE5B] focus-visible:ring-2 focus-visible:ring-[#25D366] focus-visible:ring-offset-2 focus-visible:outline-none"
                     >
-                        <MessageCircle
-                            className="size-3.5"
-                            aria-hidden="true"
-                        />
+                        <WhatsAppIcon className="size-4" />
                         Chat via WhatsApp
                     </a>
                 </div>
@@ -268,7 +266,7 @@ export function AppSidebar() {
                 <SidebarMenu className="hidden group-data-[collapsible=icon]:flex">
                     <SidebarMenuItem>
                         <SidebarMenuButton
-                            className="text-primary hover:bg-primary/8 hover:text-primary"
+                            className="text-[#25D366] hover:bg-[#25D366]/10 hover:text-[#1EBE5B]"
                             tooltip={{
                                 children: 'Bantuan developer via WhatsApp',
                             }}
@@ -281,7 +279,7 @@ export function AppSidebar() {
                                 />
                             }
                         >
-                            <Headset aria-hidden="true" />
+                            <WhatsAppIcon />
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
