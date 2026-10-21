@@ -69,6 +69,9 @@ class AuditLog extends Model
         'scoring.overridden' => 'Nilai AI diubah reviewer',
         'scoring.approved' => 'Nilai disetujui',
         'scoring.revision_requested' => 'Revisi diminta',
+        'team_matching.requested' => 'Rekomendasi tim AI diminta',
+        'team_matching.completed' => 'Rekomendasi tim AI selesai',
+        'team_matching.failed' => 'Rekomendasi tim AI gagal',
     ];
 
     /**
@@ -84,6 +87,7 @@ class AuditLog extends Model
         'competency' => 'Kompetensi',
         'member_competency' => 'Kompetensi Saya',
         'scoring' => 'Penilaian AI',
+        'team_matching' => 'Rekomendasi Tim AI',
     ];
 
     protected static function booted(): void

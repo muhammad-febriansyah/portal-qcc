@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Teams\StartTeamMatching;
 use App\Enums\ProposalStatus;
 use App\Models\Project;
 use App\Models\QccBatch;
+use App\Models\TeamMatchingRun;
+use App\Models\User;
+use App\Services\Ai\AiConnection;
 use App\Services\Teams\CandidateShortlist;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -97,7 +102,7 @@ class ProposalController extends Controller
         ]);
     }
 
-    public function candidates(Project $project, CandidateShortlist $shortlist): Response
+    public function candidates(Request $request, Project $project, CandidateShortlist $shortlist, AiConnection $ai): Response
     {
         Gate::authorize('findCandidates', $project);
 
@@ -112,6 +117,60 @@ class ProposalController extends Controller
             'requirements' => $result['requirements'],
             'candidates' => $result['candidates'],
             'limit' => CandidateShortlist::DEFAULT_LIMIT,
+            'ai' => [
+                'ready' => $ai->isReady(),
+                'message' => AiConnection::MESSAGE_NOT_READY,
+                'can_manage' => $request->user()->can('system-settings.manage'),
+            ],
+            'matching' => $this->latestMatching($project),
         ]);
+    }
+
+    public function startMatching(Request $request, Project $project, StartTeamMatching $start): RedirectResponse
+    {
+        Gate::authorize('findCandidates', $project);
+
+        $start->handle($project, $request->user());
+
+        return back();
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function latestMatching(Project $project): ?array
+    {
+        $run = TeamMatchingRun::query()->where('project_id', $project->id)->latest('id')->first();
+
+        if ($run === null) {
+            return null;
+        }
+
+        $people = collect($run->candidate_snapshot_json['candidates'] ?? [])->pluck('candidate_user_id')->all();
+        $names = User::query()->whereIn('id', $people)->with('organization:id,name')->get(['id', 'name', 'organization_id'])->keyBy('id');
+
+        $output = $run->output_json;
+
+        return [
+            'id' => $run->id,
+            'status' => $run->status->value,
+            'status_label' => $run->status->label(),
+            'error_code' => $run->error_code,
+            'created_at' => $run->created_at?->toIso8601String(),
+            'members' => collect($output['recommended_members'] ?? [])->map(fn (array $member): array => [
+                'user_id' => $member['user_id'],
+                'name' => $names->get($member['user_id'])?->name,
+                'organization' => $names->get($member['user_id'])?->organization?->name,
+                'proposed_role' => $member['proposed_role'],
+                'matched_competency_ids' => $member['matched_competency_ids'],
+                'match_reason' => $member['match_reason'],
+                'contribution' => $member['contribution'],
+                'gaps' => $member['gaps'],
+                'uncertainties' => $member['uncertainties'],
+            ])->all(),
+            'team_gaps' => $output['team_gaps'] ?? [],
+            'cautions' => $output['cautions'] ?? [],
+            'rule_problems' => $output['rule_problems'] ?? [],
+        ];
     }
 }

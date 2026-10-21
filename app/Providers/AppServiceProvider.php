@@ -8,6 +8,8 @@ use App\Services\Scoring\Contracts\EvidenceResolver;
 use App\Services\Scoring\Contracts\ScoringModelClient;
 use App\Services\Scoring\NullEvidenceResolver;
 use App\Services\Scoring\OpenAiScoringClient;
+use App\Services\Teams\Matching\OpenAiTeamMatchingClient;
+use App\Services\Teams\Matching\TeamMatchingClient;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->scoped(AuditService::class);
         $this->app->bind(ScoringModelClient::class, OpenAiScoringClient::class);
+        $this->app->bind(TeamMatchingClient::class, OpenAiTeamMatchingClient::class);
         $this->app->bind(EvidenceResolver::class, NullEvidenceResolver::class);
     }
 

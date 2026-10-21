@@ -12,6 +12,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('proposals', [ProposalController::class, 'index'])->name('proposals.index');
     Route::get('proposals/{project}/candidates', [ProposalController::class, 'candidates'])->name('proposals.candidates');
+    Route::post('proposals/{project}/matching', [ProposalController::class, 'startMatching'])->whereNumber('project')->name('proposals.matching.start');
 
     Route::resource('competencies', MyCompetencyController::class)
         ->only(['index', 'store', 'update', 'destroy'])
