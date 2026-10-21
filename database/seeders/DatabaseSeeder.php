@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             AdminPermissionSeeder::class,
             ScoringPermissionSeeder::class,
             PeopleReportPermissionSeeder::class,
+            DashboardPermissionSeeder::class,
             OrganizationAndCompetencyGroupSeeder::class,
         ]);
     }
