@@ -39,7 +39,34 @@ import {
 import { dashboard } from '@/routes';
 import type { NavSection } from '@/types';
 
-const developerWhatsappUrl = 'https://wa.me/6281295916567';
+const developerWhatsappNumber = '6281295916567';
+
+/**
+ * Build a WhatsApp link with a prefilled support message so the developer
+ * immediately knows who is asking and from which page.
+ */
+function buildDeveloperWhatsappUrl(
+    userName: string | undefined,
+    role: string | undefined,
+    pageUrl: string,
+): string {
+    const sender = [userName, role ? `(${role})` : null]
+        .filter(Boolean)
+        .join(' ');
+
+    const message = [
+        'Halo Tim Developer Portal QCC,',
+        '',
+        `Saya ${sender || 'pengguna Portal QCC'} membutuhkan bantuan.`,
+        '',
+        `Halaman: ${pageUrl}`,
+        'Kendala: ',
+        '',
+        'Terima kasih.',
+    ].join('\n');
+
+    return `https://wa.me/${developerWhatsappNumber}?text=${encodeURIComponent(message)}`;
+}
 
 const sharedSections: NavSection[] = [
     {
@@ -175,7 +202,13 @@ function mergeSections(sections: NavSection[]): NavSection[] {
 }
 
 export function AppSidebar() {
-    const { auth } = usePage().props;
+    const { props, url } = usePage();
+    const { auth } = props;
+    const developerWhatsappUrl = buildDeveloperWhatsappUrl(
+        auth.user?.name,
+        auth.roles[0],
+        url,
+    );
     const userSections = auth.roles.flatMap((role) => roleSections[role] ?? []);
     const sections = mergeSections([...sharedSections, ...userSections]);
 
@@ -230,9 +263,6 @@ export function AppSidebar() {
                         />
                         Chat via WhatsApp
                     </a>
-                    <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                        0812-9591-6567
-                    </p>
                 </div>
 
                 <SidebarMenu className="hidden group-data-[collapsible=icon]:flex">
