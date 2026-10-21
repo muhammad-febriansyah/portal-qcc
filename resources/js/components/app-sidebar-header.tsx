@@ -82,7 +82,10 @@ function UserMenu() {
                 }
             >
                 <Avatar className="size-9">
-                    <AvatarImage src={auth.user.avatar} alt={auth.user.name} />
+                    <AvatarImage
+                        src={auth.user.avatar ?? undefined}
+                        alt={auth.user.name}
+                    />
                     <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
                         {getInitials(auth.user.name)}
                     </AvatarFallback>

@@ -73,6 +73,7 @@ trait Auditable
     {
         return Arr::except($attributes, [
             ...$this->getHidden(),
+            ...$this->getAppends(),
             $this->getKeyName(),
             $this->getCreatedAtColumn(),
             $this->getUpdatedAtColumn(),

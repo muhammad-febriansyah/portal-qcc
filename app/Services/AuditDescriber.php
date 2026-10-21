@@ -84,6 +84,8 @@ class AuditDescriber
             'user.activated' => "{$actor} mengaktifkan akun {$subject}",
             'user.deactivated' => "{$actor} menonaktifkan akun {$subject}",
             'user.password_reset' => "{$actor} mereset password {$subject}",
+            'user.avatar_changed' => "{$actor} mengubah foto profil",
+            'user.avatar_removed' => "{$actor} menghapus foto profil",
             'user.role_changed' => $this->describeRoleChange($log, $actor, $subject),
             'batch.created' => "{$actor} menambahkan batch {$subject}",
             'batch.updated' => "{$actor} mengubah batch {$subject}".$fields,

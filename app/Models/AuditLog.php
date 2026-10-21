@@ -49,6 +49,8 @@ class AuditLog extends Model
         'user.deactivated' => 'Akun dinonaktifkan',
         'user.role_changed' => 'Role diubah',
         'user.password_reset' => 'Password direset',
+        'user.avatar_changed' => 'Foto profil diubah',
+        'user.avatar_removed' => 'Foto profil dihapus',
         'batch.created' => 'Batch ditambahkan',
         'batch.updated' => 'Batch diperbarui',
         'batch.deleted' => 'Batch dihapus',
