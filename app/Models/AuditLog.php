@@ -59,6 +59,9 @@ class AuditLog extends Model
         'competency.created' => 'Kompetensi ditambahkan',
         'competency.updated' => 'Kompetensi diperbarui',
         'competency.deleted' => 'Kompetensi dihapus',
+        'member_competency.created' => 'Kompetensi pribadi ditambahkan',
+        'member_competency.updated' => 'Level kompetensi diubah',
+        'member_competency.deleted' => 'Kompetensi pribadi dihapus',
         'scoring.run_requested' => 'Penilaian AI diminta',
         'scoring.completed' => 'Penilaian AI selesai',
         'scoring.insufficient_evidence' => 'Evidence belum cukup',
@@ -79,6 +82,7 @@ class AuditLog extends Model
         'batch' => 'Batch',
         'organization' => 'Organisasi',
         'competency' => 'Kompetensi',
+        'member_competency' => 'Kompetensi Saya',
         'scoring' => 'Penilaian AI',
     ];
 

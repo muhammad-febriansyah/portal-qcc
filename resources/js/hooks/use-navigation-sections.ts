@@ -21,9 +21,12 @@ import {
     UserRound,
     UserRoundCog,
     Users,
+    UsersRound,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { dashboard } from '@/routes';
+import { index as myCompetenciesIndex } from '@/routes/my-competencies';
+import { index as directoryIndex } from '@/routes/admin/competency-directory';
 import { index as auditIndex } from '@/routes/admin/audit';
 import { index as batchesIndex } from '@/routes/admin/batches';
 import { index as competenciesIndex } from '@/routes/admin/competencies';
@@ -32,7 +35,7 @@ import { index as rolesIndex } from '@/routes/admin/roles';
 import { index as rubricsIndex } from '@/routes/admin/rubrics';
 import { index as usersIndex } from '@/routes/admin/users';
 import { edit as profileEdit } from '@/routes/profile';
-import type { NavSection } from '@/types';
+import type { NavSection, SidebarItem } from '@/types';
 
 const sharedSections: NavSection[] = [
     {
@@ -43,7 +46,12 @@ const sharedSections: NavSection[] = [
         title: 'Akun Saya',
         items: [
             { title: 'Profil Saya', href: profileEdit(), icon: UserRound },
-            { title: 'Kompetensi Saya', icon: BookOpenCheck },
+            {
+                title: 'Kompetensi Saya',
+                href: myCompetenciesIndex(),
+                icon: BookOpenCheck,
+                hiddenForOnlyRoles: ['Super Admin'],
+            },
         ],
     },
 ];
@@ -89,6 +97,12 @@ const roleSections: Record<string, NavSection[]> = {
                     permission: 'competencies.manage',
                 },
                 {
+                    title: 'Direktori Kompetensi',
+                    href: directoryIndex(),
+                    icon: UsersRound,
+                    permission: 'people.report',
+                },
+                {
                     title: 'Batch',
                     href: batchesIndex(),
                     icon: Layers,
@@ -116,6 +130,12 @@ const roleSections: Record<string, NavSection[]> = {
             title: 'Program',
             items: [
                 { title: 'Monitoring Proyek', icon: Gauge },
+                {
+                    title: 'Direktori Kompetensi',
+                    href: directoryIndex(),
+                    icon: UsersRound,
+                    permission: 'people.report',
+                },
                 { title: 'Proposal QCC', icon: FileText },
                 { title: 'Pembentukan Tim', icon: Users },
                 { title: 'Proyek QCC', icon: FolderKanban },
@@ -225,6 +245,19 @@ function mergeSections(sections: NavSection[]): NavSection[] {
  * Navigation sections the signed-in user may see, based on their roles.
  * Shared by the sidebar and the menu search so both show the same items.
  */
+/**
+ * An item marked `hiddenForOnlyRoles` is hidden when every role of the user is in
+ * that list, so someone who is also a participant (for example Super Admin and
+ * Team Leader) still sees it.
+ */
+function isHiddenForRoles(item: SidebarItem, roles: string[]): boolean {
+    return (
+        item.hiddenForOnlyRoles !== undefined &&
+        roles.length > 0 &&
+        roles.every((role) => item.hiddenForOnlyRoles?.includes(role))
+    );
+}
+
 export function useNavigationSections(): NavSection[] {
     const { auth } = usePage().props;
 
@@ -238,8 +271,9 @@ export function useNavigationSections(): NavSection[] {
                     ...section,
                     items: section.items.filter(
                         (item) =>
-                            !item.permission ||
-                            auth.permissions.includes(item.permission),
+                            (!item.permission ||
+                                auth.permissions.includes(item.permission)) &&
+                            !isHiddenForRoles(item, auth.roles),
                     ),
                 }))
                 .filter((section) => section.items.length > 0),

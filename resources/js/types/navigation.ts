@@ -18,6 +18,8 @@ export type SidebarItem = {
     href?: NonNullable<InertiaLinkProps['href']>;
     icon?: LucideIcon | null;
     permission?: string;
+    /** Hide the item when the user holds none of these roles (for example Super Admin only). */
+    hiddenForOnlyRoles?: string[];
 };
 
 export type NavSection = {

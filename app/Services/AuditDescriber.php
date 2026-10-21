@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\BatchStatus;
+use App\Enums\CompetencyLevel;
 use App\Models\AuditLog;
 use App\Models\CompetencyGroup;
 use App\Models\Organization;
@@ -22,6 +23,9 @@ class AuditDescriber
         'email' => 'Email',
         'sim_id' => 'SIM ID',
         'organization_id' => 'Organisasi',
+        'self_level' => 'Level saya',
+        'verified_level' => 'Level terverifikasi',
+        'competency_id' => 'Kompetensi',
         'is_active' => 'Status',
         'role' => 'Role',
         'code' => 'Kode',
@@ -95,6 +99,9 @@ class AuditDescriber
             'competency.created' => "{$actor} menambahkan kompetensi {$subject}",
             'competency.updated' => "{$actor} mengubah kompetensi {$subject}".$fields,
             'competency.deleted' => "{$actor} menghapus kompetensi {$subject}",
+            'member_competency.created' => "{$actor} menambahkan kompetensi {$subject} ke daftarnya",
+            'member_competency.updated' => "{$actor} mengubah level kompetensi {$subject}".$fields,
+            'member_competency.deleted' => "{$actor} menghapus kompetensi {$subject} dari daftarnya",
             'scoring.run_requested' => "{$actor} meminta penilaian AI untuk {$subject}",
             'scoring.completed' => "Penilaian AI selesai untuk {$subject}",
             'scoring.insufficient_evidence' => "Penilaian AI untuk {$subject} dihentikan karena evidence belum cukup",
@@ -156,6 +163,7 @@ class AuditDescriber
 
         return match ($field) {
             'is_active' => filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'Aktif' : 'Nonaktif',
+            'self_level', 'verified_level' => CompetencyLevel::labelFor((int) $value) ?? (string) $value,
             'organization_id' => $this->organizations[$value] ?? "#{$value}",
             'group_id' => $this->groups[$value] ?? "#{$value}",
             'status' => BatchStatus::tryFrom((string) $value)?->label() ?? (string) $value,

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -72,6 +73,14 @@ class User extends Authenticatable
     protected function avatar(): Attribute
     {
         return Attribute::get(fn (): ?string => $this->avatar_path ? '/storage/'.$this->avatar_path : null);
+    }
+
+    /**
+     * @return HasMany<MemberCompetency, $this>
+     */
+    public function memberCompetencies(): HasMany
+    {
+        return $this->hasMany(MemberCompetency::class);
     }
 
     /**

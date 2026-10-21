@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\BatchController;
 use App\Http\Controllers\Admin\CompetencyController;
+use App\Http\Controllers\Admin\CompetencyDirectoryController;
 use App\Http\Controllers\Admin\RolePermissionController;
 use App\Http\Controllers\Admin\RubricSetController;
 use App\Http\Controllers\Admin\UserController;
@@ -32,6 +33,9 @@ Route::middleware(['auth', 'verified'])
         Route::resource('competencies', CompetencyController::class)
             ->only(['index', 'store', 'update', 'destroy'])
             ->parameters(['competencies' => 'competency']);
+
+        Route::get('competency-directory', [CompetencyDirectoryController::class, 'index'])
+            ->name('competency-directory.index');
 
         Route::get('audit', [AuditLogController::class, 'index'])
             ->name('audit.index');
