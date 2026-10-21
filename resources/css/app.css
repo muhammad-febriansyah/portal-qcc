@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@theme inline {
+    --font-sans: 'Poppins', sans-serif;
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+    color-scheme: light;
+    --background: #f7f8fd;
+    --foreground: #182337;
+    --card: #ffffff;
+    --card-foreground: #182337;
+    --popover: #ffffff;
+    --popover-foreground: #182337;
+    --primary: #2547f9;
+    --primary-foreground: #ffffff;
+    --secondary: #eef1fa;
+    --secondary-foreground: #182337;
+    --muted: #f1f3fa;
+    --muted-foreground: #697386;
+    --accent: #eef1fa;
+    --accent-foreground: #182337;
+    --destructive: #d92d20;
+    --destructive-foreground: #ffffff;
+    --border: #e7eaf2;
+    --input: #e7eaf2;
+    --ring: #2547f9;
+    --success: #16834a;
+    --warning: #c96b0d;
+    --chart-1: #2547f9;
+    --chart-2: #16834a;
+    --chart-3: #c96b0d;
+    --chart-4: #697386;
+    --chart-5: #d92d20;
+    --radius: 0.625rem;
+    --sidebar: #ffffff;
+    --sidebar-foreground: #182337;
+    --sidebar-primary: #2547f9;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #f1f3fa;
+    --sidebar-accent-foreground: #182337;
+    --sidebar-border: #e7eaf2;
+    --sidebar-ring: #2547f9;
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    html,
+    body,
+    #app {
+        min-height: 100%;
+    }
+
+    body {
+        @apply bg-background text-foreground font-sans;
+    }
+}
