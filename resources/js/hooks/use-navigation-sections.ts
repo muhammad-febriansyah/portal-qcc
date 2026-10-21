@@ -21,11 +21,9 @@ import {
     UserRound,
     UserRoundCog,
     Users,
-    KeyRound,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { dashboard } from '@/routes';
-import { edit as passwordEdit } from '@/routes/user-password';
 import { index as auditIndex } from '@/routes/admin/audit';
 import { index as batchesIndex } from '@/routes/admin/batches';
 import { index as competenciesIndex } from '@/routes/admin/competencies';
@@ -46,7 +44,6 @@ const sharedSections: NavSection[] = [
         items: [
             { title: 'Profil Saya', href: profileEdit(), icon: UserRound },
             { title: 'Kompetensi Saya', icon: BookOpenCheck },
-            { title: 'Ubah Password', href: passwordEdit(), icon: KeyRound },
         ],
     },
 ];

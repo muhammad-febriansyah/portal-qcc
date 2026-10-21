@@ -2,6 +2,7 @@ import { Form, Head, usePage } from '@inertiajs/react';
 import { Building2, Fingerprint, Mail } from 'lucide-react';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import { AvatarUploader } from '@/components/avatar-uploader';
+import { ChangePasswordForm } from '@/components/change-password-form';
 import { FormField } from '@/components/form-field';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ type PageProps = {
         sim_id: string | null;
         organization_name: string | null;
     };
+    passwordRules: string;
 };
 
 function SummaryRow({
@@ -40,7 +42,7 @@ function SummaryRow({
 }
 
 export default function Profile() {
-    const { auth, profile } = usePage<PageProps>().props;
+    const { auth, profile, passwordRules } = usePage<PageProps>().props;
 
     return (
         <>
@@ -90,90 +92,96 @@ export default function Profile() {
                     </CardContent>
                 </Card>
 
-                <Card className="h-fit gap-6 py-6 lg:col-span-2">
-                    <CardHeader>
-                        <CardTitle className="text-base font-semibold">
-                            Informasi Profil
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <Form
-                            {...ProfileController.update.form()}
-                            options={{ preserveScroll: true }}
-                            className="grid gap-6"
-                        >
-                            {({ processing, errors }) => (
-                                <>
-                                    <FormField
-                                        id="name"
-                                        label="Nama Lengkap"
-                                        required
-                                        error={errors.name}
-                                    >
-                                        <Input
-                                            defaultValue={auth.user.name}
-                                            name="name"
-                                            autoComplete="name"
-                                            placeholder="Masukkan nama lengkap"
-                                        />
-                                    </FormField>
-
-                                    <FormField
-                                        id="email"
-                                        label="Email Kerja"
-                                        required
-                                        error={errors.email}
-                                    >
-                                        <Input
-                                            type="email"
-                                            defaultValue={auth.user.email}
-                                            name="email"
-                                            autoComplete="username"
-                                            placeholder="nama@perusahaan.co.id"
-                                        />
-                                    </FormField>
-
-                                    <div className="grid gap-6 sm:grid-cols-2">
-                                        <FormField id="sim-id" label="SIM ID">
-                                            <Input
-                                                value={
-                                                    profile.sim_id ??
-                                                    'Belum diisi'
-                                                }
-                                                readOnly
-                                                disabled
-                                            />
-                                        </FormField>
+                <div className="grid h-fit gap-6 lg:col-span-2">
+                    <Card className="h-fit gap-6 py-6">
+                        <CardHeader>
+                            <CardTitle className="text-base font-semibold">
+                                Informasi Profil
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Form
+                                {...ProfileController.update.form()}
+                                options={{ preserveScroll: true }}
+                                className="grid gap-6"
+                            >
+                                {({ processing, errors }) => (
+                                    <>
                                         <FormField
-                                            id="organization"
-                                            label="LOB / Divisi"
+                                            id="name"
+                                            label="Nama Lengkap"
+                                            required
+                                            error={errors.name}
                                         >
                                             <Input
-                                                value={
-                                                    profile.organization_name ??
-                                                    'Belum ditetapkan'
-                                                }
-                                                readOnly
-                                                disabled
+                                                defaultValue={auth.user.name}
+                                                name="name"
+                                                autoComplete="name"
+                                                placeholder="Masukkan nama lengkap"
                                             />
                                         </FormField>
-                                    </div>
 
-                                    <div>
-                                        <Button
-                                            type="submit"
-                                            className="h-10 px-4 text-sm"
-                                            disabled={processing}
-                                            data-test="update-profile-button"
+                                        <FormField
+                                            id="email"
+                                            label="Email Kerja"
+                                            required
+                                            error={errors.email}
                                         >
-                                            Simpan Perubahan
-                                        </Button>
-                                    </div>
-                                </>
-                            )}
-                        </Form>
-                    </CardContent>
-                </Card>
+                                            <Input
+                                                type="email"
+                                                defaultValue={auth.user.email}
+                                                name="email"
+                                                autoComplete="username"
+                                                placeholder="nama@perusahaan.co.id"
+                                            />
+                                        </FormField>
+
+                                        <div className="grid gap-6 sm:grid-cols-2">
+                                            <FormField
+                                                id="sim-id"
+                                                label="SIM ID"
+                                            >
+                                                <Input
+                                                    value={
+                                                        profile.sim_id ??
+                                                        'Belum diisi'
+                                                    }
+                                                    readOnly
+                                                    disabled
+                                                />
+                                            </FormField>
+                                            <FormField
+                                                id="organization"
+                                                label="LOB / Divisi"
+                                            >
+                                                <Input
+                                                    value={
+                                                        profile.organization_name ??
+                                                        'Belum ditetapkan'
+                                                    }
+                                                    readOnly
+                                                    disabled
+                                                />
+                                            </FormField>
+                                        </div>
+
+                                        <div>
+                                            <Button
+                                                type="submit"
+                                                className="h-10 px-4 text-sm"
+                                                disabled={processing}
+                                                data-test="update-profile-button"
+                                            >
+                                                Simpan Perubahan
+                                            </Button>
+                                        </div>
+                                    </>
+                                )}
+                            </Form>
+                        </CardContent>
+                    </Card>
+                    <ChangePasswordForm passwordRules={passwordRules} />
+                </div>
             </div>
         </>
     );

@@ -101,17 +101,13 @@ test('photo changes are audited without exposing the file path', function () {
         ->and(AuditLog::query()->get()->toJson())->not->toContain('avatars/');
 });
 
-test('the change password page is shown without asking to confirm the password first', function () {
+test('the profile page carries the password rules for the change password form', function () {
     $this->actingAs(User::factory()->create())
-        ->get(route('user-password.edit'))
+        ->get(route('profile.edit'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('settings/password')
+            ->component('settings/profile')
             ->has('passwordRules'));
-});
-
-test('guests are redirected from the change password page', function () {
-    $this->get(route('user-password.edit'))->assertRedirect(route('login'));
 });
 
 test('password change errors are in Indonesian', function () {

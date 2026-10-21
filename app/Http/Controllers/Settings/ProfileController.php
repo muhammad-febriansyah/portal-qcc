@@ -9,6 +9,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -28,6 +29,7 @@ class ProfileController extends Controller
                 'sim_id' => $user?->sim_id,
                 'organization_name' => $user?->organization()->value('name'),
             ],
+            'passwordRules' => Password::defaults()->toPasswordRulesString(),
         ]);
     }
 
