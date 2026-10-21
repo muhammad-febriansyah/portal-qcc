@@ -1,30 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import {
-    Activity,
-    Award,
-    BookOpenCheck,
-    BriefcaseBusiness,
-    Building2,
-    CalendarDays,
-    ClipboardCheck,
-    FileCheck2,
-    FileText,
-    FolderKanban,
-    Gauge,
-    History,
-    Layers,
-    LayoutGrid,
-    ListChecks,
-    ListTodo,
-    MessageCircle,
-    NotebookTabs,
-    ShieldCheck,
-    SlidersHorizontal,
-    UserRound,
-    UserRoundCog,
-    Users,
-    Headset,
-} from 'lucide-react';
+import { Headset } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import WhatsAppIcon from '@/components/whatsapp-icon';
@@ -37,8 +12,8 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { useNavigationSections } from '@/hooks/use-navigation-sections';
 import { dashboard } from '@/routes';
-import type { NavSection } from '@/types';
 
 const developerWhatsappNumber = '6281295916567';
 
@@ -69,139 +44,6 @@ function buildDeveloperWhatsappUrl(
     return `https://wa.me/${developerWhatsappNumber}?text=${encodeURIComponent(message)}`;
 }
 
-const sharedSections: NavSection[] = [
-    {
-        title: 'Utama',
-        items: [{ title: 'Dashboard', href: dashboard(), icon: LayoutGrid }],
-    },
-    {
-        title: 'Akun Saya',
-        items: [
-            { title: 'Profil Saya', icon: UserRound },
-            { title: 'Kompetensi Saya', icon: BookOpenCheck },
-        ],
-    },
-];
-
-const roleSections: Record<string, NavSection[]> = {
-    'Super Admin': [
-        {
-            title: 'Pengguna & Akses',
-            items: [
-                { title: 'Anggota', icon: Users },
-                { title: 'Role & Permission', icon: ShieldCheck },
-                { title: 'Audit Log', icon: History },
-            ],
-        },
-        {
-            title: 'Data Master',
-            items: [
-                { title: 'Master Organisasi', icon: Building2 },
-                { title: 'Master Kompetensi', icon: BookOpenCheck },
-                { title: 'Batch', icon: Layers },
-                { title: 'Rubrik', icon: Award },
-            ],
-        },
-        {
-            title: 'Sistem',
-            items: [{ title: 'Pengaturan', icon: SlidersHorizontal }],
-        },
-    ],
-    'Owner QCC': [
-        {
-            title: 'Program',
-            items: [
-                { title: 'Monitoring Proyek', icon: Gauge },
-                { title: 'Proposal QCC', icon: FileText },
-                { title: 'Pembentukan Tim', icon: Users },
-                { title: 'Penugasan Reviewer', icon: UserRoundCog },
-            ],
-        },
-        {
-            title: 'Penilaian',
-            items: [
-                { title: 'Review & Approval', icon: ClipboardCheck },
-                { title: 'Bi-weekly & Mentoring', icon: CalendarDays },
-                { title: 'AI Scoring', icon: Activity },
-            ],
-        },
-    ],
-    Mentor: [
-        {
-            title: 'Pendampingan',
-            items: [
-                { title: 'Proyek Binaan', icon: FolderKanban },
-                { title: 'Mentoring', icon: MessageCircle },
-                { title: 'Bi-weekly Report', icon: CalendarDays },
-                { title: 'Evidence Repository', icon: FileCheck2 },
-                { title: 'Review & Approval', icon: ClipboardCheck },
-            ],
-        },
-    ],
-    'Team Leader': [
-        {
-            title: 'Proyek',
-            items: [
-                { title: 'Proposal QCC', icon: FileText },
-                { title: 'Pembentukan Tim', icon: Users },
-                { title: 'Proyek QCC', icon: FolderKanban },
-                { title: 'Progress 8 Step QCC', icon: ListChecks },
-            ],
-        },
-        {
-            title: 'Aktivitas',
-            items: [
-                { title: 'Bi-weekly Report', icon: CalendarDays },
-                { title: 'Mentoring', icon: NotebookTabs },
-                { title: 'Aksi & Risiko', icon: ListTodo },
-                { title: 'Evidence Repository', icon: FileCheck2 },
-            ],
-        },
-    ],
-    'SIMer / Member': [
-        {
-            title: 'Proyek',
-            items: [
-                { title: 'Proposal QCC', icon: FileText },
-                { title: 'Tim & Proyek', icon: BriefcaseBusiness },
-                { title: 'Progress 8 Step QCC', icon: ListChecks },
-                { title: 'Evidence Repository', icon: FileCheck2 },
-            ],
-        },
-    ],
-};
-
-/**
- * Combine sections that share a title so users with several roles
- * do not see duplicate groups or menu items.
- */
-function mergeSections(sections: NavSection[]): NavSection[] {
-    const merged = new Map<string, NavSection>();
-
-    for (const section of sections) {
-        const existing = merged.get(section.title);
-
-        if (!existing) {
-            merged.set(section.title, {
-                ...section,
-                items: [...section.items],
-            });
-
-            continue;
-        }
-
-        for (const item of section.items) {
-            if (
-                !existing.items.some((current) => current.title === item.title)
-            ) {
-                existing.items.push(item);
-            }
-        }
-    }
-
-    return [...merged.values()];
-}
-
 export function AppSidebar() {
     const { props, url } = usePage();
     const { auth } = props;
@@ -210,8 +52,7 @@ export function AppSidebar() {
         auth.roles[0],
         url,
     );
-    const userSections = auth.roles.flatMap((role) => roleSections[role] ?? []);
-    const sections = mergeSections([...sharedSections, ...userSections]);
+    const sections = useNavigationSections();
 
     return (
         <Sidebar

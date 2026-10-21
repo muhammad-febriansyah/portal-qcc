@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
-import { Bell, BellOff, ChevronDown, Search } from 'lucide-react';
+import { Bell, BellOff, ChevronDown } from 'lucide-react';
+import { MenuSearch } from '@/components/menu-search';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,38 +10,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useInitials } from '@/hooks/use-initials';
-
-function GlobalSearch() {
-    return (
-        <Tooltip>
-            <TooltipTrigger
-                render={
-                    <button
-                        type="button"
-                        aria-disabled="true"
-                        className="hidden h-10 w-full max-w-sm cursor-not-allowed items-center gap-2 rounded-lg border border-border/70 bg-background px-3 text-left text-[13px] text-muted-foreground md:flex"
-                    />
-                }
-            >
-                <Search className="size-4 shrink-0" aria-hidden="true" />
-                <span className="flex-1 truncate">
-                    Cari proyek, proposal, anggota
-                </span>
-                <kbd className="rounded border border-border bg-card px-1.5 font-sans text-[10px] font-medium">
-                    Ctrl K
-                </kbd>
-            </TooltipTrigger>
-            <TooltipContent>Pencarian global segera hadir</TooltipContent>
-        </Tooltip>
-    );
-}
 
 function NotificationMenu() {
     return (
@@ -57,7 +28,11 @@ function NotificationMenu() {
             >
                 <Bell className="size-5" aria-hidden="true" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={8} className="w-80 p-0">
+            <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className="w-80 p-0"
+            >
                 <div className="border-b border-border/60 px-4 py-3">
                     <p className="text-sm font-semibold">Notifikasi</p>
                 </div>
@@ -70,8 +45,8 @@ function NotificationMenu() {
                     </span>
                     <p className="text-sm font-medium">Belum ada notifikasi</p>
                     <p className="text-xs text-muted-foreground">
-                        Pembaruan proposal, review, dan mentoring akan muncul
-                        di sini.
+                        Pembaruan proposal, review, dan mentoring akan muncul di
+                        sini.
                     </p>
                 </div>
             </DropdownMenuContent>
@@ -137,7 +112,7 @@ export function AppSidebarHeader() {
         <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-border/60 bg-card px-4 md:px-6">
             <SidebarTrigger className="-ml-1.5 size-9 text-muted-foreground hover:text-foreground" />
             <Separator orientation="vertical" className="h-5!" />
-            <GlobalSearch />
+            <MenuSearch />
 
             <div className="ml-auto flex items-center gap-2">
                 <NotificationMenu />
