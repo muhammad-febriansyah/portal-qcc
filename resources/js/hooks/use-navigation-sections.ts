@@ -27,6 +27,7 @@ import { useMemo } from 'react';
 import { dashboard } from '@/routes';
 import { index as myCompetenciesIndex } from '@/routes/my-competencies';
 import { index as directoryIndex } from '@/routes/admin/competency-directory';
+import { index as proposalsIndex } from '@/routes/proposals';
 import { index as auditIndex } from '@/routes/admin/audit';
 import { index as batchesIndex } from '@/routes/admin/batches';
 import { index as competenciesIndex } from '@/routes/admin/competencies';
@@ -136,7 +137,12 @@ const roleSections: Record<string, NavSection[]> = {
                     icon: UsersRound,
                     permission: 'people.report',
                 },
-                { title: 'Proposal QCC', icon: FileText },
+                {
+                    title: 'Proposal QCC',
+                    href: proposalsIndex(),
+                    icon: FileText,
+                    permission: 'projects.view',
+                },
                 { title: 'Pembentukan Tim', icon: Users },
                 { title: 'Proyek QCC', icon: FolderKanban },
                 { title: 'Bi-weekly Report', icon: CalendarDays },
@@ -181,7 +187,12 @@ const roleSections: Record<string, NavSection[]> = {
         {
             title: 'Proyek',
             items: [
-                { title: 'Proposal QCC', icon: FileText },
+                {
+                    title: 'Proposal QCC',
+                    href: proposalsIndex(),
+                    icon: FileText,
+                    permission: 'projects.view',
+                },
                 { title: 'Pembentukan Tim', icon: Users },
                 { title: 'Proyek QCC', icon: FolderKanban },
                 { title: 'Progress 8 Step QCC', icon: ListChecks },
@@ -201,7 +212,12 @@ const roleSections: Record<string, NavSection[]> = {
         {
             title: 'Proyek',
             items: [
-                { title: 'Proposal QCC', icon: FileText },
+                {
+                    title: 'Proposal QCC',
+                    href: proposalsIndex(),
+                    icon: FileText,
+                    permission: 'projects.view',
+                },
                 { title: 'Proyek QCC', icon: FolderKanban },
                 { title: 'Progress 8 Step QCC', icon: ListChecks },
                 { title: 'Evidence Repository', icon: FileCheck2 },
