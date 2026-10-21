@@ -12,7 +12,7 @@ import {
     Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type { ActivitySeries } from '@/components/charts/activity-chart';
 import {
     Card,
@@ -197,6 +197,13 @@ function Legend({
 }
 
 export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
+    // The chart library needs the browser, so it is only rendered after mount.
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
     const { cards, activity, recent } = overview;
     const completion =
         cards.participants === 0
@@ -290,9 +297,13 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                                 role="img"
                                 aria-label={`Grafik aktivitas 30 hari: ${totals.login} login, ${totals.changes} perubahan data, ${totals.failed} login gagal.`}
                             >
-                                <Suspense fallback={<ChartSkeleton />}>
-                                    <ActivityChart series={activity} />
-                                </Suspense>
+                                {isMounted ? (
+                                    <Suspense fallback={<ChartSkeleton />}>
+                                        <ActivityChart series={activity} />
+                                    </Suspense>
+                                ) : (
+                                    <ChartSkeleton />
+                                )}
                             </div>
                         ) : (
                             <div className="flex min-h-64 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/80 text-center">
