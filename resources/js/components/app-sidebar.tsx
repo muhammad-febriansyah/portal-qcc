@@ -180,8 +180,12 @@ export function AppSidebar() {
     const sections = mergeSections([...sharedSections, ...userSections]);
 
     return (
-        <Sidebar collapsible="icon" variant="sidebar">
-            <SidebarHeader className="h-16 justify-center border-b border-sidebar-border px-3 group-data-[collapsible=icon]:px-2">
+        <Sidebar
+            collapsible="icon"
+            variant="sidebar"
+            className="border-sidebar-border/60"
+        >
+            <SidebarHeader className="h-16 justify-center border-b border-sidebar-border/60 px-3 group-data-[collapsible=icon]:px-2">
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton
@@ -199,11 +203,42 @@ export function AppSidebar() {
                 <NavMain sections={sections} />
             </SidebarContent>
 
-            <SidebarFooter className="border-t border-sidebar-border p-3 group-data-[collapsible=icon]:p-2">
-                <SidebarMenu>
+            <SidebarFooter className="p-3 group-data-[collapsible=icon]:p-2">
+                <div className="rounded-xl bg-primary/[0.04] p-3.5 ring-1 ring-primary/10 group-data-[collapsible=icon]:hidden">
+                    <div className="flex items-start gap-2.5">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-card text-primary ring-1 ring-primary/10">
+                            <Headset className="size-4" aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0 space-y-0.5">
+                            <p className="text-[13px] leading-tight font-semibold text-foreground">
+                                Butuh bantuan?
+                            </p>
+                            <p className="text-[11px] leading-snug text-muted-foreground">
+                                Tim developer siap membantu kendala Anda.
+                            </p>
+                        </div>
+                    </div>
+                    <a
+                        href={developerWhatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+                    >
+                        <MessageCircle
+                            className="size-3.5"
+                            aria-hidden="true"
+                        />
+                        Chat via WhatsApp
+                    </a>
+                    <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                        0812-9591-6567
+                    </p>
+                </div>
+
+                <SidebarMenu className="hidden group-data-[collapsible=icon]:flex">
                     <SidebarMenuItem>
                         <SidebarMenuButton
-                            className="h-auto items-start gap-3 rounded-lg p-2.5 hover:bg-muted group-data-[collapsible=icon]:items-center"
+                            className="text-primary hover:bg-primary/8 hover:text-primary"
                             tooltip={{
                                 children: 'Bantuan developer via WhatsApp',
                             }}
@@ -212,23 +247,11 @@ export function AppSidebar() {
                                     href={developerWhatsappUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    aria-label="Bantuan developer via WhatsApp"
                                 />
                             }
                         >
-                            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary group-data-[collapsible=icon]:size-4 group-data-[collapsible=icon]:bg-transparent">
-                                <Headset aria-hidden="true" />
-                            </span>
-                            <span className="flex min-w-0 flex-col gap-0.5 leading-tight">
-                                <span className="text-[13px] font-medium text-foreground">
-                                    Butuh bantuan?
-                                </span>
-                                <span className="text-[11px] text-muted-foreground">
-                                    WhatsApp developer
-                                </span>
-                                <span className="text-[12px] font-medium text-primary">
-                                    0812-9591-6567
-                                </span>
-                            </span>
+                            <Headset aria-hidden="true" />
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>

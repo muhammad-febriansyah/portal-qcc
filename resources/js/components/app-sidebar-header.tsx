@@ -25,7 +25,7 @@ function GlobalSearch() {
                     <button
                         type="button"
                         aria-disabled="true"
-                        className="hidden h-10 w-full max-w-sm cursor-not-allowed items-center gap-2 rounded-lg border border-border bg-background px-3 text-left text-[13px] text-muted-foreground md:flex"
+                        className="hidden h-10 w-full max-w-sm cursor-not-allowed items-center gap-2 rounded-lg border border-border/70 bg-background px-3 text-left text-[13px] text-muted-foreground md:flex"
                     />
                 }
             >
@@ -50,7 +50,7 @@ function NotificationMenu() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="relative size-10 rounded-full border border-border bg-card text-foreground/70 hover:bg-muted hover:text-foreground data-popup-open:bg-muted data-popup-open:text-foreground"
+                        className="relative size-10 rounded-full border border-border/70 bg-card text-foreground/70 hover:bg-muted hover:text-foreground data-popup-open:bg-muted data-popup-open:text-foreground"
                         aria-label="Notifikasi"
                     />
                 }
@@ -58,7 +58,7 @@ function NotificationMenu() {
                 <Bell className="size-5" aria-hidden="true" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" sideOffset={8} className="w-80 p-0">
-                <div className="border-b border-border px-4 py-3">
+                <div className="border-b border-border/60 px-4 py-3">
                     <p className="text-sm font-semibold">Notifikasi</p>
                 </div>
                 <div className="flex flex-col items-center gap-2 px-6 py-8 text-center">
@@ -134,7 +134,7 @@ function UserMenu() {
 
 export function AppSidebarHeader() {
     return (
-        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-card px-4 md:px-6">
+        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-border/60 bg-card px-4 md:px-6">
             <SidebarTrigger className="-ml-1.5 size-9 text-muted-foreground hover:text-foreground" />
             <Separator orientation="vertical" className="h-5!" />
             <GlobalSearch />

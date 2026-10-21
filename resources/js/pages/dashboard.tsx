@@ -73,7 +73,7 @@ function EmptyState({
     description: string;
 }) {
     return (
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-6 py-8 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/80 px-6 py-8 text-center">
             <span className="flex size-10 items-center justify-center rounded-full bg-muted">
                 <Icon
                     className="size-[18px] text-muted-foreground"
@@ -114,7 +114,7 @@ export default function Dashboard() {
 
                     <div className="grid gap-6 lg:grid-cols-3">
                         <Card className="lg:col-span-2">
-                            <CardHeader className="border-b pb-4">
+                            <CardHeader className="border-b border-border/60 pb-4">
                                 <CardTitle className="text-base font-semibold">
                                     Progres 8 Step QCC
                                 </CardTitle>
@@ -124,13 +124,13 @@ export default function Dashboard() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <ol className="divide-y divide-border">
+                                <ol className="divide-y divide-border/60">
                                     {qccSteps.map((step, index) => (
                                         <li
                                             key={step}
                                             className="flex items-center gap-3 py-3 first:pt-1 last:pb-1"
                                         >
-                                            <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border text-xs font-medium text-muted-foreground">
+                                            <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border/70 text-xs font-medium text-muted-foreground">
                                                 {index + 1}
                                             </span>
                                             <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
