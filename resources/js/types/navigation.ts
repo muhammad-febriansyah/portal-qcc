@@ -17,6 +17,7 @@ export type SidebarItem = {
     title: string;
     href?: NonNullable<InertiaLinkProps['href']>;
     icon?: LucideIcon | null;
+    permission?: string;
 };
 
 export type NavSection = {

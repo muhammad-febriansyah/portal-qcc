@@ -41,12 +41,12 @@ export function FormField({
         .join(' ');
 
     return (
-        <div className="grid gap-2">
-            <Label htmlFor={id}>
+        <div className="grid gap-2.5">
+            <Label htmlFor={id} className="gap-0.5">
                 {label}
                 {required && (
                     <span
-                        className="ml-1 text-destructive"
+                        className="text-destructive"
                         aria-hidden="true"
                     >
                         *

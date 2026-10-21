@@ -1,5 +1,4 @@
 import { Head, usePage } from '@inertiajs/react';
-import type { LucideIcon } from 'lucide-react';
 import {
     CalendarDays,
     CalendarX2,
@@ -7,6 +6,7 @@ import {
     FileText,
     FolderKanban,
     Inbox,
+    type LucideIcon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,13 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import {
+    Empty,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+} from '@/components/ui/empty';
 import { dashboard } from '@/routes';
 
 type SummaryItem = {
@@ -73,18 +80,15 @@ function EmptyState({
     description: string;
 }) {
     return (
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/80 px-6 py-8 text-center">
-            <span className="flex size-10 items-center justify-center rounded-full bg-muted">
-                <Icon
-                    className="size-[18px] text-muted-foreground"
-                    aria-hidden="true"
-                />
-            </span>
-            <p className="text-sm font-medium">{title}</p>
-            <p className="max-w-64 text-xs text-muted-foreground">
-                {description}
-            </p>
-        </div>
+        <Empty className="min-h-0 gap-2 rounded-lg px-6 py-8">
+            <EmptyHeader>
+                <EmptyMedia variant="icon">
+                    <Icon aria-hidden="true" />
+                </EmptyMedia>
+                <EmptyTitle>{title}</EmptyTitle>
+                <EmptyDescription>{description}</EmptyDescription>
+            </EmptyHeader>
+        </Empty>
     );
 }
 

@@ -4,6 +4,13 @@ import { MenuSearch } from '@/components/menu-search';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
+    Empty,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+} from '@/components/ui/empty';
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
@@ -36,19 +43,18 @@ function NotificationMenu() {
                 <div className="border-b border-border/60 px-4 py-3">
                     <p className="text-sm font-semibold">Notifikasi</p>
                 </div>
-                <div className="flex flex-col items-center gap-2 px-6 py-8 text-center">
-                    <span className="flex size-10 items-center justify-center rounded-full bg-muted">
-                        <BellOff
-                            className="size-[18px] text-muted-foreground"
-                            aria-hidden="true"
-                        />
-                    </span>
-                    <p className="text-sm font-medium">Belum ada notifikasi</p>
-                    <p className="text-xs text-muted-foreground">
-                        Pembaruan proposal, review, dan mentoring akan muncul di
-                        sini.
-                    </p>
-                </div>
+                <Empty className="gap-2 rounded-none border-0 px-6 py-8">
+                    <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                            <BellOff aria-hidden="true" />
+                        </EmptyMedia>
+                        <EmptyTitle>Belum ada notifikasi</EmptyTitle>
+                        <EmptyDescription>
+                            Pembaruan proposal, review, dan mentoring akan
+                            muncul di sini.
+                        </EmptyDescription>
+                    </EmptyHeader>
+                </Empty>
             </DropdownMenuContent>
         </DropdownMenu>
     );
