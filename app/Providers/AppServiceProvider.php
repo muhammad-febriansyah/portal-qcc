@@ -2,9 +2,12 @@
 
 namespace App\Providers;
 
+use App\Listeners\RecordAuthActivity;
+use App\Services\AuditService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -15,7 +18,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->scoped(AuditService::class);
     }
 
     /**
@@ -24,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        Event::subscribe(RecordAuthActivity::class);
     }
 
     /**
