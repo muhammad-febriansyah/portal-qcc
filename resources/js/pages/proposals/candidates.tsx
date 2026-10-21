@@ -1,36 +1,60 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Info, Sparkles, TriangleAlert, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import {
+    Info,
+    Plus,
+    Sparkles,
+    TriangleAlert,
+    UserCheck,
+    Users,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/page-header';
+import { TeamPanel } from '@/components/team-panel';
+import type { TeamPanelPerson } from '@/components/team-panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import { Card, CardContent } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
+import {
+    checkTeam,
+    MAX_TEAM_MEMBERS,
+    personGaps,
+    sameTeam,
+    teamGaps,
+} from '@/lib/team-rules';
+import type {
+    TeamCandidate,
+    TeamPick,
+    TeamRequirement,
+    TeamRole,
+} from '@/lib/team-rules';
 import { dashboard } from '@/routes';
 import { candidates as candidatesRoute } from '@/routes/proposals';
 import { start } from '@/routes/proposals/matching';
+import { confirm } from '@/routes/proposals/team';
 
-type Requirement = {
-    competency_id: number;
-    code: string;
-    name: string;
-    minimum_level: number | null;
-};
-
-type Candidate = {
-    user_id: number;
+type Candidate = TeamCandidate & {
     name: string;
     position: string | null;
     organization: string;
     availability_status: string | null;
     matched_count: number;
     requirement_count: number;
-    competencies: {
-        competency_id: number;
-        self_level: number;
-        verified_level: number | null;
-    }[];
+};
+
+type Suggestion = {
+    user_id: number;
+    name: string | null;
+    organization: string | null;
+    organization_id: number | null;
+    competencies: TeamCandidate['competencies'];
+    proposed_role: TeamRole;
+    matched_competency_ids: number[];
+    match_reason: string;
+    contribution: string;
+    gaps: string[];
+    uncertainties: string[];
 };
 
 type Matching = {
@@ -38,21 +62,21 @@ type Matching = {
     status: 'QUEUED' | 'PROCESSING' | 'READY' | 'FAILED';
     status_label: string;
     error_code: string | null;
-    members: {
-        user_id: number;
-        name: string | null;
-        organization: string | null;
-        proposed_role: 'LEADER' | 'MEMBER';
-        matched_competency_ids: number[];
-        match_reason: string;
-        contribution: string;
-        gaps: string[];
-        uncertainties: string[];
-    }[];
+    confirmed_at: string | null;
+    members: Suggestion[];
     team_gaps: string[];
     cautions: string[];
     rule_problems: string[];
 } | null;
+
+type CurrentTeamMember = {
+    user_id: number;
+    name: string;
+    organization: string | null;
+    organization_id: number | null;
+    role: string;
+    competencies: TeamCandidate['competencies'];
+};
 
 type Ai = { ready: boolean; message: string; can_manage: boolean };
 
@@ -68,11 +92,12 @@ const failureMessages: Record<string, string> = {
 
 type Props = {
     proposal: { id: number; code: string; title: string };
-    requirements: Requirement[];
+    requirements: TeamRequirement[];
     candidates: Candidate[];
     limit: number;
     ai: Ai;
     matching: Matching;
+    team: CurrentTeamMember[];
 };
 
 function initials(name: string): string {
@@ -83,6 +108,151 @@ function initials(name: string): string {
         .join('');
 }
 
+type CardProps = {
+    candidate: Candidate;
+    requirements: TeamRequirement[];
+    suggestion?: Suggestion;
+    picked: boolean;
+    canPick: boolean;
+    pickDisabled: boolean;
+    onTogglePick: () => void;
+};
+
+function CandidateCard({
+    candidate,
+    requirements,
+    suggestion,
+    picked,
+    canPick,
+    pickDisabled,
+    onTogglePick,
+}: CardProps) {
+    const byId = Object.fromEntries(
+        requirements.map((requirement) => [
+            requirement.competency_id,
+            requirement,
+        ]),
+    );
+    const missing = personGaps(candidate, requirements);
+
+    return (
+        <Card
+            className={`h-full gap-0 py-0 ${picked ? 'ring-2 ring-primary/40' : ''}`}
+        >
+            <CardContent className="grid gap-3 p-5">
+                <div className="flex items-start gap-3">
+                    <span
+                        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary"
+                        aria-hidden="true"
+                    >
+                        {initials(candidate.name)}
+                    </span>
+                    <div className="grid min-w-0">
+                        <p className="truncate text-sm font-semibold">
+                            {candidate.name}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                            {candidate.position ?? 'Jabatan belum diisi'} ·{' '}
+                            {candidate.organization}
+                        </p>
+                    </div>
+                    <Badge
+                        variant={
+                            candidate.matched_count ===
+                            candidate.requirement_count
+                                ? 'success'
+                                : 'secondary'
+                        }
+                        className="ml-auto shrink-0"
+                    >
+                        {candidate.matched_count}/{candidate.requirement_count}{' '}
+                        cocok
+                    </Badge>
+                </div>
+
+                {suggestion && (
+                    <>
+                        <p className="text-[13px]">{suggestion.match_reason}</p>
+                        <p className="text-[13px] text-muted-foreground">
+                            Kontribusi: {suggestion.contribution}
+                        </p>
+                    </>
+                )}
+
+                <ul className="grid gap-1.5">
+                    {candidate.competencies.map((competency) => (
+                        <li
+                            key={competency.competency_id}
+                            className="flex items-center justify-between gap-3 text-[13px]"
+                        >
+                            <span className="min-w-0 truncate">
+                                {byId[competency.competency_id]?.name}
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                                Mandiri {competency.self_level}
+                                {competency.verified_level !== null &&
+                                    ` · Verifikasi ${competency.verified_level}`}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+
+                {(missing.length > 0 || (suggestion?.gaps.length ?? 0) > 0) && (
+                    <div className="grid gap-1 text-xs text-muted-foreground">
+                        {missing.length > 0 && (
+                            <p>
+                                <span className="font-medium text-foreground">
+                                    Belum memenuhi:
+                                </span>{' '}
+                                {missing.map((gap) => gap.name).join(', ')}
+                            </p>
+                        )}
+                        {suggestion && suggestion.gaps.length > 0 && (
+                            <p>
+                                <span className="font-medium text-foreground">
+                                    Catatan AI:
+                                </span>{' '}
+                                {suggestion.gaps.join('; ')}
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                {suggestion && suggestion.uncertainties.length > 0 && (
+                    <p className="flex gap-1.5 text-xs text-muted-foreground">
+                        <Info
+                            className="mt-0.5 size-3.5 shrink-0"
+                            aria-hidden="true"
+                        />
+                        {suggestion.uncertainties.join('; ')}
+                    </p>
+                )}
+
+                {canPick && (
+                    <Button
+                        type="button"
+                        variant={picked ? 'secondary' : 'outline'}
+                        size="sm"
+                        disabled={pickDisabled}
+                        aria-pressed={picked}
+                        onClick={onTogglePick}
+                    >
+                        {picked ? (
+                            <UserCheck
+                                data-icon="inline-start"
+                                aria-hidden="true"
+                            />
+                        ) : (
+                            <Plus data-icon="inline-start" aria-hidden="true" />
+                        )}
+                        {picked ? 'Ada di susunan' : 'Tambah ke susunan'}
+                    </Button>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function ProposalCandidates({
     proposal,
     requirements,
@@ -90,11 +260,33 @@ export default function ProposalCandidates({
     limit,
     ai,
     matching,
+    team,
 }: Props) {
     const { errors } = usePage().props as { errors: Record<string, string> };
     const [starting, setStarting] = useState(false);
+    const [confirming, setConfirming] = useState(false);
     const isRunning =
         matching?.status === 'QUEUED' || matching?.status === 'PROCESSING';
+    const isReady = matching?.status === 'READY';
+    const isConfirmed = isReady && matching.confirmed_at !== null;
+    const canEdit = isReady && !isConfirmed;
+
+    const aiPicks = useMemo<TeamPick[]>(
+        () =>
+            isReady
+                ? matching.members.map((member) => ({
+                      user_id: member.user_id,
+                      role: member.proposed_role,
+                  }))
+                : [],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [matching?.id, matching?.status],
+    );
+    const [picks, setPicks] = useState<TeamPick[]>(aiPicks);
+
+    useEffect(() => {
+        setPicks(aiPicks);
+    }, [aiPicks]);
 
     useEffect(() => {
         if (!isRunning) {
@@ -108,6 +300,96 @@ export default function ProposalCandidates({
         return () => window.clearInterval(timer);
     }, [isRunning]);
 
+    const candidateMap = useMemo(() => {
+        const map = new Map<number, TeamCandidate>(
+            candidates.map((candidate) => [candidate.user_id, candidate]),
+        );
+
+        for (const member of matching?.members ?? []) {
+            if (!map.has(member.user_id) && member.organization_id !== null) {
+                map.set(member.user_id, {
+                    user_id: member.user_id,
+                    organization_id: member.organization_id,
+                    competencies: member.competencies,
+                });
+            }
+        }
+
+        for (const member of team) {
+            if (!map.has(member.user_id) && member.organization_id !== null) {
+                map.set(member.user_id, {
+                    user_id: member.user_id,
+                    organization_id: member.organization_id,
+                    competencies: member.competencies,
+                });
+            }
+        }
+
+        return map;
+    }, [candidates, matching, team]);
+
+    const people = useMemo(() => {
+        const map = new Map<number, TeamPanelPerson>();
+
+        for (const member of matching?.members ?? []) {
+            map.set(member.user_id, {
+                user_id: member.user_id,
+                name: member.name ?? `#${member.user_id}`,
+                organization: member.organization ?? '',
+            });
+        }
+
+        for (const candidate of candidates) {
+            map.set(candidate.user_id, {
+                user_id: candidate.user_id,
+                name: candidate.name,
+                organization: candidate.organization,
+            });
+        }
+
+        for (const member of team) {
+            if (!map.has(member.user_id)) {
+                map.set(member.user_id, {
+                    user_id: member.user_id,
+                    name: member.name,
+                    organization: member.organization ?? '',
+                });
+            }
+        }
+
+        return map;
+    }, [candidates, matching, team]);
+
+    const problems = checkTeam(picks, candidateMap);
+    const gaps = teamGaps(picks, candidateMap, requirements);
+    const changedFromAi = !sameTeam(picks, aiPicks);
+    const serverErrors = Object.entries(errors)
+        .filter(([key]) => key === 'team' || key.startsWith('members'))
+        .map(([, message]) => message);
+
+    function togglePick(userId: number): void {
+        setPicks((current) => {
+            if (current.some((pick) => pick.user_id === userId)) {
+                return current.filter((pick) => pick.user_id !== userId);
+            }
+
+            const hasLeader = current.some((pick) => pick.role === 'LEADER');
+
+            return [
+                ...current,
+                { user_id: userId, role: hasLeader ? 'MEMBER' : 'LEADER' },
+            ];
+        });
+    }
+
+    function changeRole(userId: number, role: TeamRole): void {
+        setPicks((current) =>
+            current.map((pick) =>
+                pick.user_id === userId ? { ...pick, role } : pick,
+            ),
+        );
+    }
+
     function runMatching(): void {
         router.post(
             start.url(proposal.id),
@@ -120,11 +402,76 @@ export default function ProposalCandidates({
         );
     }
 
-    const byId = Object.fromEntries(
-        requirements.map((requirement) => [
-            requirement.competency_id,
-            requirement,
-        ]),
+    function confirmTeam(): void {
+        if (!matching) {
+            return;
+        }
+
+        router.post(
+            confirm.url(proposal.id),
+            {
+                run_id: matching.id,
+                members: picks.map((pick) => ({
+                    user_id: pick.user_id,
+                    role_in_project: pick.role,
+                })),
+            },
+            {
+                preserveScroll: true,
+                onStart: () => setConfirming(true),
+                onFinish: () => setConfirming(false),
+            },
+        );
+    }
+
+    const suggestionById = new Map(
+        (matching?.members ?? []).map((member) => [member.user_id, member]),
+    );
+    const suggestedCandidates = (matching?.members ?? []).map((member) => ({
+        suggestion: member,
+        candidate:
+            candidates.find(
+                (candidate) => candidate.user_id === member.user_id,
+            ) ??
+            ({
+                user_id: member.user_id,
+                name: member.name ?? `#${member.user_id}`,
+                position: null,
+                organization: member.organization ?? '',
+                organization_id: member.organization_id ?? 0,
+                availability_status: null,
+                matched_count: 0,
+                requirement_count: requirements.length,
+                competencies: member.competencies,
+            } satisfies Candidate),
+    }));
+
+    const cardsFor = (
+        list: { candidate: Candidate; suggestion?: Suggestion }[],
+    ) => (
+        <ul className="grid gap-4 md:grid-cols-2">
+            {list.map(({ candidate, suggestion }) => {
+                const picked = picks.some(
+                    (pick) => pick.user_id === candidate.user_id,
+                );
+
+                return (
+                    <li key={candidate.user_id}>
+                        <CandidateCard
+                            candidate={candidate}
+                            requirements={requirements}
+                            suggestion={suggestion}
+                            picked={picked}
+                            canPick={canEdit}
+                            pickDisabled={
+                                !picked && picks.length >= MAX_TEAM_MEMBERS
+                            }
+                            onTogglePick={() => togglePick(candidate.user_id)}
+                        />
+                    </li>
+                );
+            })}
+        </ul>
     );
 
     return (
@@ -242,144 +589,95 @@ export default function ProposalCandidates({
                     </Alert>
                 )}
 
-                {matching?.status === 'READY' && (
-                    <section
-                        className="mb-8 grid gap-4"
-                        aria-label="Rekomendasi tim AI"
-                    >
-                        <div className="flex items-center gap-2">
-                            <Sparkles
-                                className="size-4 text-primary"
-                                aria-hidden="true"
-                            />
-                            <h2 className="text-base font-semibold">
-                                Rekomendasi Tim AI
-                            </h2>
-                        </div>
-
-                        {matching.rule_problems.length > 0 && (
-                            <Alert variant="destructive">
-                                <TriangleAlert aria-hidden="true" />
-                                <AlertTitle>
-                                    Susunan ini belum bisa dikonfirmasi
-                                </AlertTitle>
-                                <AlertDescription>
-                                    <ul className="list-disc pl-4">
-                                        {matching.rule_problems.map(
-                                            (problem) => (
-                                                <li key={problem}>{problem}</li>
-                                            ),
+                {team.length > 0 && (
+                    <Card className="mb-6 gap-0 py-0">
+                        <CardContent className="grid gap-3 p-5">
+                            <div className="flex items-center gap-2">
+                                <UserCheck
+                                    className="size-4 text-success"
+                                    aria-hidden="true"
+                                />
+                                <h2 className="text-base font-semibold">
+                                    Tim Saat Ini
+                                </h2>
+                            </div>
+                            <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                {team.map((member) => (
+                                    <li
+                                        key={member.user_id}
+                                        className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                                    >
+                                        <div className="grid min-w-0">
+                                            <p className="truncate text-[13px] font-medium">
+                                                {member.name}
+                                            </p>
+                                            <p className="truncate text-xs text-muted-foreground">
+                                                {member.organization}
+                                            </p>
+                                        </div>
+                                        <Badge
+                                            variant={
+                                                member.role === 'LEADER'
+                                                    ? 'default'
+                                                    : 'secondary'
+                                            }
+                                        >
+                                            {member.role === 'LEADER'
+                                                ? 'Leader'
+                                                : 'Anggota'}
+                                        </Badge>
+                                        {canEdit && (
+                                            <Button
+                                                type="button"
+                                                variant={
+                                                    picks.some(
+                                                        (pick) =>
+                                                            pick.user_id ===
+                                                            member.user_id,
+                                                    )
+                                                        ? 'secondary'
+                                                        : 'outline'
+                                                }
+                                                size="sm"
+                                                aria-pressed={picks.some(
+                                                    (pick) =>
+                                                        pick.user_id ===
+                                                        member.user_id,
+                                                )}
+                                                disabled={
+                                                    !picks.some(
+                                                        (pick) =>
+                                                            pick.user_id ===
+                                                            member.user_id,
+                                                    ) &&
+                                                    picks.length >=
+                                                        MAX_TEAM_MEMBERS
+                                                }
+                                                onClick={() =>
+                                                    togglePick(member.user_id)
+                                                }
+                                            >
+                                                {picks.some(
+                                                    (pick) =>
+                                                        pick.user_id ===
+                                                        member.user_id,
+                                                )
+                                                    ? 'Dipertahankan'
+                                                    : 'Pertahankan'}
+                                            </Button>
                                         )}
-                                    </ul>
-                                </AlertDescription>
-                            </Alert>
-                        )}
-
-                        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                            {matching.members.map((member) => (
-                                <li key={member.user_id}>
-                                    <Card className="h-full gap-0 py-0">
-                                        <CardContent className="grid gap-3 p-5">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="grid min-w-0">
-                                                    <p className="truncate text-sm font-semibold">
-                                                        {member.name}
-                                                    </p>
-                                                    <p className="truncate text-xs text-muted-foreground">
-                                                        {member.organization}
-                                                    </p>
-                                                </div>
-                                                <Badge
-                                                    variant={
-                                                        member.proposed_role ===
-                                                        'LEADER'
-                                                            ? 'default'
-                                                            : 'secondary'
-                                                    }
-                                                >
-                                                    {member.proposed_role ===
-                                                    'LEADER'
-                                                        ? 'Leader'
-                                                        : 'Anggota'}
-                                                </Badge>
-                                            </div>
-                                            <p className="text-[13px]">
-                                                {member.match_reason}
-                                            </p>
-                                            <p className="text-[13px] text-muted-foreground">
-                                                Kontribusi:{' '}
-                                                {member.contribution}
-                                            </p>
-                                            {member.matched_competency_ids
-                                                .length > 0 && (
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {member.matched_competency_ids.map(
-                                                        (id) => (
-                                                            <Badge
-                                                                key={id}
-                                                                variant="outline"
-                                                                className="font-normal"
-                                                            >
-                                                                {byId[id]
-                                                                    ?.name ??
-                                                                    id}
-                                                            </Badge>
-                                                        ),
-                                                    )}
-                                                </div>
-                                            )}
-                                            {member.gaps.length > 0 && (
-                                                <p className="text-xs text-muted-foreground">
-                                                    Kekurangan:{' '}
-                                                    {member.gaps.join('; ')}
-                                                </p>
-                                            )}
-                                            {member.uncertainties.length >
-                                                0 && (
-                                                <p className="flex gap-1.5 text-xs text-muted-foreground">
-                                                    <Info
-                                                        className="mt-0.5 size-3.5 shrink-0"
-                                                        aria-hidden="true"
-                                                    />
-                                                    {member.uncertainties.join(
-                                                        '; ',
-                                                    )}
-                                                </p>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                                </li>
-                            ))}
-                        </ul>
-
-                        {(matching.team_gaps.length > 0 ||
-                            matching.cautions.length > 0) && (
-                            <Card className="gap-0 py-0">
-                                <CardContent className="grid gap-2 p-5 text-[13px]">
-                                    {matching.team_gaps.length > 0 && (
-                                        <p>
-                                            <span className="font-medium">
-                                                Kekurangan tim:
-                                            </span>{' '}
-                                            {matching.team_gaps.join('; ')}
-                                        </p>
-                                    )}
-                                    {matching.cautions.length > 0 && (
-                                        <p>
-                                            <span className="font-medium">
-                                                Perlu diperhatikan:
-                                            </span>{' '}
-                                            {matching.cautions.join('; ')}
-                                        </p>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                            Ini saran, bukan tim. Tim baru terbentuk setelah ada
-                            yang menyusun dan mengonfirmasinya.
-                        </p>
-                    </section>
+                                    </li>
+                                ))}
+                            </ul>
+                            {canEdit && (
+                                <p className="text-xs text-muted-foreground">
+                                    Mengonfirmasi susunan baru menggantikan tim
+                                    ini. Pilih "Pertahankan" untuk anggota yang
+                                    tetap ikut.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
                 )}
 
                 {requirements.length > 0 && candidates.length === 0 && (
@@ -398,93 +696,142 @@ export default function ProposalCandidates({
                     </div>
                 )}
 
-                {candidates.length > 0 && (
-                    <>
-                        <p className="mb-3 text-[13px] text-muted-foreground">
-                            {candidates.length} kandidat teratas (maksimal{' '}
-                            {limit}), diurutkan dari yang paling sesuai.
-                        </p>
-                        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                            {candidates.map((candidate) => (
-                                <li key={candidate.user_id}>
-                                    <Card className="h-full gap-0 py-0">
-                                        <CardContent className="grid gap-4 p-5">
-                                            <div className="flex items-start gap-3">
-                                                <span
-                                                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary"
-                                                    aria-hidden="true"
-                                                >
-                                                    {initials(candidate.name)}
-                                                </span>
-                                                <div className="grid min-w-0">
-                                                    <p className="truncate text-sm font-semibold">
-                                                        {candidate.name}
-                                                    </p>
-                                                    <p className="truncate text-xs text-muted-foreground">
-                                                        {candidate.position ??
-                                                            'Jabatan belum diisi'}{' '}
-                                                        ·{' '}
-                                                        {candidate.organization}
-                                                    </p>
-                                                </div>
-                                                <Badge
-                                                    variant={
-                                                        candidate.matched_count ===
-                                                        candidate.requirement_count
-                                                            ? 'success'
-                                                            : 'secondary'
-                                                    }
-                                                    className="ml-auto shrink-0"
-                                                >
-                                                    {candidate.matched_count}/
-                                                    {
-                                                        candidate.requirement_count
-                                                    }{' '}
-                                                    cocok
-                                                </Badge>
-                                            </div>
-                                            <ul className="grid gap-1.5">
-                                                {candidate.competencies.map(
-                                                    (competency) => {
-                                                        const requirement =
-                                                            byId[
-                                                                competency
-                                                                    .competency_id
-                                                            ];
+                <div
+                    className={
+                        canEdit
+                            ? 'grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]'
+                            : 'grid gap-6'
+                    }
+                >
+                    <div className="grid min-w-0 gap-8">
+                        {isReady && (
+                            <section
+                                className="grid gap-4"
+                                aria-label="Rekomendasi tim AI"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Sparkles
+                                        className="size-4 text-primary"
+                                        aria-hidden="true"
+                                    />
+                                    <h2 className="text-base font-semibold">
+                                        Rekomendasi Tim AI
+                                    </h2>
+                                    {isConfirmed && (
+                                        <Badge variant="success">
+                                            Sudah dikonfirmasi
+                                        </Badge>
+                                    )}
+                                </div>
 
-                                                        return (
-                                                            <li
-                                                                key={
-                                                                    competency.competency_id
-                                                                }
-                                                                className="flex items-center justify-between gap-3 text-[13px]"
-                                                            >
-                                                                <span className="min-w-0 truncate">
-                                                                    {
-                                                                        requirement?.name
-                                                                    }
-                                                                </span>
-                                                                <span className="shrink-0 text-xs text-muted-foreground">
-                                                                    Mandiri{' '}
-                                                                    {
-                                                                        competency.self_level
-                                                                    }
-                                                                    {competency.verified_level !==
-                                                                        null &&
-                                                                        ` · Verifikasi ${competency.verified_level}`}
-                                                                </span>
-                                                            </li>
-                                                        );
-                                                    },
+                                {matching.rule_problems.length > 0 && (
+                                    <Alert variant="destructive">
+                                        <TriangleAlert aria-hidden="true" />
+                                        <AlertTitle>
+                                            Saran AI ini melanggar aturan tim
+                                        </AlertTitle>
+                                        <AlertDescription>
+                                            Ubah susunan di panel kanan sebelum
+                                            dikonfirmasi.
+                                            <ul className="mt-1 list-disc pl-4">
+                                                {matching.rule_problems.map(
+                                                    (problem) => (
+                                                        <li key={problem}>
+                                                            {problem}
+                                                        </li>
+                                                    ),
                                                 )}
                                             </ul>
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+
+                                {cardsFor(suggestedCandidates)}
+
+                                {(matching.team_gaps.length > 0 ||
+                                    matching.cautions.length > 0) && (
+                                    <Card className="gap-0 py-0">
+                                        <CardContent className="grid gap-2 p-5 text-[13px]">
+                                            {matching.team_gaps.length > 0 && (
+                                                <p>
+                                                    <span className="font-medium">
+                                                        Kekurangan tim menurut
+                                                        AI:
+                                                    </span>{' '}
+                                                    {matching.team_gaps.join(
+                                                        '; ',
+                                                    )}
+                                                </p>
+                                            )}
+                                            {matching.cautions.length > 0 && (
+                                                <p>
+                                                    <span className="font-medium">
+                                                        Perlu diperhatikan:
+                                                    </span>{' '}
+                                                    {matching.cautions.join(
+                                                        '; ',
+                                                    )}
+                                                </p>
+                                            )}
                                         </CardContent>
                                     </Card>
-                                </li>
-                            ))}
-                        </ul>
-                    </>
-                )}
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                    Ini saran, bukan tim. Tim baru terbentuk
+                                    setelah kamu mengonfirmasi susunannya.
+                                </p>
+                            </section>
+                        )}
+
+                        {candidates.length > 0 && (
+                            <section
+                                className="grid gap-3"
+                                aria-label="Semua kandidat"
+                            >
+                                <div>
+                                    <h2 className="text-base font-semibold">
+                                        Semua Kandidat
+                                    </h2>
+                                    <p className="text-[13px] text-muted-foreground">
+                                        {candidates.length} kandidat teratas
+                                        (maksimal {limit}), diurutkan dari yang
+                                        paling sesuai.
+                                        {canEdit &&
+                                            ' Kamu bisa menambahkan siapa saja ke susunan.'}
+                                    </p>
+                                </div>
+                                {cardsFor(
+                                    candidates
+                                        .filter(
+                                            (candidate) =>
+                                                !suggestionById.has(
+                                                    candidate.user_id,
+                                                ),
+                                        )
+                                        .map((candidate) => ({ candidate })),
+                                )}
+                            </section>
+                        )}
+                    </div>
+
+                    {canEdit && (
+                        <aside className="lg:sticky lg:top-6">
+                            <TeamPanel
+                                picks={picks}
+                                people={people}
+                                problems={problems}
+                                gaps={gaps}
+                                changedFromAi={changedFromAi}
+                                processing={confirming}
+                                serverErrors={serverErrors}
+                                onRoleChange={changeRole}
+                                onRemove={togglePick}
+                                onReset={() => setPicks(aiPicks)}
+                                onConfirm={confirmTeam}
+                            />
+                        </aside>
+                    )}
+                </div>
             </div>
         </>
     );

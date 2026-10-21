@@ -72,6 +72,7 @@ class AuditLog extends Model
         'team_matching.requested' => 'Rekomendasi tim AI diminta',
         'team_matching.completed' => 'Rekomendasi tim AI selesai',
         'team_matching.failed' => 'Rekomendasi tim AI gagal',
+        'team_matching.confirmed' => 'Tim dikonfirmasi',
     ];
 
     /**

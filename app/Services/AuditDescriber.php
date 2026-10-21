@@ -111,6 +111,7 @@ class AuditDescriber
             'scoring.revision_requested' => "{$actor} meminta revisi untuk {$subject}",
             'team_matching.requested' => "{$actor} meminta rekomendasi tim AI untuk {$subject}",
             'team_matching.completed' => "Rekomendasi tim AI selesai untuk {$subject}",
+            'team_matching.confirmed' => "{$actor} mengonfirmasi tim untuk {$subject}",
             'team_matching.failed' => "Rekomendasi tim AI untuk {$subject} gagal diproses",
             default => "{$actor}: ".$log->eventLabel().($log->subject_label ? " ({$subject})" : ''),
         };

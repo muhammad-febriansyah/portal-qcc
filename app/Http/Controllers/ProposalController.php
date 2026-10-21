@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Teams\ConfirmProjectTeam;
 use App\Actions\Teams\StartTeamMatching;
+use App\Http\Requests\ConfirmProjectTeamRequest;
 use App\Enums\ProposalStatus;
 use App\Models\Project;
 use App\Models\QccBatch;
@@ -13,6 +15,7 @@ use App\Services\Teams\CandidateShortlist;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -123,6 +126,7 @@ class ProposalController extends Controller
                 'can_manage' => $request->user()->can('system-settings.manage'),
             ],
             'matching' => $this->latestMatching($project),
+            'team' => $this->currentTeam($project, array_column($result['requirements'], 'competency_id')),
         ]);
     }
 
@@ -133,6 +137,50 @@ class ProposalController extends Controller
         $start->handle($project, $request->user());
 
         return back();
+    }
+
+    public function confirmTeam(ConfirmProjectTeamRequest $request, Project $project, ConfirmProjectTeam $confirm): RedirectResponse
+    {
+        $run = TeamMatchingRun::query()->findOrFail($request->integer('run_id'));
+
+        $confirm->handle($project, $run, $request->validated('members'), $request->user());
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Tim proposal berhasil dikonfirmasi.']);
+
+        return back();
+    }
+
+    /**
+     * @param  list<int>  $requiredCompetencyIds
+     * @return list<array<string, mixed>>
+     */
+    private function currentTeam(Project $project, array $requiredCompetencyIds = []): array
+    {
+        $members = $project->members()
+            ->wherePivot('status', 'ACTIVE')->wherePivotNull('left_at')
+            ->with('organization:id,name')
+            ->orderByRaw("CASE project_members.role_in_project WHEN 'LEADER' THEN 0 ELSE 1 END")
+            ->orderBy('users.name')
+            ->get(['users.id', 'users.name', 'users.organization_id']);
+
+        $held = DB::table('member_competencies')
+            ->whereIn('user_id', $members->pluck('id'))
+            ->whereIn('competency_id', $requiredCompetencyIds)
+            ->get(['user_id', 'competency_id', 'self_level', 'verified_level'])
+            ->groupBy('user_id');
+
+        return $members->map(fn (User $member): array => [
+            'user_id' => $member->id,
+            'name' => $member->name,
+            'organization' => $member->organization?->name,
+            'organization_id' => $member->organization_id,
+            'role' => $member->pivot->role_in_project,
+            'competencies' => $held->get($member->id, collect())->map(fn (object $row): array => [
+                'competency_id' => (int) $row->competency_id,
+                'self_level' => (int) $row->self_level,
+                'verified_level' => $row->verified_level === null ? null : (int) $row->verified_level,
+            ])->values()->all(),
+        ])->all();
     }
 
     /**
@@ -146,8 +194,8 @@ class ProposalController extends Controller
             return null;
         }
 
-        $people = collect($run->candidate_snapshot_json['candidates'] ?? [])->pluck('candidate_user_id')->all();
-        $names = User::query()->whereIn('id', $people)->with('organization:id,name')->get(['id', 'name', 'organization_id'])->keyBy('id');
+        $snapshot = collect($run->candidate_snapshot_json['candidates'] ?? [])->keyBy('candidate_user_id');
+        $names = User::query()->whereIn('id', $snapshot->keys())->with('organization:id,name')->get(['id', 'name', 'organization_id'])->keyBy('id');
 
         $output = $run->output_json;
 
@@ -157,10 +205,13 @@ class ProposalController extends Controller
             'status_label' => $run->status->label(),
             'error_code' => $run->error_code,
             'created_at' => $run->created_at?->toIso8601String(),
+            'confirmed_at' => $run->confirmed_at?->toIso8601String(),
             'members' => collect($output['recommended_members'] ?? [])->map(fn (array $member): array => [
                 'user_id' => $member['user_id'],
                 'name' => $names->get($member['user_id'])?->name,
                 'organization' => $names->get($member['user_id'])?->organization?->name,
+                'organization_id' => $snapshot->get($member['user_id'])['organization_id'] ?? null,
+                'competencies' => $snapshot->get($member['user_id'])['competencies'] ?? [],
                 'proposed_role' => $member['proposed_role'],
                 'matched_competency_ids' => $member['matched_competency_ids'],
                 'match_reason' => $member['match_reason'],
