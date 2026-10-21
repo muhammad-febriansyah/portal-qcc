@@ -43,3 +43,12 @@ yarn-error.log
 /opencode.json
 /opencode.jsonc
 /.playwright-mcp
+
+# AI agent files and project docs (local only)
+/.ai
+/.codex
+/.gemini
+/.windsurf
+/GEMINI.md
+/docs
+/qcc0*.png
