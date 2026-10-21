@@ -24,6 +24,13 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { dashboard } from '@/routes';
+import { index as auditIndex } from '@/routes/admin/audit';
+import { index as batchesIndex } from '@/routes/admin/batches';
+import { index as competenciesIndex } from '@/routes/admin/competencies';
+import { index as organizationsIndex } from '@/routes/admin/organizations';
+import { index as rolesIndex } from '@/routes/admin/roles';
+import { index as rubricsIndex } from '@/routes/admin/rubrics';
+import { index as usersIndex } from '@/routes/admin/users';
 import type { NavSection } from '@/types';
 
 const sharedSections: NavSection[] = [
@@ -45,18 +52,53 @@ const roleSections: Record<string, NavSection[]> = {
         {
             title: 'Pengguna & Akses',
             items: [
-                { title: 'Anggota', icon: Users },
-                { title: 'Role & Permission', icon: ShieldCheck },
-                { title: 'Audit Log', icon: History },
+                {
+                    title: 'Anggota',
+                    href: usersIndex(),
+                    icon: Users,
+                    permission: 'users.manage',
+                },
+                {
+                    title: 'Role & Permission',
+                    href: rolesIndex(),
+                    icon: ShieldCheck,
+                    permission: 'roles.manage',
+                },
+                {
+                    title: 'Audit Log',
+                    href: auditIndex(),
+                    icon: History,
+                    permission: 'audit.view',
+                },
             ],
         },
         {
             title: 'Data Master',
             items: [
-                { title: 'Master Organisasi', icon: Building2 },
-                { title: 'Master Kompetensi', icon: BookOpenCheck },
-                { title: 'Batch', icon: Layers },
-                { title: 'Rubrik', icon: Award },
+                {
+                    title: 'Master Organisasi',
+                    href: organizationsIndex(),
+                    icon: Building2,
+                    permission: 'organizations.manage',
+                },
+                {
+                    title: 'Master Kompetensi',
+                    href: competenciesIndex(),
+                    icon: BookOpenCheck,
+                    permission: 'competencies.manage',
+                },
+                {
+                    title: 'Batch',
+                    href: batchesIndex(),
+                    icon: Layers,
+                    permission: 'batches.manage',
+                },
+                {
+                    title: 'Rubrik',
+                    href: rubricsIndex(),
+                    icon: Award,
+                    permission: 'rubrics.manage',
+                },
             ],
         },
         {
@@ -92,7 +134,14 @@ const roleSections: Record<string, NavSection[]> = {
         },
         {
             title: 'Pengawasan',
-            items: [{ title: 'Audit Log', icon: History }],
+            items: [
+                {
+                    title: 'Audit Log',
+                    href: auditIndex(),
+                    icon: History,
+                    permission: 'audit.view',
+                },
+            ],
         },
     ],
     Mentor: [
@@ -183,7 +232,16 @@ export function useNavigationSections(): NavSection[] {
             mergeSections([
                 ...sharedSections,
                 ...auth.roles.flatMap((role) => roleSections[role] ?? []),
-            ]),
-        [auth.roles],
+            ])
+                .map((section) => ({
+                    ...section,
+                    items: section.items.filter(
+                        (item) =>
+                            !item.permission ||
+                            auth.permissions.includes(item.permission),
+                    ),
+                }))
+                .filter((section) => section.items.length > 0),
+        [auth.permissions, auth.roles],
     );
 }
