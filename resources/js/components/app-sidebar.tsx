@@ -77,7 +77,7 @@ const sharedSections: NavSection[] = [
     {
         title: 'Akun Saya',
         items: [
-            { title: 'Profil', icon: UserRound },
+            { title: 'Profil Saya', icon: UserRound },
             { title: 'Kompetensi Saya', icon: BookOpenCheck },
         ],
     },
@@ -88,18 +88,18 @@ const roleSections: Record<string, NavSection[]> = {
         {
             title: 'Pengguna & Akses',
             items: [
-                { title: 'Pengguna', icon: Users },
-                { title: 'Role & Izin', icon: ShieldCheck },
-                { title: 'Log Aktivitas', icon: History },
+                { title: 'Anggota', icon: Users },
+                { title: 'Role & Permission', icon: ShieldCheck },
+                { title: 'Audit Log', icon: History },
             ],
         },
         {
             title: 'Data Master',
             items: [
-                { title: 'Organisasi', icon: Building2 },
-                { title: 'Kompetensi', icon: BookOpenCheck },
+                { title: 'Master Organisasi', icon: Building2 },
+                { title: 'Master Kompetensi', icon: BookOpenCheck },
                 { title: 'Batch', icon: Layers },
-                { title: 'Rubrik Penilaian', icon: Award },
+                { title: 'Rubrik', icon: Award },
             ],
         },
         {
@@ -112,15 +112,15 @@ const roleSections: Record<string, NavSection[]> = {
             title: 'Program',
             items: [
                 { title: 'Monitoring Proyek', icon: Gauge },
-                { title: 'Proposal', icon: FileText },
-                { title: 'Tim', icon: Users },
+                { title: 'Proposal QCC', icon: FileText },
+                { title: 'Pembentukan Tim', icon: Users },
                 { title: 'Penugasan Reviewer', icon: UserRoundCog },
             ],
         },
         {
             title: 'Penilaian',
             items: [
-                { title: 'Persetujuan', icon: ClipboardCheck },
+                { title: 'Review & Approval', icon: ClipboardCheck },
                 { title: 'Bi-weekly & Mentoring', icon: CalendarDays },
                 { title: 'AI Scoring', icon: Activity },
             ],
@@ -131,10 +131,10 @@ const roleSections: Record<string, NavSection[]> = {
             title: 'Pendampingan',
             items: [
                 { title: 'Proyek Binaan', icon: FolderKanban },
-                { title: 'Sesi Mentoring', icon: MessageCircle },
-                { title: 'Bi-weekly', icon: CalendarDays },
-                { title: 'Evidence', icon: FileCheck2 },
-                { title: 'Perlu Review', icon: ClipboardCheck },
+                { title: 'Mentoring', icon: MessageCircle },
+                { title: 'Bi-weekly Report', icon: CalendarDays },
+                { title: 'Evidence Repository', icon: FileCheck2 },
+                { title: 'Review & Approval', icon: ClipboardCheck },
             ],
         },
     ],
@@ -142,19 +142,19 @@ const roleSections: Record<string, NavSection[]> = {
         {
             title: 'Proyek',
             items: [
-                { title: 'Proposal', icon: FileText },
-                { title: 'Tim', icon: Users },
+                { title: 'Proposal QCC', icon: FileText },
+                { title: 'Pembentukan Tim', icon: Users },
                 { title: 'Proyek QCC', icon: FolderKanban },
-                { title: '8 Step QCC', icon: ListChecks },
+                { title: 'Progress 8 Step QCC', icon: ListChecks },
             ],
         },
         {
             title: 'Aktivitas',
             items: [
-                { title: 'Bi-weekly', icon: CalendarDays },
-                { title: 'Laporan Mentoring', icon: NotebookTabs },
+                { title: 'Bi-weekly Report', icon: CalendarDays },
+                { title: 'Mentoring', icon: NotebookTabs },
                 { title: 'Aksi & Risiko', icon: ListTodo },
-                { title: 'Evidence', icon: FileCheck2 },
+                { title: 'Evidence Repository', icon: FileCheck2 },
             ],
         },
     ],
@@ -162,10 +162,10 @@ const roleSections: Record<string, NavSection[]> = {
         {
             title: 'Proyek',
             items: [
-                { title: 'Proposal', icon: FileText },
+                { title: 'Proposal QCC', icon: FileText },
                 { title: 'Tim & Proyek', icon: BriefcaseBusiness },
-                { title: '8 Step QCC', icon: ListChecks },
-                { title: 'Evidence', icon: FileCheck2 },
+                { title: 'Progress 8 Step QCC', icon: ListChecks },
+                { title: 'Evidence Repository', icon: FileCheck2 },
             ],
         },
     ],
