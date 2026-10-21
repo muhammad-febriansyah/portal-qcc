@@ -95,6 +95,13 @@ class AuditDescriber
             'competency.created' => "{$actor} menambahkan kompetensi {$subject}",
             'competency.updated' => "{$actor} mengubah kompetensi {$subject}".$fields,
             'competency.deleted' => "{$actor} menghapus kompetensi {$subject}",
+            'scoring.run_requested' => "{$actor} meminta penilaian AI untuk {$subject}",
+            'scoring.completed' => "Penilaian AI selesai untuk {$subject}",
+            'scoring.insufficient_evidence' => "Penilaian AI untuk {$subject} dihentikan karena evidence belum cukup",
+            'scoring.failed' => "Penilaian AI untuk {$subject} gagal diproses",
+            'scoring.overridden' => "{$actor} mengubah nilai AI pada {$subject}",
+            'scoring.approved' => "{$actor} menyetujui nilai final {$subject}",
+            'scoring.revision_requested' => "{$actor} meminta revisi untuk {$subject}",
             default => "{$actor}: ".$log->eventLabel().($log->subject_label ? " ({$subject})" : ''),
         };
     }

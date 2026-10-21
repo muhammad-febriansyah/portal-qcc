@@ -4,6 +4,10 @@ namespace App\Providers;
 
 use App\Listeners\RecordAuthActivity;
 use App\Services\AuditService;
+use App\Services\Scoring\Contracts\EvidenceResolver;
+use App\Services\Scoring\Contracts\ScoringModelClient;
+use App\Services\Scoring\NullEvidenceResolver;
+use App\Services\Scoring\OpenAiScoringClient;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +23,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(AuditService::class);
+        $this->app->bind(ScoringModelClient::class, OpenAiScoringClient::class);
+        $this->app->bind(EvidenceResolver::class, NullEvidenceResolver::class);
     }
 
     /**

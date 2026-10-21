@@ -260,7 +260,7 @@ test('the page lists readable entries newest first and loads actors without extr
             ->where('logs.total', 12)
             ->where('logs.data.0.description', 'Rina Auditor masuk ke Portal QCC')
             ->where('logs.data.0.actor_name', 'Rina Auditor')
-            ->has('moduleOptions', 5));
+            ->has('moduleOptions', count(AuditLog::MODULE_LABELS)));
 });
 
 test('the page can be filtered by module, search and date range', function () {
