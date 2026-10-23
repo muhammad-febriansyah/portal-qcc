@@ -33,7 +33,7 @@ trait Auditable
 
     public static function bootAuditable(): void
     {
-        static::created(function (Model $model): void {
+        static::created(function (self $model): void {
             app(AuditService::class)->record(
                 $model->auditEventPrefix().'.created',
                 $model,
@@ -41,7 +41,7 @@ trait Auditable
             );
         });
 
-        static::updated(function (Model $model): void {
+        static::updated(function (self $model): void {
             $changes = $model->auditAttributes($model->getChanges());
 
             if ($changes === []) {
@@ -56,7 +56,7 @@ trait Auditable
             );
         });
 
-        static::deleted(function (Model $model): void {
+        static::deleted(function (self $model): void {
             app(AuditService::class)->record(
                 $model->auditEventPrefix().'.deleted',
                 $model,

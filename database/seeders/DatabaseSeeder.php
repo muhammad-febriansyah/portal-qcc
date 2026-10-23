@@ -18,9 +18,14 @@ class DatabaseSeeder extends Seeder
             AdminPermissionSeeder::class,
             ProjectAccessSeeder::class,
             ScoringPermissionSeeder::class,
+            RubricPermissionSeeder::class,
+            RubricSeeder::class,
             PeopleReportPermissionSeeder::class,
             DashboardPermissionSeeder::class,
+            SystemSettingSeeder::class,
             OrganizationAndCompetencyGroupSeeder::class,
+            CompetencyMasterSeeder::class,
+            QccStepSeeder::class,
         ]);
     }
 }

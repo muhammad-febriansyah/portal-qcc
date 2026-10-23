@@ -20,15 +20,30 @@ class TeamMatchingResultValidator
 
     /**
      * @param  array<string, mixed>  $payload
-     * @param  array<string, mixed>  $snapshot  from CandidateShortlist::snapshot()
+     * @param  array{
+     *     project_id: int, generated_at: string,
+     *     requirements: list<array{competency_id: int, minimum_level: int|null}>,
+     *     candidates: list<array{
+     *         candidate_user_id: int, organization_id: int, availability_status: string|null,
+     *         competencies: list<array{competency_id: int, self_level: int, verified_level: int|null}>,
+     *         qcc_experience: array{projects_count: int, leader_projects_count: int, completed_projects_count: int}
+     *     }>
+     * }  $snapshot  from CandidateShortlist::snapshot()
      * @return array<string, mixed> the payload plus `rule_problems`
      *
      * @throws InvalidAiOutput
      */
     public function validate(array $payload, array $snapshot): array
     {
+        $unexpectedKeys = array_diff(array_keys($payload), ['recommended_members', 'team_gaps', 'cautions', 'mitigations']);
+
+        if ($unexpectedKeys !== []) {
+            throw new InvalidAiOutput(['Output AI memiliki properti yang tidak dikenal: '.implode(', ', $unexpectedKeys).'.']);
+        }
+
         $validator = Validator::make($payload, [
             'recommended_members' => ['required', 'array', 'min:1', 'max:20'],
+            'recommended_members.*' => ['array:user_id,proposed_role,matched_competency_ids,match_reason,contribution,gaps,uncertainties'],
             'recommended_members.*.user_id' => ['required', 'integer'],
             'recommended_members.*.proposed_role' => ['required', 'in:LEADER,MEMBER'],
             'recommended_members.*.matched_competency_ids' => ['present', 'array'],
@@ -43,10 +58,15 @@ class TeamMatchingResultValidator
             'team_gaps.*' => ['string'],
             'cautions' => ['present', 'array'],
             'cautions.*' => ['string'],
+            'mitigations' => ['present', 'array'],
+            'mitigations.*' => ['array:gap,recommendation,type'],
+            'mitigations.*.gap' => ['required', 'string'],
+            'mitigations.*.recommendation' => ['required', 'string'],
+            'mitigations.*.type' => ['required', 'in:COACHING,TRAINING,MENTOR'],
         ]);
 
         if ($validator->fails()) {
-            throw new InvalidAiOutput($validator->errors()->all());
+            throw new InvalidAiOutput(array_values($validator->errors()->all()));
         }
 
         $candidates = collect($snapshot['candidates'])->keyBy('candidate_user_id');
@@ -81,7 +101,7 @@ class TeamMatchingResultValidator
 
     /**
      * @param  list<array<string, mixed>>  $members
-     * @param  Collection<int, array<string, mixed>>  $candidates
+     * @param  Collection<int|string, array{candidate_user_id: int, organization_id: int, availability_status: string|null, competencies: list<array{competency_id: int, self_level: int, verified_level: int|null}>, qcc_experience: array{projects_count: int, leader_projects_count: int, completed_projects_count: int}}>  $candidates
      * @return list<string>
      */
     private function ruleProblems(array $members, $candidates): array

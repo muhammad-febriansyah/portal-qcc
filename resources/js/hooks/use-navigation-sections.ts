@@ -2,6 +2,7 @@ import { usePage } from '@inertiajs/react';
 import {
     Activity,
     Award,
+    Bell,
     BookOpenCheck,
     Building2,
     CalendarDays,
@@ -9,7 +10,6 @@ import {
     FileCheck2,
     FileText,
     FolderKanban,
-    Gauge,
     History,
     Layers,
     LayoutGrid,
@@ -19,29 +19,44 @@ import {
     ShieldCheck,
     SlidersHorizontal,
     UserRound,
-    UserRoundCog,
     Users,
     UsersRound,
+    UserRoundCog,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { dashboard } from '@/routes';
+import { index as notificationsIndex } from '@/routes/notifications';
 import { index as myCompetenciesIndex } from '@/routes/my-competencies';
 import { index as directoryIndex } from '@/routes/admin/competency-directory';
 import { index as proposalsIndex } from '@/routes/proposals';
+import { index as approvalIndex } from '@/routes/approval';
 import { index as auditIndex } from '@/routes/admin/audit';
 import { index as batchesIndex } from '@/routes/admin/batches';
 import { index as competenciesIndex } from '@/routes/admin/competencies';
 import { index as organizationsIndex } from '@/routes/admin/organizations';
 import { index as rolesIndex } from '@/routes/admin/roles';
 import { index as rubricsIndex } from '@/routes/admin/rubrics';
+import { index as scoringIndex } from '@/routes/admin/scoring';
+import { index as systemSettingsIndex } from '@/routes/admin/settings';
 import { index as usersIndex } from '@/routes/admin/users';
+import { index as reviewerAssignmentsIndex } from '@/routes/admin/reviewer-assignments';
+import { index as evidenceRepositoryIndex } from '@/routes/evidence-repository';
+import { index as biweeklyDirectoryIndex } from '@/routes/biweekly-directory';
+import { index as mentoringDirectoryIndex } from '@/routes/mentoring-directory';
+import { index as riskDirectoryIndex } from '@/routes/risk-directory';
+import { index as teamFormationIndex } from '@/routes/team-formation';
+import { index as projectStepsIndex } from '@/routes/project-steps';
+import { index as qccProjectsIndex } from '@/routes/qcc-projects';
 import { edit as profileEdit } from '@/routes/profile';
 import type { NavSection, SidebarItem } from '@/types';
 
 const sharedSections: NavSection[] = [
     {
         title: 'Utama',
-        items: [{ title: 'Dashboard', href: dashboard(), icon: LayoutGrid }],
+        items: [
+            { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
+            { title: 'Notifikasi', href: notificationsIndex(), icon: Bell },
+        ],
     },
     {
         title: 'Akun Saya',
@@ -79,6 +94,12 @@ const roleSections: Record<string, NavSection[]> = {
                     href: auditIndex(),
                     icon: History,
                     permission: 'audit.view',
+                },
+                {
+                    title: 'Inbox Review',
+                    href: approvalIndex(),
+                    icon: ClipboardCheck,
+                    permission: 'projects.review',
                 },
             ],
         },
@@ -119,18 +140,31 @@ const roleSections: Record<string, NavSection[]> = {
         },
         {
             title: 'Penilaian',
-            items: [{ title: 'AI Scoring', icon: Activity }],
+            items: [
+                {
+                    title: 'AI Scoring',
+                    href: scoringIndex(),
+                    icon: Activity,
+                    permission: 'scoring.view',
+                },
+            ],
         },
         {
             title: 'Sistem',
-            items: [{ title: 'Pengaturan', icon: SlidersHorizontal }],
+            items: [
+                {
+                    title: 'Pengaturan Sistem',
+                    href: systemSettingsIndex(),
+                    icon: SlidersHorizontal,
+                    permission: 'system-settings.view',
+                },
+            ],
         },
     ],
     'Owner QCC': [
         {
             title: 'Program',
             items: [
-                { title: 'Monitoring Proyek', icon: Gauge },
                 {
                     title: 'Direktori Kompetensi',
                     href: directoryIndex(),
@@ -143,20 +177,75 @@ const roleSections: Record<string, NavSection[]> = {
                     icon: FileText,
                     permission: 'projects.view',
                 },
-                { title: 'Pembentukan Tim', icon: Users },
-                { title: 'Proyek QCC', icon: FolderKanban },
-                { title: 'Bi-weekly Report', icon: CalendarDays },
-                { title: 'Mentoring', icon: MessageCircle },
-                { title: 'Evidence Repository', icon: FileCheck2 },
+                {
+                    title: 'Pembentukan Tim',
+                    href: teamFormationIndex(),
+                    icon: Users,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Proyek QCC',
+                    href: qccProjectsIndex(),
+                    icon: FolderKanban,
+                },
+                {
+                    title: 'Penugasan Reviewer',
+                    href: reviewerAssignmentsIndex(),
+                    icon: UserRoundCog,
+                    permission: 'review-assignments.manage',
+                },
+                {
+                    title: 'Progress 8 Step QCC',
+                    href: projectStepsIndex(),
+                    icon: ListChecks,
+                },
+                {
+                    title: 'Bi-weekly Report',
+                    href: biweeklyDirectoryIndex(),
+                    icon: CalendarDays,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Mentoring',
+                    href: mentoringDirectoryIndex(),
+                    icon: MessageCircle,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Aksi & Risiko',
+                    href: riskDirectoryIndex(),
+                    icon: ListTodo,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Evidence Repository',
+                    href: evidenceRepositoryIndex(),
+                    icon: FileCheck2,
+                    permission: 'evidence.view',
+                },
             ],
         },
         {
             title: 'Penilaian',
             items: [
-                { title: 'Review & Approval', icon: ClipboardCheck },
-                { title: 'Penugasan Reviewer', icon: UserRoundCog },
-                { title: 'AI Scoring', icon: Activity },
-                { title: 'Rubrik', icon: Award },
+                {
+                    title: 'Review & Approval',
+                    href: approvalIndex(),
+                    icon: ClipboardCheck,
+                    permission: 'projects.review',
+                },
+                {
+                    title: 'AI Scoring',
+                    href: scoringIndex(),
+                    icon: Activity,
+                    permission: 'scoring.view',
+                },
+                {
+                    title: 'Rubrik',
+                    href: rubricsIndex(),
+                    icon: Award,
+                    permission: 'rubrics.manage',
+                },
             ],
         },
         {
@@ -175,11 +264,42 @@ const roleSections: Record<string, NavSection[]> = {
         {
             title: 'Pendampingan',
             items: [
-                { title: 'Proyek Binaan', icon: FolderKanban },
-                { title: 'Mentoring', icon: MessageCircle },
-                { title: 'Bi-weekly Report', icon: CalendarDays },
-                { title: 'Evidence Repository', icon: FileCheck2 },
-                { title: 'Review & Approval', icon: ClipboardCheck },
+                {
+                    title: 'Proyek Binaan',
+                    href: qccProjectsIndex(),
+                    icon: FolderKanban,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Mentoring',
+                    href: mentoringDirectoryIndex(),
+                    icon: MessageCircle,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Bi-weekly Report',
+                    href: biweeklyDirectoryIndex(),
+                    icon: CalendarDays,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Aksi & Risiko',
+                    href: riskDirectoryIndex(),
+                    icon: ListTodo,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Evidence Repository',
+                    href: evidenceRepositoryIndex(),
+                    icon: FileCheck2,
+                    permission: 'evidence.view',
+                },
+                {
+                    title: 'Review & Approval',
+                    href: approvalIndex(),
+                    icon: ClipboardCheck,
+                    permission: 'projects.view',
+                },
             ],
         },
     ],
@@ -193,18 +313,51 @@ const roleSections: Record<string, NavSection[]> = {
                     icon: FileText,
                     permission: 'projects.view',
                 },
-                { title: 'Pembentukan Tim', icon: Users },
-                { title: 'Proyek QCC', icon: FolderKanban },
-                { title: 'Progress 8 Step QCC', icon: ListChecks },
+                {
+                    title: 'Pembentukan Tim',
+                    href: teamFormationIndex(),
+                    icon: Users,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Proyek QCC',
+                    href: qccProjectsIndex(),
+                    icon: FolderKanban,
+                },
+                {
+                    title: 'Progress 8 Step QCC',
+                    href: projectStepsIndex(),
+                    icon: ListChecks,
+                },
             ],
         },
         {
             title: 'Aktivitas',
             items: [
-                { title: 'Bi-weekly Report', icon: CalendarDays },
-                { title: 'Mentoring', icon: MessageCircle },
-                { title: 'Aksi & Risiko', icon: ListTodo },
-                { title: 'Evidence Repository', icon: FileCheck2 },
+                {
+                    title: 'Bi-weekly Report',
+                    href: biweeklyDirectoryIndex(),
+                    icon: CalendarDays,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Mentoring',
+                    href: mentoringDirectoryIndex(),
+                    icon: MessageCircle,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Aksi & Risiko',
+                    href: riskDirectoryIndex(),
+                    icon: ListTodo,
+                    permission: 'projects.view',
+                },
+                {
+                    title: 'Evidence Repository',
+                    href: evidenceRepositoryIndex(),
+                    icon: FileCheck2,
+                    permission: 'evidence.view',
+                },
             ],
         },
     ],
@@ -218,9 +371,22 @@ const roleSections: Record<string, NavSection[]> = {
                     icon: FileText,
                     permission: 'projects.view',
                 },
-                { title: 'Proyek QCC', icon: FolderKanban },
-                { title: 'Progress 8 Step QCC', icon: ListChecks },
-                { title: 'Evidence Repository', icon: FileCheck2 },
+                {
+                    title: 'Proyek QCC',
+                    href: qccProjectsIndex(),
+                    icon: FolderKanban,
+                },
+                {
+                    title: 'Progress 8 Step QCC',
+                    href: projectStepsIndex(),
+                    icon: ListChecks,
+                },
+                {
+                    title: 'Evidence Repository',
+                    href: evidenceRepositoryIndex(),
+                    icon: FileCheck2,
+                    permission: 'evidence.view',
+                },
             ],
         },
     ],

@@ -9,14 +9,22 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground   ",
+          "border-border bg-muted text-foreground hover:bg-secondary aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground ",
+          "bg-muted text-foreground hover:bg-secondary aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20   ",
-        link: "text-primary underline-offset-4 hover:underline",
+        warning:
+          "border-warning/20 bg-warning/10 text-warning hover:bg-warning/15 focus-visible:border-warning/40 focus-visible:ring-warning/20",
+        info:
+          "border-info/20 bg-info/10 text-info hover:bg-info/15 focus-visible:border-info/40 focus-visible:ring-info/20",
+        violet:
+          "border-violet/20 bg-violet/10 text-violet hover:bg-violet/15 focus-visible:border-violet/40 focus-visible:ring-violet/20",
+        teal:
+          "border-teal/20 bg-teal/10 text-teal hover:bg-teal/15 focus-visible:border-teal/40 focus-visible:ring-teal/20",
+        link: "bg-primary/5 text-primary underline-offset-4 hover:bg-primary/10 hover:underline",
       },
       size: {
         default:

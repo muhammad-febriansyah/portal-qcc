@@ -23,7 +23,8 @@ class ConfirmProjectTeamRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'run_id' => ['required', 'integer'],
+            'manual' => ['sometimes', 'boolean'],
+            'run_id' => ['nullable', 'integer', 'required_unless:manual,true'],
             'members' => ['required', 'array', 'max:'.(TeamRuleValidator::MAX_MEMBERS + 5)],
             'members.*.user_id' => ['required', 'integer'],
             'members.*.role_in_project' => ['required', Rule::in(TeamRuleValidator::ROLES)],

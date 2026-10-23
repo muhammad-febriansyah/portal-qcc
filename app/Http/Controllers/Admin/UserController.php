@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Users\GuardLastSuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
@@ -9,6 +10,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\AuditService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -148,6 +150,128 @@ class UserController extends Controller
         });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Data anggota berhasil diperbarui.']);
+
+        return back();
+    }
+
+    public function bulkStatus(Request $request, GuardLastSuperAdmin $guard): RedirectResponse
+    {
+        Gate::authorize('viewAny', User::class);
+
+        $validated = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'user_ids.*' => ['required', 'integer', 'distinct:strict', 'exists:users,id'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+        $userIds = array_map('intval', $validated['user_ids']);
+        $isActive = (bool) $validated['is_active'];
+
+        if (! $isActive && in_array($request->user()->id, $userIds, true)) {
+            Inertia::flash('toast', ['type' => 'warning', 'message' => 'Akun Anda sendiri tidak dapat dinonaktifkan.']);
+
+            return back();
+        }
+
+        $result = DB::transaction(function () use ($userIds, $isActive, $guard): array {
+            $users = User::query()->whereKey($userIds)->orderBy('id')->lockForUpdate()->get();
+
+            $activeSuperAdminIds = User::query()
+                ->role(GuardLastSuperAdmin::ROLE)
+                ->where('is_active', true)
+                ->lockForUpdate()
+                ->pluck('id');
+
+            if (! $isActive && $activeSuperAdminIds->isNotEmpty() && $activeSuperAdminIds->diff($userIds)->isEmpty()) {
+                return ['blocked' => 'Super Admin aktif terakhir tidak dapat dinonaktifkan.', 'changed' => 0];
+            }
+
+            $changed = 0;
+
+            foreach ($users as $user) {
+                if ($user->is_active === $isActive) {
+                    continue;
+                }
+
+                if ($guard->wouldRemoveLastAdmin($user, $isActive, array_values($user->getRoleNames()->all()))) {
+                    return ['blocked' => 'Super Admin aktif terakhir tidak dapat dinonaktifkan.', 'changed' => 0];
+                }
+
+                $user->forceFill(['is_active' => $isActive])->save();
+                $changed++;
+            }
+
+            return ['blocked' => null, 'changed' => $changed];
+        });
+
+        if ($result['blocked'] !== null) {
+            Inertia::flash('toast', ['type' => 'warning', 'message' => $result['blocked']]);
+
+            return back();
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $result['changed'].' akun berhasil '.($isActive ? 'diaktifkan.' : 'dinonaktifkan.'),
+        ]);
+
+        return back();
+    }
+
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        Gate::authorize('viewAny', User::class);
+
+        $validated = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'user_ids.*' => ['required', 'integer', 'distinct:strict', 'exists:users,id'],
+        ]);
+        $userIds = array_map('intval', $validated['user_ids']);
+
+        if (in_array($request->user()->id, $userIds, true)) {
+            Inertia::flash('toast', ['type' => 'warning', 'message' => 'Akun Anda sendiri tidak dapat dihapus.']);
+
+            return back();
+        }
+
+        try {
+            $cannotDeleteLastAdmin = DB::transaction(function () use ($userIds): bool {
+                $users = User::query()->whereKey($userIds)->orderBy('id')->lockForUpdate()->get();
+
+                $activeSuperAdminIds = User::query()
+                    ->role(GuardLastSuperAdmin::ROLE)
+                    ->where('is_active', true)
+                    ->lockForUpdate()
+                    ->pluck('id');
+
+                if ($activeSuperAdminIds->isNotEmpty() && $activeSuperAdminIds->diff($userIds)->isEmpty()) {
+                    return true;
+                }
+
+                foreach ($users as $user) {
+                    $user->syncRoles([]);
+                    $user->syncPermissions([]);
+                    $user->notifications()->delete();
+                    $user->delete();
+                }
+
+                return false;
+            });
+        } catch (QueryException) {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => 'Sebagian akun masih terhubung ke proyek atau aktivitas. Tidak ada akun yang dihapus.',
+            ]);
+
+            return back();
+        }
+
+        if ($cannotDeleteLastAdmin) {
+            Inertia::flash('toast', ['type' => 'warning', 'message' => 'Super Admin aktif terakhir tidak dapat dihapus.']);
+
+            return back();
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => count($userIds).' akun berhasil dihapus.']);
 
         return back();
     }

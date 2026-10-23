@@ -60,8 +60,7 @@ const rightNavItems: NavItem[] = [
     },
 ];
 
-const activeItemStyles =
-    'text-neutral-900  ';
+const activeItemStyles = 'text-neutral-900  ';
 
 export function AppHeader({ breadcrumbs = [] }: Props) {
     const page = usePage();
@@ -79,9 +78,9 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                             <SheetTrigger
                                 render={
                                     <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="mr-2 h-[34px] w-[34px]"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="mr-2 h-[34px] w-[34px]"
                                     >
                                         <Menu className="h-5 w-5" />
                                     </Button>
@@ -95,7 +94,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                     Navigation menu
                                 </SheetTitle>
                                 <SheetHeader className="flex justify-start text-left">
-                                    <AppLogoIcon className="h-6 w-6 fill-current text-black " />
+                                    <AppLogoIcon className="h-6 w-6 fill-current text-black" />
                                 </SheetHeader>
                                 <div className="flex h-full flex-1 flex-col space-y-4 p-4">
                                     <div className="flex h-full flex-col justify-between text-sm">
@@ -170,7 +169,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                             {item.title}
                                         </Link>
                                         {isCurrentUrl(item.href) && (
-                                            <div className="absolute bottom-0 left-0 h-0.5 w-full translate-y-px bg-black "></div>
+                                            <div className="absolute bottom-0 left-0 h-0.5 w-full translate-y-px bg-black"></div>
                                         )}
                                     </NavigationMenuItem>
                                 ))}
@@ -216,17 +215,22 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                             <DropdownMenuTrigger
                                 render={
                                     <Button
-                                    variant="ghost"
-                                    className="size-10 rounded-full p-1"
+                                        variant="ghost"
+                                        className="size-10 rounded-full p-1"
                                     >
                                         <Avatar className="size-8 overflow-hidden rounded-full">
-                                        <AvatarImage
-                                            src={auth.user?.avatar ?? undefined}
-                                            alt={auth.user?.name}
-                                        />
-                                        <AvatarFallback className="rounded-lg bg-neutral-200 text-black  ">
-                                            {getInitials(auth.user?.name ?? '')}
-                                        </AvatarFallback>
+                                            <AvatarImage
+                                                src={
+                                                    auth.user?.avatar ??
+                                                    undefined
+                                                }
+                                                alt={auth.user?.name}
+                                            />
+                                            <AvatarFallback className="rounded-lg bg-neutral-200 text-black">
+                                                {getInitials(
+                                                    auth.user?.name ?? '',
+                                                )}
+                                            </AvatarFallback>
                                         </Avatar>
                                     </Button>
                                 }

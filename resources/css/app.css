@@ -28,6 +28,11 @@
     --color-accent-foreground: var(--accent-foreground);
     --color-destructive: var(--destructive);
     --color-destructive-foreground: var(--destructive-foreground);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-info: var(--info);
+    --color-violet: var(--violet);
+    --color-teal: var(--teal);
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
@@ -69,6 +74,9 @@
     --ring: #2547f9;
     --success: #16834a;
     --warning: #c96b0d;
+    --info: #087e8b;
+    --violet: #7057c8;
+    --teal: #0f766e;
     --chart-1: #2547f9;
     --chart-2: #16834a;
     --chart-3: #c96b0d;
@@ -97,6 +105,6 @@
     }
 
     body {
-        @apply bg-background text-foreground font-sans;
+        @apply bg-background font-sans text-foreground;
     }
 }

@@ -1,6 +1,6 @@
-import { Link } from "@inertiajs/react";
-import { formatDistanceToNow, parseISO } from "date-fns";
-import { id as indonesianLocale } from "date-fns/locale";
+import { Link } from '@inertiajs/react';
+import { formatDistanceToNow, parseISO } from 'date-fns';
+import { id as indonesianLocale } from 'date-fns/locale';
 import {
     ArrowDownRight,
     ArrowRight,
@@ -12,39 +12,39 @@ import {
     Minus,
     Users,
     Zap,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
-import type { ActivitySeries } from "@/components/charts/activity-chart";
-import type { CompetencyLevelData } from "@/components/charts/competency-level-chart";
-import type { OrganizationCount } from "@/components/charts/organization-chart";
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import type { ActivitySeries } from '@/components/charts/activity-chart';
+import type { CompetencyLevelData } from '@/components/charts/competency-level-chart';
+import type { OrganizationCount } from '@/components/charts/organization-chart';
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-} from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { index as auditIndex } from "@/routes/admin/audit";
-import { index as rubricsIndex } from "@/routes/admin/rubrics";
-import { index as settingsIndex } from "@/routes/admin/settings";
-import { index as usersIndex } from "@/routes/admin/users";
-import { index as competencyDirectoryIndex } from "@/routes/admin/competency-directory";
+} from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { index as auditIndex } from '@/routes/admin/audit';
+import { index as rubricsIndex } from '@/routes/admin/rubrics';
+import { index as settingsIndex } from '@/routes/admin/settings';
+import { index as usersIndex } from '@/routes/admin/users';
+import { index as competencyDirectoryIndex } from '@/routes/admin/competency-directory';
 
-const ActivityChart = lazy(() => import("@/components/charts/activity-chart"));
+const ActivityChart = lazy(() => import('@/components/charts/activity-chart'));
 const CompetencyLevelChart = lazy(
-    () => import("@/components/charts/competency-level-chart"),
+    () => import('@/components/charts/competency-level-chart'),
 );
 const OrganizationChart = lazy(
-    () => import("@/components/charts/organization-chart"),
+    () => import('@/components/charts/organization-chart'),
 );
 
 const attentionLinks: Record<
     string,
-    () => { url: string; method: "get" | "head" }
+    () => { url: string; method: 'get' | 'head' }
 > = {
     no_organization: usersIndex,
     no_sim_id: usersIndex,
@@ -76,7 +76,7 @@ export type AdminOverviewData = {
     }[];
 };
 
-const numberFormat = new Intl.NumberFormat("id-ID");
+const numberFormat = new Intl.NumberFormat('id-ID');
 
 function sum(values: number[]): number {
     return values.reduce((total, value) => total + value, 0);
@@ -106,7 +106,7 @@ function StatCard({
                     </p>
                     <span
                         className={cn(
-                            "flex size-10 shrink-0 items-center justify-center rounded-xl",
+                            'flex size-10 shrink-0 items-center justify-center rounded-xl',
                             tone,
                         )}
                     >
@@ -154,12 +154,12 @@ function WeekDelta({
     const Icon =
         change > 0 ? ArrowUpRight : change < 0 ? ArrowDownRight : Minus;
     const variant =
-        change > 0 ? "success" : change < 0 ? "destructive" : "secondary";
+        change > 0 ? 'success' : change < 0 ? 'destructive' : 'secondary';
 
     return (
         <Badge variant={variant} className="font-normal">
             <Icon aria-hidden="true" />
-            {change > 0 ? "+" : ""}
+            {change > 0 ? '+' : ''}
             {change}% dari minggu lalu
         </Badge>
     );
@@ -398,7 +398,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                                 Peserta per LOB / Divisi
                             </CardTitle>
                             <CardDescription className="text-[13px]">
-                                Jumlah peserta aktif di setiap organisasi.
+                                Enam LOB terbesar, sisanya digabung.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="min-w-0">
@@ -455,7 +455,9 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                                                 className="border-b border-border/60 last:border-b-0"
                                             >
                                                 <Link
-                                                    href={link ? link().url : "#"}
+                                                    href={
+                                                        link ? link().url : '#'
+                                                    }
                                                     className="flex items-center gap-3 py-3 text-[13px] hover:text-primary"
                                                 >
                                                     <AlertTriangle
@@ -466,7 +468,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                                                         {item.label}
                                                     </span>
                                                     {item.key !==
-                                                        "ai_not_configured" && (
+                                                        'ai_not_configured' && (
                                                         <Badge
                                                             variant="secondary"
                                                             className="font-semibold"
@@ -521,7 +523,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                                                     {item.description}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
-                                                    {item.module} ·{" "}
+                                                    {item.module} ·{' '}
                                                     {formatDistanceToNow(
                                                         parseISO(
                                                             item.occurred_at,

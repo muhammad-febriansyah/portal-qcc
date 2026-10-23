@@ -102,13 +102,16 @@ test('passwords and tokens never reach the log', function () {
     $admin = adminWithManage('users.manage');
     $target = User::factory()->create();
 
-    $this->actingAs($admin)->put(route('admin.users.password.update', $target));
-    $generated = session('inertia.flash_data.credential.password');
+    $newPassword = 'Replacement-Password-2026';
+
+    $this->actingAs($admin)->put(route('admin.users.password.update', $target), [
+        'password' => $newPassword,
+        'password_confirmation' => $newPassword,
+    ]);
 
     $everything = AuditLog::query()->get()->toJson();
 
-    expect($generated)->toBeString()
-        ->and($everything)->not->toContain($generated)
+    expect($everything)->not->toContain($newPassword)
         ->and($everything)->not->toContain('remember_token')
         ->and($everything)->not->toContain('"password"');
     expect(AuditLog::query()->where('event', 'user.password_reset')->exists())->toBeTrue();
@@ -222,11 +225,11 @@ test('entries are described in plain Indonesian', function () {
 
     $describer = new AuditDescriber;
 
-    expect($describer->describe($login->load('actor')))->toBe('Rina Auditor masuk ke Portal QCC')
+    expect($describer->describe($login->load('actor')))->toBe('Rina Auditor masuk ke '.config('app.name'))
         ->and($describer->describe($created->load('actor')))->toBe('Rina Auditor menambahkan anggota Budi (budi@example.com)')
         ->and($describer->describe($role->load('actor')))->toBe('Rina Auditor mengubah role Budi dari Mentor menjadi Team Leader')
         ->and($describer->describe($update->load('actor')))->toBe('Rina Auditor mengubah batch B-1 - QCC (status)')
-        ->and($describer->describe($system->load('actor')))->toBe('Sistem keluar dari Portal QCC')
+        ->and($describer->describe($system->load('actor')))->toBe('Sistem keluar dari '.config('app.name'))
         ->and($describer->changes($update))->toBe([['label' => 'Status', 'before' => 'Draf', 'after' => 'Aktif']]);
 });
 
@@ -258,7 +261,7 @@ test('the page lists readable entries newest first and loads actors without extr
             ->component('admin/audit/index')
             ->has('logs.data', 10)
             ->where('logs.total', 12)
-            ->where('logs.data.0.description', 'Rina Auditor masuk ke Portal QCC')
+            ->where('logs.data.0.description', 'Rina Auditor masuk ke '.config('app.name'))
             ->where('logs.data.0.actor_name', 'Rina Auditor')
             ->has('moduleOptions', count(AuditLog::MODULE_LABELS)));
 });

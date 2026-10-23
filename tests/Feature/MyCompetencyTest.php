@@ -153,7 +153,7 @@ test('changing the level never touches the verified level, and the competency ca
     $row->refresh();
     expect($row->self_level)->toBe(4)
         ->and($row->verified_level)->toBe(2)
-        ->and($row->verification_status)->toBe('verified')
+        ->and($row->verification_status)->toBe('PENDING')
         ->and($row->competency_id)->toBe($originalCompetency);
 });
 

@@ -1,11 +1,14 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\Competency;
 use App\Models\CompetencyGroup;
 use App\Models\MemberCompetency;
 use App\Models\Organization;
 use App\Models\User;
+use Database\Seeders\AdminPermissionSeeder;
 use Database\Seeders\PeopleReportPermissionSeeder;
+use Database\Seeders\ProjectAccessSeeder;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
@@ -16,6 +19,16 @@ function directoryViewer(): User
     $user = User::factory()->create();
     $user->assignRole(Role::findOrCreate('Super Admin', 'web'));
     $user->givePermissionTo(Permission::findOrCreate('people.report', 'web'));
+
+    return $user;
+}
+
+function competencyVerifier(string $role = 'Owner QCC'): User
+{
+    $user = User::factory()->create();
+    $user->assignRole(Role::findOrCreate($role, 'web'));
+    $user->givePermissionTo(Permission::findOrCreate('people.report', 'web'));
+    $user->givePermissionTo(Permission::findOrCreate('competencies.verify', 'web'));
 
     return $user;
 }
@@ -42,7 +55,7 @@ function holds(User $user, Competency $competency, int $self, ?int $verified = n
     $row = MemberCompetency::factory()->create(['user_id' => $user->id, 'competency_id' => $competency->id, 'self_level' => $self]);
 
     if ($verified !== null) {
-        $row->forceFill(['verified_level' => $verified, 'verification_status' => 'verified', 'verified_at' => now()])->save();
+        $row->forceFill(['verified_level' => $verified, 'verification_status' => 'VERIFIED', 'verified_at' => now()])->save();
     }
 
     return $row;
@@ -67,6 +80,101 @@ test('only Super Admin and Owner QCC are given access by the seeder', function (
         $user->assignRole(Role::findOrCreate($roleName, 'web'));
         expect($user->can('people.report'))->toBeFalse();
     }
+});
+
+test('Super Admin and Owner QCC receive competency verification permission', function () {
+    $this->seed(AdminPermissionSeeder::class);
+    $this->seed(ProjectAccessSeeder::class);
+
+    foreach (['Super Admin', 'Owner QCC'] as $roleName) {
+        $user = User::factory()->create();
+        $user->assignRole(Role::findOrCreate($roleName, 'web'));
+
+        expect($user->can('competencies.verify'))->toBeTrue();
+    }
+});
+
+test('an authorized verifier saves verified level without changing self assessment and audits the decision', function () {
+    $verifier = competencyVerifier();
+    $member = person('Rina Peserta');
+    $row = holds($member, skill('C091', 'Analisis Akar Masalah'), self: 4);
+
+    $this->actingAs($verifier)
+        ->post(route('admin.competency-directory.verify', $row), [
+            'verified_level' => 3,
+            'note' => 'Bukti menunjukkan kemampuan Proficient.',
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $row->refresh();
+    $audit = AuditLog::query()->where('event', 'member_competency.verified')->sole();
+
+    expect($row->self_level)->toBe(4)
+        ->and($row->verified_level)->toBe(3)
+        ->and($row->verified_by)->toBe($verifier->id)
+        ->and($row->verified_at)->not->toBeNull()
+        ->and($row->verification_status)->toBe('VERIFIED')
+        ->and($row->verification_note)->toBe('Bukti menunjukkan kemampuan Proficient.')
+        ->and($audit->actor_id)->toBe($verifier->id)
+        ->and($audit->reason)->toBe('Bukti menunjukkan kemampuan Proficient.');
+});
+
+test('a competency owner cannot verify or reject their own assessment', function () {
+    $owner = competencyVerifier();
+    $row = holds($owner, skill('C099', 'Analisis Penyebab'), self: 3);
+
+    $this->actingAs($owner)
+        ->post(route('admin.competency-directory.verify', $row), ['verified_level' => 2])
+        ->assertForbidden();
+
+    $this->post(route('admin.competency-directory.reject', $row), ['reason' => 'Perlu bukti.'])
+        ->assertForbidden();
+
+    expect($row->fresh()->verification_status)->toBeNull()
+        ->and($row->fresh()->verified_by)->toBeNull()
+        ->and(AuditLog::query()->whereIn('event', ['member_competency.verified', 'member_competency.rejected'])->count())->toBe(0);
+});
+
+test('rejection requires reason and records the request for improvement', function () {
+    $verifier = competencyVerifier();
+    $row = holds(person('Dimas Anggota'), skill('C092', 'Komunikasi Data'), self: 2);
+    $this->actingAs($verifier);
+
+    $this->post(route('admin.competency-directory.reject', $row), [])
+        ->assertSessionHasErrors(['reason' => 'Alasan penolakan wajib diisi.']);
+
+    expect($row->fresh()->verification_status)->toBeNull();
+
+    $this->post(route('admin.competency-directory.reject', $row), [
+        'reason' => 'Tambahkan contoh penerapan kompetensi pada proyek.',
+    ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $row->refresh();
+    $audit = AuditLog::query()->where('event', 'member_competency.rejected')->sole();
+
+    expect($row->verification_status)->toBe('REJECTED')
+        ->and($row->verification_note)->toBe('Tambahkan contoh penerapan kompetensi pada proyek.')
+        ->and($row->verified_by)->toBe($verifier->id)
+        ->and($audit->actor_id)->toBe($verifier->id)
+        ->and($audit->reason)->toBe('Tambahkan contoh penerapan kompetensi pada proyek.');
+});
+
+test('a user without competencies.verify cannot verify or reject member competency', function () {
+    $viewer = directoryViewer();
+    $row = holds(person('Salsa Anggota'), skill('C093', 'Pemecahan Masalah'), self: 3);
+    $this->actingAs($viewer);
+
+    $this->post(route('admin.competency-directory.verify', $row), ['verified_level' => 3])
+        ->assertForbidden();
+    $this->post(route('admin.competency-directory.reject', $row), ['reason' => 'Perlu bukti tambahan.'])
+        ->assertForbidden();
+
+    expect($row->fresh()->self_level)->toBe(3)
+        ->and($row->fresh()->verified_level)->toBeNull()
+        ->and(AuditLog::query()->whereIn('event', ['member_competency.verified', 'member_competency.rejected'])->count())->toBe(0);
 });
 
 test('people without the permission are refused', function () {

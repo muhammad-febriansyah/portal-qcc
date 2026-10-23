@@ -17,6 +17,7 @@ class CompetencyGroup extends Model
         'name',
     ];
 
+    /** @return HasMany<Competency, $this> */
     public function competencies(): HasMany
     {
         return $this->hasMany(Competency::class, 'group_id');

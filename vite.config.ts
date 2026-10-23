@@ -7,6 +7,8 @@ import laravel from 'laravel-vite-plugin';
 import { bunny } from 'laravel-vite-plugin/fonts';
 import { defineConfig, lazyPlugins } from 'vite-plus';
 
+const lanDevHost = process.env.VITE_DEV_HOST;
+
 export default defineConfig({
     plugins: lazyPlugins(() => [
         laravel({
@@ -36,6 +38,12 @@ export default defineConfig({
         include: ['react-apexcharts', 'apexcharts'],
     },
     server: {
+        // Set VITE_DEV_HOST to this machine's LAN IP to open the dev server to other devices.
+        ...(lanDevHost && {
+            host: '0.0.0.0',
+            origin: `http://${lanDevHost}:5173`,
+            hmr: { host: lanDevHost },
+        }),
         watch: {
             ignored: [
                 '**/.agents/**',

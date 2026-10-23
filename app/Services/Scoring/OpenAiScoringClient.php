@@ -2,11 +2,15 @@
 
 namespace App\Services\Scoring;
 
+use App\Models\SystemSetting;
 use App\Services\Scoring\Contracts\ScoringModelClient;
 use App\Services\Scoring\Exceptions\InvalidScoringResult;
 use App\Services\Scoring\Exceptions\ScoringUnavailable;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -17,8 +21,32 @@ class OpenAiScoringClient implements ScoringModelClient
 {
     public function score(array $request): array
     {
-        $key = config('scoring.openai.key');
-        $model = config('scoring.openai.model');
+        $settings = Cache::remember('system-settings.ai', now()->addMinutes(5), function (): array {
+            return SystemSetting::query()
+                ->whereIn('key', ['ai_enabled', 'ai_model', 'ai_api_key'])
+                ->pluck('value', 'key')
+                ->all();
+        });
+
+        $configuredKey = config('scoring.openai.key');
+        $configuredModel = config('scoring.openai.model');
+        $isEnabled = array_key_exists('ai_enabled', $settings)
+            ? filter_var($settings['ai_enabled'], FILTER_VALIDATE_BOOLEAN)
+            : filled($configuredKey) && filled($configuredModel);
+
+        if (! $isEnabled) {
+            throw new ScoringUnavailable('Integrasi AI dinonaktifkan di Pengaturan Sistem.', false, 'ai_not_configured');
+        }
+
+        try {
+            $key = isset($settings['ai_api_key'])
+                ? Crypt::decryptString($settings['ai_api_key'])
+                : $configuredKey;
+        } catch (DecryptException) {
+            throw new ScoringUnavailable('API key integrasi AI tidak dapat dibaca.', false, 'ai_not_configured');
+        }
+
+        $model = $settings['ai_model'] ?? $configuredModel;
 
         if (! is_string($key) || $key === '' || ! is_string($model) || $model === '') {
             throw new ScoringUnavailable('Penyedia AI belum dikonfigurasi.', false, 'ai_not_configured');

@@ -1,61 +1,102 @@
-import type { ApexOptions } from "apexcharts";
-import Chart from "react-apexcharts";
+import type { ApexOptions } from 'apexcharts';
+import Chart from 'react-apexcharts';
 
 export type OrganizationCount = { label: string; total: number };
 
+const COLORS = [
+    '#2547F9',
+    '#16834A',
+    '#F79009',
+    '#7A5AF8',
+    '#06AED4',
+    '#D92D20',
+    '#98A2B3',
+];
+const TOP = 6;
+
 /**
- * Horizontal bars: participants per LOB or division, largest first.
+ * Donut of participants per LOB or division: the biggest ones get a slice,
+ * the rest are grouped as "Lainnya" so the chart stays readable.
  */
 export default function OrganizationChart({
     rows,
+    height = 320,
 }: {
     rows: OrganizationCount[];
+    height?: number;
 }) {
-    const height = Math.max(240, rows.length * 34 + 40);
+    const filled = rows.filter((row) => row.total > 0);
+    const top = filled.slice(0, TOP);
+    const rest = filled.slice(TOP);
+    const slices = rest.length
+        ? [
+              ...top,
+              {
+                  label: `Lainnya (${rest.length})`,
+                  total: rest.reduce((sum, row) => sum + row.total, 0),
+              },
+          ]
+        : top;
+    const total = slices.reduce((sum, row) => sum + row.total, 0);
 
     const options: ApexOptions = {
         chart: {
-            type: "bar",
+            type: 'donut',
             height,
-            toolbar: { show: false },
-            fontFamily: "Poppins, sans-serif",
-            foreColor: "#697386",
+            fontFamily: 'Poppins, sans-serif',
+            foreColor: '#697386',
         },
-        colors: ["#2547F9"],
+        labels: slices.map((row) => row.label),
+        colors: COLORS,
+        stroke: { width: 2, colors: ['#fff'] },
+        dataLabels: { enabled: false },
         plotOptions: {
-            bar: { horizontal: true, barHeight: "58%", borderRadius: 3 },
-        },
-        dataLabels: {
-            enabled: true,
-            offsetX: 4,
-            style: { fontSize: "12px", colors: ["#344054"] },
-        },
-        grid: {
-            borderColor: "#E7EAF2",
-            strokeDashArray: 4,
-            xaxis: { lines: { show: true } },
-            yaxis: { lines: { show: false } },
-        },
-        xaxis: {
-            categories: rows.map((row) => row.label),
-            axisBorder: { show: false },
-            axisTicks: { show: false },
-            labels: {
-                formatter: (value: string) => String(Math.round(Number(value))),
+            pie: {
+                donut: {
+                    size: '68%',
+                    labels: {
+                        show: true,
+                        name: { show: false },
+                        value: {
+                            fontSize: '28px',
+                            fontWeight: 600,
+                            color: '#101828',
+                            offsetY: 8,
+                        },
+                        total: {
+                            show: true,
+                            showAlways: true,
+                            label: 'Peserta',
+                            formatter: () => String(total),
+                        },
+                    },
+                },
             },
         },
-        yaxis: { labels: { maxWidth: 160, style: { fontSize: "12px" } } },
-        legend: { show: false },
+        legend: {
+            position: 'right',
+            fontSize: '13px',
+            markers: { size: 6, shape: 'circle' },
+            itemMargin: { vertical: 4 },
+            formatter: (label: string, opts) =>
+                `${label}  <b>${slices[opts?.seriesIndex as number]?.total ?? 0}</b>`,
+        },
         tooltip: { y: { formatter: (value: number) => `${value} peserta` } },
+        responsive: [
+            {
+                breakpoint: 640,
+                options: { legend: { position: 'bottom' } },
+            },
+        ],
     };
 
     return (
         <Chart
-            type="bar"
+            type="donut"
             width="100%"
             height={height}
             options={options}
-            series={[{ name: "Peserta", data: rows.map((row) => row.total) }]}
+            series={slices.map((row) => row.total)}
         />
     );
 }

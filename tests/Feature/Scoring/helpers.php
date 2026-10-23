@@ -19,7 +19,7 @@ function scoringRubric(array $weights = [30, 35, 35], string $status = 'publishe
     $version = RubricVersion::query()->create([
         'rubric_set_id' => $set->id,
         'version_number' => 1,
-        'publication_status' => $status,
+        'publication_status' => 'draft',
     ]);
 
     foreach ($weights as $index => $weight) {
@@ -31,6 +31,10 @@ function scoringRubric(array $weights = [30, 35, 35], string $status = 'publishe
             'weight_pct' => $weight,
             'position' => $index + 1,
         ]);
+    }
+
+    if ($status === 'published') {
+        $version->update(['publication_status' => 'published']);
     }
 
     return $version->load('criteria');

@@ -128,7 +128,56 @@ test('neither the shortlist nor the snapshot carries private contacts', function
         ->and($encoded)->not->toContain('0812-PRIBADI-2222')
         ->and($encoded)->not->toContain('SIM-PRIVATE-9')
         ->and(json_encode($snapshot))->not->toContain('Rahasia Orang')
-        ->and($snapshot['candidates'][0])->toHaveKeys(['candidate_user_id', 'organization_id', 'availability_status', 'competencies']);
+        ->and($snapshot['candidates'][0])->toHaveKeys(['candidate_user_id', 'organization_id', 'availability_status', 'competencies', 'qcc_experience'])
+        ->and($snapshot['candidates'][0]['qcc_experience'])->toBe([
+            'projects_count' => 0,
+            'leader_projects_count' => 0,
+            'completed_projects_count' => 0,
+        ]);
+});
+
+test('the AI snapshot includes only aggregate prior QCC experience counts', function () {
+    $member = candidate('Kandidat Berpengalaman', $this->skill);
+    $completedProject = Project::factory()->create();
+    $ongoingProject = Project::factory()->create();
+
+    DB::table('project_members')->insert([
+        [
+            'project_id' => $completedProject->id,
+            'user_id' => $member->id,
+            'role_in_project' => 'LEADER',
+            'status' => 'ACTIVE',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+        [
+            'project_id' => $ongoingProject->id,
+            'user_id' => $member->id,
+            'role_in_project' => 'MEMBER',
+            'status' => 'ACTIVE',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    ]);
+
+    foreach (range(1, 8) as $stepNumber) {
+        DB::table('qcc_steps')->insert([
+            'project_id' => $completedProject->id,
+            'step_number' => $stepNumber,
+            'status' => 'APPROVED',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    $snapshot = app(CandidateShortlist::class)->snapshot($this->project, shortlistFor($this->project));
+    $candidateSnapshot = collect($snapshot['candidates'])->firstWhere('candidate_user_id', $member->id);
+
+    expect($candidateSnapshot['qcc_experience'])->toBe([
+        'projects_count' => 2,
+        'leader_projects_count' => 1,
+        'completed_projects_count' => 1,
+    ])->and($candidateSnapshot)->not->toHaveKeys(['name', 'email', 'position', 'organization']);
 });
 
 test('the shortlist takes a fixed number of queries however many candidates there are', function () {

@@ -2,7 +2,7 @@
 
 return [
 
-    'prompt_version' => 'v1',
+    'prompt_version' => 'v2',
 
     /*
     | Seconds a project must wait before it may ask for a new suggestion.

@@ -1,7 +1,7 @@
-import type { ApexOptions } from "apexcharts";
-import { format, parseISO } from "date-fns";
-import { id as indonesianLocale } from "date-fns/locale";
-import Chart from "react-apexcharts";
+import type { ApexOptions } from 'apexcharts';
+import { format, parseISO } from 'date-fns';
+import { id as indonesianLocale } from 'date-fns/locale';
+import Chart from 'react-apexcharts';
 
 export type ActivitySeries = {
     days: string[];
@@ -11,9 +11,9 @@ export type ActivitySeries = {
 };
 
 const COLORS = {
-    login: "#2547F9",
-    changes: "#16834A",
-    failed: "#D92D20",
+    login: '#2547F9',
+    changes: '#16834A',
+    failed: '#D92D20',
 };
 
 type Props = {
@@ -34,35 +34,35 @@ export default function ActivityChart({ series, height = 360 }: Props) {
 
     const options: ApexOptions = {
         chart: {
-            type: "area",
+            type: 'area',
             height,
             toolbar: { show: false },
             zoom: { enabled: false },
-            fontFamily: "Poppins, sans-serif",
-            foreColor: "#697386",
+            fontFamily: 'Poppins, sans-serif',
+            foreColor: '#697386',
             animations: { enabled: true, speed: 400 },
         },
         colors: [COLORS.login, COLORS.changes, COLORS.failed],
-        stroke: { curve: "smooth", width: [2.5, 2.5, 2], lineCap: "round" },
-        fill: { type: "solid", opacity: [0.12, 0.1, 0] },
+        stroke: { curve: 'smooth', width: [2.5, 2.5, 2], lineCap: 'round' },
+        fill: { type: 'solid', opacity: [0.12, 0.1, 0] },
         dataLabels: { enabled: false },
         markers: { size: 0, hover: { size: 5 } },
         grid: {
-            borderColor: "#E7EAF2",
+            borderColor: '#E7EAF2',
             strokeDashArray: 4,
             padding: { left: 8, right: 12 },
         },
         xaxis: {
-            type: "datetime",
+            type: 'datetime',
             tickAmount: 6,
             axisBorder: { show: false },
             axisTicks: { show: false },
             labels: {
                 datetimeUTC: false,
                 rotate: 0,
-                style: { fontSize: "12px" },
+                style: { fontSize: '12px' },
                 formatter: (value: string) =>
-                    format(new Date(Number(value)), "d MMM", {
+                    format(new Date(Number(value)), 'd MMM', {
                         locale: indonesianLocale,
                     }),
             },
@@ -72,15 +72,15 @@ export default function ActivityChart({ series, height = 360 }: Props) {
             min: 0,
             forceNiceScale: true,
             labels: {
-                style: { fontSize: "12px" },
+                style: { fontSize: '12px' },
                 formatter: (value: number) => String(Math.round(value)),
             },
         },
         legend: {
-            position: "top",
-            horizontalAlign: "right",
-            fontSize: "13px",
-            markers: { size: 6, shape: "circle" },
+            position: 'top',
+            horizontalAlign: 'right',
+            fontSize: '13px',
+            markers: { size: 6, shape: 'circle' },
             itemMargin: { horizontal: 10 },
         },
         tooltip: {
@@ -88,7 +88,7 @@ export default function ActivityChart({ series, height = 360 }: Props) {
             intersect: false,
             x: {
                 formatter: (value: number) =>
-                    format(new Date(value), "EEEE, d MMMM yyyy", {
+                    format(new Date(value), 'EEEE, d MMMM yyyy', {
                         locale: indonesianLocale,
                     }),
             },
@@ -102,9 +102,9 @@ export default function ActivityChart({ series, height = 360 }: Props) {
             height={height}
             options={options}
             series={[
-                { name: "Login", data: points(series.login) },
-                { name: "Perubahan data", data: points(series.changes) },
-                { name: "Login gagal", data: points(series.failed) },
+                { name: 'Login', data: points(series.login) },
+                { name: 'Perubahan data', data: points(series.changes) },
+                { name: 'Login gagal', data: points(series.failed) },
             ]}
         />
     );

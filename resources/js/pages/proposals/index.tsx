@@ -1,12 +1,16 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
 import {
+    ArrowRight,
     CircleCheck,
     CircleDashed,
     CircleX,
     Eye,
+    FileText,
+    ListChecks,
     PencilLine,
+    Plus,
     Send,
     UsersRound,
 } from 'lucide-react';
@@ -19,8 +23,10 @@ import type {
 } from '@/components/data-table';
 import { DataTableRowActions } from '@/components/data-table-row-actions';
 import { PageHeader } from '@/components/page-header';
+import { CsvExportButton } from '@/components/csv-export-button';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Select,
     SelectContent,
@@ -30,7 +36,17 @@ import {
 } from '@/components/ui/select';
 import type { BadgeVariant } from '@/lib/badge-variants';
 import { dashboard } from '@/routes';
-import { candidates, index } from '@/routes/proposals';
+import { show as showSteps } from '@/routes/projects/steps';
+import { candidates, create, edit, index, show } from '@/routes/proposals';
+import { proposals as exportProposals } from '@/routes/exports';
+
+type Draft = {
+    id: number;
+    title: string;
+    batch: string | null;
+    wizard_step: number;
+    updated_at: string | null;
+};
 
 type ProposalRow = {
     id: number;
@@ -42,6 +58,7 @@ type ProposalRow = {
     members_count: number;
     status: string;
     can_find_candidates: boolean;
+    can_edit_draft: boolean;
     updated_at: string | null;
 };
 
@@ -61,6 +78,8 @@ type ProposalFilters = {
 type ProposalQuery = Partial<ProposalFilters> & { page?: number };
 
 type Props = {
+    drafts: Draft[];
+    can_create: boolean;
     proposals: {
         data: ProposalRow[];
         current_page: number;
@@ -130,7 +149,58 @@ function FilterSelect({
     );
 }
 
+function DraftList({ drafts }: { drafts: Draft[] }) {
+    return (
+        <Card className="mb-6 gap-0 py-0">
+            <CardHeader className="border-b py-4">
+                <CardTitle className="text-base font-semibold">
+                    Draft Saya
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+                <ul className="divide-y divide-border/60">
+                    {drafts.map((draft) => (
+                        <li
+                            key={draft.id}
+                            className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center"
+                        >
+                            <span
+                                className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
+                                aria-hidden="true"
+                            >
+                                <FileText className="size-5" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                    {draft.title}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    {draft.batch ?? '—'}
+                                </p>
+                            </div>
+                            <Badge variant="outline">
+                                Langkah {draft.wizard_step} dari 5
+                            </Badge>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                render={<Link href={edit.url(draft.id)} />}
+                                nativeButton={false}
+                            >
+                                Lanjutkan
+                                <ArrowRight data-icon="inline-end" />
+                            </Button>
+                        </li>
+                    ))}
+                </ul>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function ProposalsIndex({
+    drafts,
+    can_create: canCreate,
     proposals,
     filters,
     statusOptions,
@@ -277,6 +347,34 @@ export default function ProposalsIndex({
                                 label={`Aksi untuk ${proposal.code}`}
                                 actions={[
                                     {
+                                        label: 'Detail proposal',
+                                        icon: Eye,
+                                        onSelect: () =>
+                                            router.visit(show.url(proposal.id)),
+                                    },
+                                    {
+                                        label: 'Lihat 8 Step',
+                                        icon: ListChecks,
+                                        hidden: proposal.status !== 'APPROVED',
+                                        onSelect: () =>
+                                            router.visit(
+                                                showSteps.url({
+                                                    project: proposal.id,
+                                                }),
+                                            ),
+                                    },
+                                    {
+                                        label:
+                                            proposal.status ===
+                                            'REVISION_REQUIRED'
+                                                ? 'Edit untuk revisi'
+                                                : 'Lanjutkan draft',
+                                        icon: PencilLine,
+                                        hidden: !proposal.can_edit_draft,
+                                        onSelect: () =>
+                                            router.visit(edit.url(proposal.id)),
+                                    },
+                                    {
                                         label: 'Cari kandidat tim',
                                         icon: UsersRound,
                                         hidden: !proposal.can_find_candidates,
@@ -315,7 +413,29 @@ export default function ProposalsIndex({
                     ]}
                     title="Proposal QCC"
                     description="Buat proposal, lanjutkan draft, dan pantau status review serta revisinya."
+                    actions={
+                        <div className="flex flex-wrap gap-2">
+                            <CsvExportButton
+                                href={exportProposals.url({ query: filters })}
+                            />
+                            {canCreate ? (
+                                <Button
+                                    className="h-10 px-4 text-sm"
+                                    render={<Link href={create.url()} />}
+                                    nativeButton={false}
+                                >
+                                    <Plus
+                                        data-icon="inline-start"
+                                        aria-hidden="true"
+                                    />
+                                    Buat Proposal
+                                </Button>
+                            ) : null}
+                        </div>
+                    }
                 />
+
+                {drafts.length > 0 && <DraftList drafts={drafts} />}
 
                 <Card className="gap-0 py-0">
                     <DataTable

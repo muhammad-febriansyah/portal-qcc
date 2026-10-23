@@ -16,6 +16,8 @@ export type ProfileCompetency = {
     self_level_label: string | null;
     verified_level: number | null;
     verified_level_label: string | null;
+    verification_status: string | null;
+    verification_note: string | null;
 };
 
 export type MemberProfile = {
@@ -105,27 +107,57 @@ export function CompetencyProfileDialog({ member, onClose }: Props) {
                                                     {item.self_level} ·{' '}
                                                     {item.self_level_label}
                                                 </td>
-                                                <td className="px-3 py-2 whitespace-nowrap">
-                                                    {item.verified_level !==
-                                                    null ? (
-                                                        <Badge
-                                                            variant="secondary"
-                                                            className="gap-1 bg-[#16834a]/10 text-[#16834a]"
-                                                        >
-                                                            <ShieldCheck aria-hidden="true" />
-                                                            {
-                                                                item.verified_level
-                                                            }{' '}
-                                                            ·{' '}
-                                                            {
-                                                                item.verified_level_label
-                                                            }
-                                                        </Badge>
-                                                    ) : (
-                                                        <span className="text-muted-foreground">
-                                                            Belum terverifikasi
-                                                        </span>
-                                                    )}
+                                                <td className="px-3 py-2">
+                                                    <div className="grid justify-items-start gap-1.5">
+                                                        {item.verified_level !==
+                                                        null ? (
+                                                            <span className="whitespace-nowrap">
+                                                                {
+                                                                    item.verified_level
+                                                                }{' '}
+                                                                ·{' '}
+                                                                {
+                                                                    item.verified_level_label
+                                                                }
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">
+                                                                Belum ada level
+                                                                verifikasi
+                                                            </span>
+                                                        )}
+                                                        {item.verification_status?.toUpperCase() ===
+                                                        'VERIFIED' ? (
+                                                            <Badge
+                                                                variant="success"
+                                                                className="gap-1"
+                                                            >
+                                                                <ShieldCheck aria-hidden="true" />{' '}
+                                                                Terverifikasi
+                                                            </Badge>
+                                                        ) : item.verification_status?.toUpperCase() ===
+                                                          'PENDING' ? (
+                                                            <Badge variant="outline">
+                                                                Menunggu
+                                                                verifikasi ulang
+                                                            </Badge>
+                                                        ) : item.verification_status?.toUpperCase() ===
+                                                          'REJECTED' ? (
+                                                            <div className="grid gap-1">
+                                                                <Badge variant="destructive">
+                                                                    Perlu
+                                                                    perbaikan
+                                                                </Badge>
+                                                                {item.verification_note && (
+                                                                    <span className="max-w-52 text-xs whitespace-normal text-muted-foreground">
+                                                                        {
+                                                                            item.verification_note
+                                                                        }
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ) : null}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}

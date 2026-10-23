@@ -25,15 +25,31 @@ class AuditDescriber
         'organization_id' => 'Organisasi',
         'self_level' => 'Level saya',
         'verified_level' => 'Level terverifikasi',
+        'verification_status' => 'Status verifikasi',
+        'verification_note' => 'Catatan verifikasi',
         'competency_id' => 'Kompetensi',
         'is_active' => 'Status',
         'role' => 'Role',
+        'permissions' => 'Permission',
         'code' => 'Kode',
         'starts_on' => 'Tanggal mulai',
         'ends_on' => 'Tanggal selesai',
         'status' => 'Status',
         'group_id' => 'Kelompok',
         'description' => 'Definisi',
+        'key' => 'Pengaturan',
+        'value' => 'Nilai',
+        'updated_by' => 'Diubah oleh',
+        'app_name' => 'Nama Website',
+        'keywords' => 'Keyword',
+        'site_description' => 'Deskripsi Website',
+        'logo_path' => 'Logo Website',
+        'favicon_path' => 'Favicon Website',
+        'project_id' => 'Proyek',
+        'reviewer_id' => 'Reviewer',
+        'granted_by' => 'Ditugaskan oleh',
+        'scope' => 'Ruang review',
+        'expires_at' => 'Berlaku sampai',
     ];
 
     /**
@@ -75,14 +91,15 @@ class AuditDescriber
 
     public function describe(AuditLog $log): string
     {
-        $actor = $log->actor?->name ?? 'Sistem';
+        $actor = $log->actor->name ?? 'Sistem';
         $subject = $log->subject_label ?? 'data';
         $fields = $this->changedFieldNames($log);
 
         return match ($log->event) {
-            'auth.login' => "{$actor} masuk ke Portal QCC",
-            'auth.logout' => "{$actor} keluar dari Portal QCC",
+            'auth.login' => "{$actor} masuk ke ".config('app.name'),
+            'auth.logout' => "{$actor} keluar dari ".config('app.name'),
             'auth.login_failed' => 'Percobaan masuk gagal untuk email '.($log->subject_label ?? 'tidak diketahui'),
+            'data.exported' => "{$actor} mengekspor {$subject}".$this->exportDetails($log),
             'user.created' => "{$actor} menambahkan anggota {$subject}",
             'user.updated' => "{$actor} mengubah data anggota {$subject}".$fields,
             'user.activated' => "{$actor} mengaktifkan akun {$subject}",
@@ -91,6 +108,16 @@ class AuditDescriber
             'user.avatar_changed' => "{$actor} mengubah foto profil",
             'user.avatar_removed' => "{$actor} menghapus foto profil",
             'user.role_changed' => $this->describeRoleChange($log, $actor, $subject),
+            'role.permissions_updated' => "{$actor} memperbarui permission role {$subject}",
+            'rubric.created' => "{$actor} menambahkan draft rubrik {$subject}",
+            'rubric.updated' => "{$actor} mengubah rubrik {$subject}".$fields,
+            'rubric.deleted' => "{$actor} menghapus rubrik {$subject}",
+            'rubric_version.created' => "{$actor} menambahkan versi rubrik {$subject}",
+            'rubric_version.updated' => "{$actor} mengubah versi rubrik {$subject}".$fields,
+            'rubric_version.deleted' => "{$actor} menghapus versi rubrik {$subject}",
+            'rubric_criterion.created' => "{$actor} menambahkan kriteria {$subject}",
+            'rubric_criterion.updated' => "{$actor} mengubah kriteria {$subject}".$fields,
+            'rubric_criterion.deleted' => "{$actor} menghapus kriteria {$subject}",
             'batch.created' => "{$actor} menambahkan batch {$subject}",
             'batch.updated' => "{$actor} mengubah batch {$subject}".$fields,
             'batch.deleted' => "{$actor} menghapus batch {$subject}",
@@ -99,9 +126,12 @@ class AuditDescriber
             'competency.created' => "{$actor} menambahkan kompetensi {$subject}",
             'competency.updated' => "{$actor} mengubah kompetensi {$subject}".$fields,
             'competency.deleted' => "{$actor} menghapus kompetensi {$subject}",
+            'competency.imported' => "{$actor} mengimpor master kompetensi (".(int) ($log->after_json['created'] ?? 0).' dibuat, '.(int) ($log->after_json['updated'] ?? 0).' diperbarui)',
             'member_competency.created' => "{$actor} menambahkan kompetensi {$subject} ke daftarnya",
             'member_competency.updated' => "{$actor} mengubah level kompetensi {$subject}".$fields,
             'member_competency.deleted' => "{$actor} menghapus kompetensi {$subject} dari daftarnya",
+            'member_competency.verified' => "{$actor} memverifikasi kompetensi {$subject}",
+            'member_competency.rejected' => "{$actor} meminta perbaikan kompetensi {$subject}",
             'scoring.run_requested' => "{$actor} meminta penilaian AI untuk {$subject}",
             'scoring.completed' => "Penilaian AI selesai untuk {$subject}",
             'scoring.insufficient_evidence' => "Penilaian AI untuk {$subject} dihentikan karena evidence belum cukup",
@@ -113,6 +143,20 @@ class AuditDescriber
             'team_matching.completed' => "Rekomendasi tim AI selesai untuk {$subject}",
             'team_matching.confirmed' => "{$actor} mengonfirmasi tim untuk {$subject}",
             'team_matching.failed' => "Rekomendasi tim AI untuk {$subject} gagal diproses",
+            'proposal.submitted' => "{$actor} mengajukan proposal {$subject} untuk direview",
+            'proposal.resubmitted' => "{$actor} mengajukan ulang proposal {$subject}",
+            'proposal.review.started' => "{$actor} memulai review proposal {$subject}",
+            'proposal.approve' => "{$actor} menyetujui proposal {$subject}",
+            'proposal.request.revision' => "{$actor} meminta revisi proposal {$subject}",
+            'proposal.reject' => "{$actor} menolak proposal {$subject}",
+            'system_setting.created' => "{$actor} menambahkan pengaturan sistem {$subject}".$fields,
+            'system_setting.updated' => "{$actor} mengubah pengaturan sistem {$subject}".$fields,
+            'evidence.created' => "{$actor} mengunggah evidence {$subject}",
+            'evidence.updated' => "{$actor} memperbarui status evidence {$subject}".$fields,
+            'evidence_link.created' => "{$actor} mengaitkan {$subject} ke proyek atau step",
+            'review_assignment.created' => "{$actor} menugaskan reviewer untuk {$subject}",
+            'review_assignment.updated' => "{$actor} memperbarui penugasan reviewer {$subject}".$fields,
+            'review_assignment.revoked' => "{$actor} mencabut penugasan reviewer {$subject}",
             default => "{$actor}: ".$log->eventLabel().($log->subject_label ? " ({$subject})" : ''),
         };
     }
@@ -149,6 +193,13 @@ class AuditDescriber
             : "{$actor} mengubah role {$subject} dari {$from} menjadi {$to}";
     }
 
+    private function exportDetails(AuditLog $log): string
+    {
+        $count = $log->after_json['row_count'] ?? null;
+
+        return is_numeric($count) ? ' sebanyak '.number_format((int) $count, 0, ',', '.').' baris' : '';
+    }
+
     private function changedFieldNames(AuditLog $log): string
     {
         $labels = array_map(
@@ -168,11 +219,25 @@ class AuditDescriber
         return match ($field) {
             'is_active' => filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'Aktif' : 'Nonaktif',
             'self_level', 'verified_level' => CompetencyLevel::labelFor((int) $value) ?? (string) $value,
+            'verification_status' => match (strtoupper((string) $value)) {
+                'PENDING' => 'Menunggu verifikasi',
+                'VERIFIED' => 'Terverifikasi',
+                'REJECTED' => 'Perlu perbaikan',
+                default => (string) $value,
+            },
             'organization_id' => $this->organizations[$value] ?? "#{$value}",
             'group_id' => $this->groups[$value] ?? "#{$value}",
             'status' => BatchStatus::tryFrom((string) $value)?->label() ?? (string) $value,
-            'starts_on', 'ends_on' => Carbon::parse((string) $value)->locale('id')->isoFormat('D MMM YYYY'),
-            default => is_scalar($value) ? (string) $value : json_encode($value, JSON_UNESCAPED_UNICODE),
+            'starts_on', 'ends_on' => $this->formatDate((string) $value),
+            default => is_scalar($value) ? (string) $value : (json_encode($value, JSON_UNESCAPED_UNICODE) ?: '—'),
         };
+    }
+
+    private function formatDate(string $value): string
+    {
+        $date = Carbon::parse($value);
+        $date->locale('id');
+
+        return $date->isoFormat('D MMM YYYY');
     }
 }

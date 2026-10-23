@@ -11,9 +11,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * A person's self-assessed level for one competency. The verified level is kept
  * apart and is never changed by the person.
+ *
+ * @property int $self_level
+ * @property int|null $verified_level
+ * @property string|null $verification_status
+ * @property string|null $verification_note
+ * @property int $user_id
+ * @property int $competency_id
  */
 class MemberCompetency extends Model
 {
+    public const STATUS_PENDING = 'PENDING';
+
+    public const STATUS_VERIFIED = 'VERIFIED';
+
+    public const STATUS_REJECTED = 'REJECTED';
+
     /** @use HasFactory<MemberCompetencyFactory> */
     use Auditable, HasFactory;
 

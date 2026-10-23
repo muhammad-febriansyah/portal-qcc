@@ -53,7 +53,7 @@ function readyRun(Project $project, array $suggested, ?TeamMatchingStatus $statu
             'user_id' => $pick[0], 'proposed_role' => $pick[1], 'matched_competency_ids' => [],
             'match_reason' => 'Cocok.', 'contribution' => 'Membantu.', 'gaps' => [], 'uncertainties' => [],
         ], $suggested),
-        'team_gaps' => [], 'cautions' => [], 'rule_problems' => [],
+        'team_gaps' => [], 'cautions' => [], 'mitigations' => [], 'rule_problems' => [],
     ]])->save();
 
     return $run;
@@ -93,7 +93,26 @@ it('confirms the AI suggestion as the active team and records who did it', funct
     expect(activeMembers($this->project))->toBe([[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']])
         ->and($run->confirmed_by)->toBe($this->reviewer->id)->and($run->confirmed_at)->not->toBeNull()
         ->and($log->actor_id)->toBe($this->reviewer->id)
-        ->and($log->after_json['changed_from_ai'])->toBeFalse();
+        ->and($log->after_json['changed_from_ai'])->toBeFalse()
+        ->and($this->a->fresh()->getRoleNames()->all())->toBe(['SIMer / Member']);
+});
+
+it('lets Owner QCC form a team manually without an AI run', function () {
+    $this->actingAs($this->reviewer)->post($this->url, [
+        'manual' => true,
+        'members' => [
+            ['user_id' => $this->a->id, 'role_in_project' => 'LEADER'],
+            ['user_id' => $this->b->id, 'role_in_project' => 'MEMBER'],
+        ],
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $run = TeamMatchingRun::query()->where('model', 'manual')->sole();
+    $audit = AuditLog::query()->where('event', 'team_matching.confirmed')->sole();
+
+    expect(activeMembers($this->project))->toHaveCount(2)
+        ->and($run->confirmed_at)->not->toBeNull()
+        ->and($audit->after_json['source'])->toBe('MANUAL')
+        ->and($audit->after_json['changed_from_ai'])->toBeFalse();
 });
 
 it('confirms a team the person changed by hand and says so in the audit log', function () {
@@ -148,13 +167,19 @@ it('does not take a run that is not ready, belongs to another project or was alr
     $this->actingAs($this->reviewer)->post($this->url, teamPayload($other, $team))->assertSessionHasErrors('team');
 });
 
-it('only confirms a team while the proposal is still a draft', function () {
+it('allows team changes for drafts and proposals returned for revision', function () {
     $this->project->forceFill(['proposal_status' => ProposalStatus::Submitted])->save();
 
     $this->actingAs($this->reviewer)->post($this->url, teamPayload($this->run, [[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']]))
         ->assertSessionHasErrors('team');
 
     expect(activeMembers($this->project))->toBe([]);
+
+    $this->project->forceFill(['proposal_status' => ProposalStatus::RevisionRequired])->save();
+    $this->actingAs($this->reviewer)->post($this->url, teamPayload($this->run, [[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']]))
+        ->assertSessionHasNoErrors();
+
+    expect(activeMembers($this->project))->toHaveCount(2);
 });
 
 it('is closed to people who may not search candidates', function () {

@@ -18,6 +18,7 @@ import type {
 } from '@/components/member-competency-dialog';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
+import { competencyGroupBadgeVariant } from '@/lib/badge-variants';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -39,6 +40,8 @@ type CompetencyRow = {
     self_level_label: string | null;
     verified_level: number | null;
     verified_level_label: string | null;
+    verification_status: string | null;
+    verification_note: string | null;
     updated_at: string | null;
 };
 
@@ -138,7 +141,11 @@ export default function MyCompetenciesIndex({
                 header: 'Kelompok',
                 cell: ({ row }) =>
                     row.original.group_code ? (
-                        <Badge variant="outline">
+                        <Badge
+                            variant={competencyGroupBadgeVariant(
+                                row.original.group_code,
+                            )}
+                        >
                             Kelompok {row.original.group_code}
                         </Badge>
                     ) : (
@@ -158,21 +165,43 @@ export default function MyCompetenciesIndex({
             {
                 id: 'verified',
                 header: 'Terverifikasi',
-                cell: ({ row }) =>
-                    row.original.verified_level !== null ? (
-                        <Badge
-                            variant="secondary"
-                            className="gap-1 bg-[#16834a]/10 text-[#16834a]"
-                        >
-                            <ShieldCheck aria-hidden="true" />
-                            {row.original.verified_level} ·{' '}
-                            {row.original.verified_level_label}
-                        </Badge>
-                    ) : (
-                        <span className="text-muted-foreground">
-                            Belum terverifikasi
-                        </span>
-                    ),
+                cell: ({ row }) => (
+                    <div className="grid justify-items-start gap-1.5">
+                        {row.original.verified_level !== null ? (
+                            <span className="whitespace-nowrap">
+                                {row.original.verified_level} ·{' '}
+                                {row.original.verified_level_label}
+                            </span>
+                        ) : (
+                            <span className="text-muted-foreground">
+                                Belum ada level verifikasi
+                            </span>
+                        )}
+                        {row.original.verification_status?.toUpperCase() ===
+                        'VERIFIED' ? (
+                            <Badge variant="success" className="gap-1">
+                                <ShieldCheck aria-hidden="true" /> Terverifikasi
+                            </Badge>
+                        ) : row.original.verification_status?.toUpperCase() ===
+                          'PENDING' ? (
+                            <Badge variant="outline">
+                                Menunggu verifikasi ulang
+                            </Badge>
+                        ) : row.original.verification_status?.toUpperCase() ===
+                          'REJECTED' ? (
+                            <div className="grid gap-1">
+                                <Badge variant="destructive">
+                                    Perlu perbaikan
+                                </Badge>
+                                {row.original.verification_note && (
+                                    <span className="max-w-52 text-xs whitespace-normal text-muted-foreground">
+                                        {row.original.verification_note}
+                                    </span>
+                                )}
+                            </div>
+                        ) : null}
+                    </div>
+                ),
             },
             {
                 id: 'updated_at',

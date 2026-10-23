@@ -24,7 +24,7 @@ class UserStatusController extends Controller
             return back();
         }
 
-        if ($guard->wouldRemoveLastAdmin($user, (bool) $isActive, $user->getRoleNames()->all())) {
+        if ($guard->wouldRemoveLastAdmin($user, (bool) $isActive, array_values($user->getRoleNames()->all()))) {
             Inertia::flash('toast', ['type' => 'warning', 'message' => 'Super Admin aktif terakhir tidak dapat dinonaktifkan.']);
 
             return back();

@@ -12,6 +12,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { useAppName } from '@/hooks/use-app-name';
 import { useNavigationSections } from '@/hooks/use-navigation-sections';
 import { dashboard } from '@/routes';
 
@@ -25,15 +26,16 @@ function buildDeveloperWhatsappUrl(
     userName: string | undefined,
     role: string | undefined,
     pageUrl: string,
+    appName: string,
 ): string {
     const sender = [userName, role ? `(${role})` : null]
         .filter(Boolean)
         .join(' ');
 
     const message = [
-        'Halo Tim Developer Portal QCC,',
+        `Halo Tim Developer ${appName},`,
         '',
-        `Saya ${sender || 'pengguna Portal QCC'} membutuhkan bantuan.`,
+        `Saya ${sender || `pengguna ${appName}`} membutuhkan bantuan.`,
         '',
         `Halaman: ${pageUrl}`,
         'Kendala: ',
@@ -47,10 +49,12 @@ function buildDeveloperWhatsappUrl(
 export function AppSidebar() {
     const { props, url } = usePage();
     const { auth } = props;
+    const appName = useAppName();
     const developerWhatsappUrl = buildDeveloperWhatsappUrl(
         auth.user?.name,
         auth.roles[0],
         url,
+        appName,
     );
     const sections = useNavigationSections();
 
@@ -64,9 +68,9 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton
-                            className="h-10 hover:bg-transparent active:bg-transparent group-data-[collapsible=icon]:p-0!"
+                            className="h-10 group-data-[collapsible=icon]:p-0! hover:bg-transparent active:bg-transparent"
                             render={<Link href={dashboard()} prefetch />}
-                            aria-label="Dashboard Portal QCC"
+                            aria-label={`Dashboard ${appName}`}
                         >
                             <AppLogo />
                         </SidebarMenuButton>

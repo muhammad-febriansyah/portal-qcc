@@ -7,6 +7,8 @@ use App\Http\Requests\StoreCompetencyRequest;
 use App\Http\Requests\UpdateCompetencyRequest;
 use App\Models\Competency;
 use App\Models\CompetencyGroup;
+use App\Services\CompetencyImportService;
+use App\Services\CompetencyTemplateBuilder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +17,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CompetencyController extends Controller
 {
@@ -88,6 +91,39 @@ class CompetencyController extends Controller
         Competency::query()->create($request->validated());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Kompetensi berhasil ditambahkan.']);
+
+        return to_route('admin.competencies.index');
+    }
+
+    public function template(CompetencyTemplateBuilder $builder): BinaryFileResponse
+    {
+        Gate::authorize('competencies.manage');
+
+        return response()
+            ->download($builder->build(), 'template-master-kompetensi.xlsx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])
+            ->deleteFileAfterSend();
+    }
+
+    public function import(Request $request, CompetencyImportService $importer): RedirectResponse
+    {
+        Gate::authorize('competencies.manage');
+
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'extensions:xlsx', 'mimes:xlsx', 'max:5120'],
+        ], [
+            'file.required' => 'Pilih file Excel (.xlsx) terlebih dahulu.',
+            'file.extensions' => 'File harus berformat Excel (.xlsx).',
+            'file.mimes' => 'File harus berformat Excel (.xlsx).',
+            'file.max' => 'Ukuran file maksimal 5 MB.',
+        ]);
+        $counts = $importer->importXlsx($validated['file']->getPathname());
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => "Impor {$counts['total']} kompetensi selesai: {$counts['created']} dibuat, {$counts['updated']} diperbarui.",
+        ]);
 
         return to_route('admin.competencies.index');
     }

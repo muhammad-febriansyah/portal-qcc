@@ -50,21 +50,24 @@ export function UserMenuContent({ user }: Props) {
                 />
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-                variant="destructive"
-                render={
-                    <Link
-                        className="block w-full cursor-pointer"
-                        href={logout()}
-                        as="button"
-                        onClick={handleLogout}
-                        data-test="logout-button"
-                    >
-                        <LogOut className="mr-2" />
-                        Keluar
-                    </Link>
-                }
-            />
+            <DropdownMenuGroup>
+                <DropdownMenuItem
+                    nativeButton
+                    variant="destructive"
+                    render={
+                        <Link
+                            className="block w-full cursor-pointer"
+                            href={logout()}
+                            as="button"
+                            onClick={handleLogout}
+                            data-test="logout-button"
+                        >
+                            <LogOut className="mr-2" />
+                            Keluar
+                        </Link>
+                    }
+                />
+            </DropdownMenuGroup>
         </>
     );
 }

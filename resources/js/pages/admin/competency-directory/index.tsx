@@ -1,16 +1,25 @@
 import { Head, router } from '@inertiajs/react';
-import { ShieldCheck, UserRound } from 'lucide-react';
+import {
+    CheckCheck,
+    MessageSquareWarning,
+    ShieldCheck,
+    UserRound,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { CompetencyProfileDialog } from '@/components/competency-profile-dialog';
 import type { MemberProfile } from '@/components/competency-profile-dialog';
+import { CompetencyVerificationDialog } from '@/components/competency-verification-dialog';
+import type { CompetencyVerificationTarget } from '@/components/competency-verification-dialog';
 import { DataTable } from '@/components/data-table';
 import type {
     DataTableColumnDef,
     DataTableSort,
 } from '@/components/data-table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTableRowActions } from '@/components/data-table-row-actions';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
+import { roleBadgeVariant } from '@/lib/badge-variants';
 import { Card } from '@/components/ui/card';
 import {
     Combobox,
@@ -46,6 +55,8 @@ type DirectoryRow = {
     self_level_label?: string | null;
     verified_level?: number | null;
     verified_level_label?: string | null;
+    verification_status?: string | null;
+    verification_note?: string | null;
     competencies_count?: number;
     verified_count?: number;
 };
@@ -84,6 +95,7 @@ type Props = {
     groupOptions: Option[];
     competencyOptions: CompetencyOption[];
     levelOptions: { value: number; label: string }[];
+    canVerify: boolean;
 };
 
 const tabs: { value: View; label: string }[] = [
@@ -138,8 +150,14 @@ export default function CompetencyDirectoryIndex({
     groupOptions,
     competencyOptions,
     levelOptions,
+    canVerify,
 }: Props) {
     const [searchValue, setSearchValue] = useState(filters.search);
+    const [verificationTarget, setVerificationTarget] =
+        useState<CompetencyVerificationTarget | null>(null);
+    const [verificationMode, setVerificationMode] = useState<
+        'verify' | 'reject'
+    >('verify');
 
     function visit(next: Query, resetPage = true): void {
         const query = {
@@ -244,7 +262,9 @@ export default function CompetencyDirectoryIndex({
                 header: 'Role',
                 cell: ({ row }) =>
                     row.original.role ? (
-                        <Badge variant="outline">{row.original.role}</Badge>
+                        <Badge variant={roleBadgeVariant(row.original.role)}>
+                            {row.original.role}
+                        </Badge>
                     ) : (
                         '—'
                     ),
@@ -279,21 +299,39 @@ export default function CompetencyDirectoryIndex({
             {
                 id: 'level',
                 header: 'Terverifikasi',
-                cell: ({ row }) =>
-                    row.original.verified_level != null ? (
-                        <Badge
-                            variant="secondary"
-                            className="gap-1 bg-[#16834a]/10 text-[#16834a]"
-                        >
-                            <ShieldCheck aria-hidden="true" />
-                            {row.original.verified_level} ·{' '}
-                            {row.original.verified_level_label}
-                        </Badge>
-                    ) : (
-                        <span className="text-muted-foreground">
-                            Belum terverifikasi
-                        </span>
-                    ),
+                cell: ({ row }) => {
+                    const item = row.original;
+                    const status = item.verification_status?.toUpperCase();
+
+                    return (
+                        <div className="grid justify-items-start gap-1.5">
+                            {item.verified_level != null ? (
+                                <span className="font-medium whitespace-nowrap">
+                                    {item.verified_level} ·{' '}
+                                    {item.verified_level_label}
+                                </span>
+                            ) : (
+                                <span className="text-muted-foreground">
+                                    Belum ada level verifikasi
+                                </span>
+                            )}
+                            {status === 'VERIFIED' ? (
+                                <Badge variant="success" className="gap-1">
+                                    <ShieldCheck aria-hidden="true" />{' '}
+                                    Terverifikasi
+                                </Badge>
+                            ) : status === 'REJECTED' ? (
+                                <Badge variant="destructive">
+                                    Perlu perbaikan
+                                </Badge>
+                            ) : status === 'PENDING' ? (
+                                <Badge variant="outline">
+                                    Menunggu verifikasi ulang
+                                </Badge>
+                            ) : null}
+                        </div>
+                    );
+                },
             },
             {
                 id: 'actions',
@@ -302,14 +340,88 @@ export default function CompetencyDirectoryIndex({
                     <div className="flex justify-end">
                         <DataTableRowActions
                             label={`Aksi untuk ${row.original.name}`}
-                            actions={[viewProfileAction(row.original)]}
+                            actions={[
+                                viewProfileAction(row.original),
+                                ...(canVerify
+                                    ? [
+                                          {
+                                              label: 'Verifikasi kompetensi',
+                                              icon: CheckCheck,
+                                              onSelect: () => {
+                                                  setVerificationTarget({
+                                                      id: row.original.id,
+                                                      name: row.original.name,
+                                                      competency_name:
+                                                          row.original
+                                                              .competency_name ??
+                                                          '',
+                                                      competency_code:
+                                                          row.original
+                                                              .competency_code ??
+                                                          '',
+                                                      self_level:
+                                                          row.original
+                                                              .self_level ?? 1,
+                                                      self_level_label:
+                                                          row.original
+                                                              .self_level_label ??
+                                                          null,
+                                                      verified_level:
+                                                          row.original
+                                                              .verified_level ??
+                                                          null,
+                                                      verified_level_label:
+                                                          row.original
+                                                              .verified_level_label ??
+                                                          null,
+                                                  });
+                                                  setVerificationMode('verify');
+                                              },
+                                          },
+                                          {
+                                              label: 'Tolak / minta perbaikan',
+                                              icon: MessageSquareWarning,
+                                              onSelect: () => {
+                                                  setVerificationTarget({
+                                                      id: row.original.id,
+                                                      name: row.original.name,
+                                                      competency_name:
+                                                          row.original
+                                                              .competency_name ??
+                                                          '',
+                                                      competency_code:
+                                                          row.original
+                                                              .competency_code ??
+                                                          '',
+                                                      self_level:
+                                                          row.original
+                                                              .self_level ?? 1,
+                                                      self_level_label:
+                                                          row.original
+                                                              .self_level_label ??
+                                                          null,
+                                                      verified_level:
+                                                          row.original
+                                                              .verified_level ??
+                                                          null,
+                                                      verified_level_label:
+                                                          row.original
+                                                              .verified_level_label ??
+                                                          null,
+                                                  });
+                                                  setVerificationMode('reject');
+                                              },
+                                          },
+                                      ]
+                                    : []),
+                            ]}
                         />
                     </div>
                 ),
             },
         ],
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [filters],
+        [canVerify, filters],
     );
 
     const memberColumns = useMemo<DataTableColumnDef<DirectoryRow>[]>(
@@ -329,7 +441,9 @@ export default function CompetencyDirectoryIndex({
                 header: 'Role',
                 cell: ({ row }) =>
                     row.original.role ? (
-                        <Badge variant="outline">{row.original.role}</Badge>
+                        <Badge variant={roleBadgeVariant(row.original.role)}>
+                            {row.original.role}
+                        </Badge>
                     ) : (
                         '—'
                     ),
@@ -400,29 +514,19 @@ export default function CompetencyDirectoryIndex({
                     description="Cari anggota berdasarkan kompetensi dan level yang mereka miliki."
                 />
 
-                <nav
-                    aria-label="Tampilan direktori"
-                    className="mb-6 flex gap-1 border-b border-border/70"
+                <Tabs
+                    value={filters.view}
+                    onValueChange={(value) => switchView(value as View)}
+                    className="mb-6"
                 >
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.value}
-                            type="button"
-                            onClick={() => switchView(tab.value)}
-                            aria-current={
-                                filters.view === tab.value ? 'page' : undefined
-                            }
-                            className={cn(
-                                '-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                filters.view === tab.value
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-muted-foreground hover:text-foreground',
-                            )}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </nav>
+                    <TabsList aria-label="Tampilan direktori">
+                        {tabs.map((tab) => (
+                            <TabsTrigger key={tab.value} value={tab.value}>
+                                {tab.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
 
                 <Card className="gap-0 py-0">
                     <DataTable
@@ -606,6 +710,12 @@ export default function CompetencyDirectoryIndex({
             <CompetencyProfileDialog
                 member={selectedMember}
                 onClose={() => visit({ member: null }, false)}
+            />
+            <CompetencyVerificationDialog
+                target={verificationTarget}
+                mode={verificationMode}
+                levelOptions={levelOptions}
+                onClose={() => setVerificationTarget(null)}
             />
         </>
     );

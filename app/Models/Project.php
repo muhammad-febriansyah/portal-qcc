@@ -9,8 +9,21 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property ProposalStatus $proposal_status
+ * @property int $lock_version
+ * @property Carbon|null $submitted_at
+ * @property Carbon|null $approved_at
+ * @property array<int, string>|null $learning_goals_json
+ * @property int $steps_total
+ * @property int $steps_completed
+ * @property int $approved_steps_count
+ * @property float|int|string|null $steps_avg_progress_pct
+ */
 class Project extends Model
 {
     /** @use HasFactory<ProjectFactory> */
@@ -41,6 +54,72 @@ class Project extends Model
         return $this->belongsTo(User::class, 'proposer_id');
     }
 
+    /** @return HasMany<ProjectAttachment, $this> */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(ProjectAttachment::class);
+    }
+
+    /** @return HasMany<ProjectEvidence, $this> */
+    public function evidence(): HasMany
+    {
+        return $this->hasMany(ProjectEvidence::class);
+    }
+
+    /** @return HasMany<ProjectStep, $this> */
+    public function steps(): HasMany
+    {
+        return $this->hasMany(ProjectStep::class)->orderBy('step_number');
+    }
+
+    /** @return HasMany<ProjectMentor, $this> */
+    public function mentorAssignments(): HasMany
+    {
+        return $this->hasMany(ProjectMentor::class);
+    }
+
+    /** @return HasMany<ReviewAssignment, $this> */
+    public function reviewAssignments(): HasMany
+    {
+        return $this->hasMany(ReviewAssignment::class);
+    }
+
+    /** @return HasMany<BiweeklyReport, $this> */
+    public function biweeklyReports(): HasMany
+    {
+        return $this->hasMany(BiweeklyReport::class)->orderByDesc('period_no');
+    }
+
+    /** @return HasMany<MentoringReport, $this> */
+    public function mentoringReports(): HasMany
+    {
+        return $this->hasMany(MentoringReport::class)->orderByDesc('session_at');
+    }
+
+    /** @return HasMany<ProjectRisk, $this> */
+    public function risks(): HasMany
+    {
+        return $this->hasMany(ProjectRisk::class);
+    }
+
+    /** @return HasMany<ActionItem, $this> */
+    public function actionItems(): HasMany
+    {
+        return $this->hasMany(ActionItem::class);
+    }
+
+    /** @return HasMany<ProjectRequirement, $this> */
+    public function requirements(): HasMany
+    {
+        return $this->hasMany(ProjectRequirement::class);
+    }
+
+    /** @return HasMany<ReviewDecision, $this> */
+    public function reviewDecisions(): HasMany
+    {
+        return $this->hasMany(ReviewDecision::class)->latest('decided_at');
+    }
+
     /** @return BelongsToMany<User, $this> */
     public function members(): BelongsToMany
     {
@@ -51,7 +130,7 @@ class Project extends Model
 
     /**
      * Restrict project queries to records the user may view.
-     * Mentor assignments remain closed until project_mentors exists.
+     * A mentor sees only the projects they are actively assigned to.
      *
      * @param  Builder<Project>  $query
      * @return Builder<Project>
@@ -76,11 +155,9 @@ class Project extends Model
             $projectRoles[] = 'MEMBER';
         }
 
-        if ($projectRoles === []) {
-            return $query->whereRaw('1 = 0');
-        }
+        $isMentor = $user->hasRole('Mentor');
 
-        return $query->where(function (Builder $query) use ($user, $projectRoles): void {
+        return $query->where(function (Builder $query) use ($user, $projectRoles, $isMentor): void {
             $query->where(function (Builder $members) use ($user, $projectRoles): void {
                 $members->whereHas('members', function (Builder $members) use ($user, $projectRoles): void {
                     $members
@@ -91,7 +168,10 @@ class Project extends Model
                 });
             })->orWhere(function (Builder $proposals) use ($user): void {
                 $proposals->where('proposer_id', $user->id);
-            });
+            })->when($isMentor, fn (Builder $q): Builder => $q->orWhereHas('mentorAssignments', fn (Builder $assignments): Builder => $assignments
+                ->where('mentor_id', $user->id)->where('status', 'ACTIVE')))
+                ->orWhereHas('reviewAssignments', fn (Builder $assignments): Builder => $assignments
+                    ->active()->where('reviewer_id', $user->id));
         });
     }
 }

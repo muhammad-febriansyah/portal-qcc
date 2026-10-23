@@ -4,11 +4,12 @@ namespace App\Actions\Scoring;
 
 use App\Enums\ScoringStatus;
 use App\Jobs\RunAiScoring;
+use App\Models\Project;
 use App\Models\RubricVersion;
 use App\Models\ScoringRun;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\AuditService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -23,10 +24,18 @@ class StartScoringRun
      */
     public function handle(int $projectId, RubricVersion $version, User $requestedBy, ?string $idempotencyKey = null): ScoringRun
     {
-        Gate::forUser($requestedBy)->authorize('run', ScoringRun::class);
+        $project = Project::query()->find($projectId);
 
-        if (! DB::table('projects')->where('id', $projectId)->exists()) {
+        if ($project === null) {
             throw ValidationException::withMessages(['project_id' => 'Proyek tidak ditemukan.']);
+        }
+
+        Gate::forUser($requestedBy)->authorize('runScoring', $project);
+
+        $aiEnabledSetting = SystemSetting::query()->where('key', 'ai_enabled')->value('value');
+
+        if ($aiEnabledSetting !== null && ! filter_var($aiEnabledSetting, FILTER_VALIDATE_BOOLEAN)) {
+            throw ValidationException::withMessages(['project_id' => 'Integrasi AI dinonaktifkan di Pengaturan Sistem.']);
         }
 
         $version->loadMissing('criteria');

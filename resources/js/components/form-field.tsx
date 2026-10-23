@@ -45,10 +45,7 @@ export function FormField({
             <Label htmlFor={id} className="gap-0.5">
                 {label}
                 {required && (
-                    <span
-                        className="text-destructive"
-                        aria-hidden="true"
-                    >
+                    <span className="text-destructive" aria-hidden="true">
                         *
                     </span>
                 )}

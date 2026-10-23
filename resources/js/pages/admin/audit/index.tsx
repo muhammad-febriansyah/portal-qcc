@@ -14,7 +14,9 @@ import { DataTableRowActions } from '@/components/data-table-row-actions';
 import { DateRangePicker } from '@/components/date-picker';
 import type { DateRangeValue } from '@/components/date-picker';
 import { PageHeader } from '@/components/page-header';
+import { useAppName } from '@/hooks/use-app-name';
 import { Badge } from '@/components/ui/badge';
+import { moduleBadgeVariant } from '@/lib/badge-variants';
 import { Card } from '@/components/ui/card';
 import {
     Select,
@@ -49,6 +51,7 @@ type Props = {
 };
 
 export default function AuditIndex({ logs, filters, moduleOptions }: Props) {
+    const appName = useAppName();
     const [searchValue, setSearchValue] = useState(filters.search);
     const [selectedLog, setSelectedLog] = useState<AuditRow | null>(null);
     const [range, setRange] = useState<DateRangeValue | null>(
@@ -167,7 +170,11 @@ export default function AuditIndex({ logs, filters, moduleOptions }: Props) {
                 id: 'module',
                 header: 'Modul',
                 cell: ({ row }) => (
-                    <Badge variant="outline">{row.original.module_label}</Badge>
+                    <Badge
+                        variant={moduleBadgeVariant(row.original.module_label)}
+                    >
+                        {row.original.module_label}
+                    </Badge>
                 ),
             },
             {
@@ -212,7 +219,7 @@ export default function AuditIndex({ logs, filters, moduleOptions }: Props) {
                         { title: 'Audit Log', href: index() },
                     ]}
                     title="Audit Log"
-                    description="Riwayat aktivitas pengguna di Portal QCC: siapa melakukan apa dan kapan."
+                    description={`Riwayat aktivitas pengguna di ${appName}: siapa melakukan apa dan kapan.`}
                 />
 
                 <Card className="gap-0 py-0">

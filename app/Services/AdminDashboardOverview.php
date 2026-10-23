@@ -100,7 +100,7 @@ class AdminDashboardOverview
      * How many competency entries sit at each level, per competency group.
      * The verified level counts first, otherwise the self assessed level.
      *
-     * @return array{groups: list<string>, levels: array<int, array{label: string, data: list<int>}>}
+     * @return array{groups: list<string>, levels: array<int, array{label: non-falsy-string, data: list<int>}>}
      */
     private function competencyLevels(): array
     {
@@ -127,12 +127,12 @@ class AdminDashboardOverview
         foreach (CompetencyLevel::cases() as $level) {
             $levels[$level->value] = [
                 'label' => $level->value.' · '.$level->label(),
-                'data' => $groups->map(fn (CompetencyGroup $group): int => $counts[$group->id][$level->value] ?? 0)->all(),
+                'data' => array_values($groups->map(fn (CompetencyGroup $group): int => $counts[$group->id][$level->value] ?? 0)->all()),
             ];
         }
 
         return [
-            'groups' => $groups->map(fn (CompetencyGroup $group): string => $group->name)->all(),
+            'groups' => array_values($groups->map(fn (CompetencyGroup $group): string => $group->name)->all()),
             'levels' => $levels,
         ];
     }

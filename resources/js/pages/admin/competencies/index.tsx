@@ -1,6 +1,13 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
-import { PencilLine, Plus, Power, Trash2 } from 'lucide-react';
+import {
+    FileDown,
+    FileUp,
+    PencilLine,
+    Plus,
+    Power,
+    Trash2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import type {
     DataTableColumnDef,
@@ -35,6 +42,7 @@ import { Textarea } from '@/components/ui/textarea';
 import CompetencyController from '@/actions/App/Http/Controllers/Admin/CompetencyController';
 import competenciesRoute from '@/routes/admin/competencies';
 import { dashboard } from '@/routes';
+import { competencyGroupBadgeVariant } from '@/lib/badge-variants';
 
 type CompetencyRow = {
     id: number;
@@ -84,6 +92,7 @@ export default function CompetenciesIndex({
 }: CompetencyPageProps) {
     const [searchValue, setSearchValue] = useState(filters.search);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [editingCompetency, setEditingCompetency] =
         useState<CompetencyRow | null>(null);
@@ -94,6 +103,7 @@ export default function CompetenciesIndex({
         description: '',
         is_active: true,
     });
+    const importForm = useForm<{ file: File | null }>({ file: null });
 
     function visit(nextFilters: CompetencyQueryFilters, resetPage = true) {
         const query = {
@@ -184,6 +194,21 @@ export default function CompetenciesIndex({
         form.post(CompetencyController.store.url(), options);
     }
 
+    function submitImport(event: React.FormEvent<HTMLFormElement>): void {
+        event.preventDefault();
+
+        importForm.post(CompetencyController.import.url(), {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                setIsImportDialogOpen(false);
+                importForm.reset();
+            },
+            onError: () =>
+                toast.error('Impor gagal. Periksa pesan kesalahan di bawah.'),
+        });
+    }
+
     function updateCompetencyStatus(competency: CompetencyRow): void {
         router.patch(
             CompetencyController.update.url(competency.id),
@@ -235,7 +260,11 @@ export default function CompetenciesIndex({
                 accessorKey: 'group_id',
                 header: 'Kelompok',
                 cell: ({ row }) => (
-                    <Badge variant="outline">
+                    <Badge
+                        variant={competencyGroupBadgeVariant(
+                            row.original.group_code,
+                        )}
+                    >
                         {row.original.group_code} · {row.original.group_name}
                     </Badge>
                 ),
@@ -247,7 +276,7 @@ export default function CompetenciesIndex({
                 cell: ({ row }) => (
                     <Badge
                         variant={
-                            row.original.is_active ? 'default' : 'secondary'
+                            row.original.is_active ? 'success' : 'secondary'
                         }
                     >
                         {row.original.is_active ? 'Aktif' : 'Nonaktif'}
@@ -331,14 +360,34 @@ export default function CompetenciesIndex({
                     title="Master Kompetensi"
                     description="Kelola katalog kompetensi resmi QCC dan kelompoknya."
                     actions={
-                        <Button
-                            type="button"
-                            className="h-10 px-4 text-sm"
-                            onClick={openCreateDialog}
-                        >
-                            <Plus data-icon="inline-start" aria-hidden="true" />
-                            Tambah Kompetensi
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                type="button"
+                                variant="info"
+                                className="h-10 px-4 text-sm"
+                                onClick={() => {
+                                    importForm.resetAndClearErrors();
+                                    setIsImportDialogOpen(true);
+                                }}
+                            >
+                                <FileUp
+                                    data-icon="inline-start"
+                                    aria-hidden="true"
+                                />
+                                Impor Excel
+                            </Button>
+                            <Button
+                                type="button"
+                                className="h-10 px-4 text-sm"
+                                onClick={openCreateDialog}
+                            >
+                                <Plus
+                                    data-icon="inline-start"
+                                    aria-hidden="true"
+                                />
+                                Tambah Kompetensi
+                            </Button>
+                        </div>
                     }
                 />
 
@@ -602,6 +651,114 @@ export default function CompetenciesIndex({
                                 {form.processing
                                     ? 'Menyimpan...'
                                     : 'Simpan Kompetensi'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={isImportDialogOpen}
+                onOpenChange={setIsImportDialogOpen}
+            >
+                <DialogContent className="gap-6 sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>Impor Master Kompetensi</DialogTitle>
+                        <p className="text-sm text-muted-foreground">
+                            Unduh template, isi kolom Kelompok, Nama Kompetensi,
+                            dan Definisi, lalu unggah kembali. Kode kompetensi
+                            yang sudah ada akan diperbarui.
+                        </p>
+                    </DialogHeader>
+                    <form onSubmit={submitImport} className="grid gap-5">
+                        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/60 p-3">
+                            <div className="grid gap-0.5">
+                                <p className="text-sm font-medium">
+                                    Template Excel
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    Berisi kode C001–C062 dan pilihan kelompok.
+                                    Kompetensi yang sudah ada ikut terisi.
+                                </p>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="h-9 shrink-0 px-3 text-sm"
+                                render={
+                                    <a
+                                        href={CompetencyController.template.url()}
+                                        download
+                                    />
+                                }
+                                nativeButton={false}
+                            >
+                                <FileDown
+                                    data-icon="inline-start"
+                                    aria-hidden="true"
+                                />
+                                Unduh template
+                            </Button>
+                        </div>
+                        <FormField
+                            id="competency_file"
+                            label="File Excel (.xlsx)"
+                            required
+                            error={importForm.errors.file}
+                        >
+                            <Input
+                                id="competency_file"
+                                type="file"
+                                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                onChange={(event) =>
+                                    importForm.setData(
+                                        'file',
+                                        event.target.files?.[0] ?? null,
+                                    )
+                                }
+                            />
+                        </FormField>
+                        <p className="text-xs text-muted-foreground">
+                            Jika ada baris yang salah, seluruh impor dibatalkan
+                            dan nomor baris Excel yang bermasalah ditampilkan.
+                        </p>
+                        {Object.entries(importForm.errors)
+                            .filter(([key]) => key.startsWith('row_'))
+                            .map(([key, message]) => (
+                                <p
+                                    key={key}
+                                    role="alert"
+                                    className="text-sm text-destructive"
+                                >
+                                    {message}
+                                </p>
+                            ))}
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="h-10 px-4 text-sm"
+                                disabled={importForm.processing}
+                                onClick={() => setIsImportDialogOpen(false)}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="info"
+                                className="h-10 px-4 text-sm"
+                                disabled={
+                                    !importForm.data.file ||
+                                    importForm.processing
+                                }
+                            >
+                                <FileUp
+                                    data-icon="inline-start"
+                                    aria-hidden="true"
+                                />
+                                {importForm.processing
+                                    ? 'Mengimpor...'
+                                    : 'Impor Kompetensi'}
                             </Button>
                         </DialogFooter>
                     </form>

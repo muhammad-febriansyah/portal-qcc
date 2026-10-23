@@ -6,14 +6,22 @@ import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
-
 void createInertiaApp({
-    title: (title) => (title ? `${title} - ${appName}` : appName),
+    title: (title, page) => {
+        const siteName =
+            page.component === 'errors/show'
+                ? 'Portal QCC SIMGROUP'
+                : String(page.props.name);
+
+        return title ? `${title} - ${siteName}` : siteName;
+    },
     layout: (name) => {
         switch (true) {
             case name === 'welcome':
             case name === 'auth/login':
+            case name === 'auth/register':
+            case name === 'auth/verify-email':
+            case name === 'errors/show':
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
@@ -35,4 +43,3 @@ void createInertiaApp({
     },
     progress: false,
 });
-

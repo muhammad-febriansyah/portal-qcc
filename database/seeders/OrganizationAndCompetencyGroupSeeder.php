@@ -45,13 +45,22 @@ class OrganizationAndCompetencyGroupSeeder extends Seeder
                 ['name', 'updated_at'],
             );
 
+            $competencyGroups = [
+                'A' => 'Core QCC & Problem Solving',
+                'B' => 'Data Analytics & Digital Skills',
+                'C' => 'Business Impact & Operational Excellence',
+                'D' => 'Project Management & Execution',
+                'E' => 'Communication & Presentation',
+                'F' => 'Leadership & Teamwork',
+            ];
+
             DB::table('competency_groups')->upsert(
-                array_map(fn (string $code): array => [
+                array_map(fn (string $code, string $name): array => [
                     'code' => $code,
-                    'name' => "Kelompok {$code}",
+                    'name' => $name,
                     'created_at' => $timestamp,
                     'updated_at' => $timestamp,
-                ], range('A', 'F')),
+                ], array_keys($competencyGroups), $competencyGroups),
                 ['code'],
                 ['name', 'updated_at'],
             );

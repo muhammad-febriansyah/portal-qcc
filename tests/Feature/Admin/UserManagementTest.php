@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Organization;
+use App\Models\Project;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -53,6 +54,8 @@ test('users without users.manage cannot use any user endpoint', function () {
     $this->put(route('admin.users.update', $target), validUserPayload())->assertForbidden();
     $this->put(route('admin.users.password.update', $target))->assertForbidden();
     $this->patch(route('admin.users.status.update', $target), ['is_active' => false])->assertForbidden();
+    $this->patch(route('admin.users.bulk-status.update'), ['user_ids' => [$target->id], 'is_active' => false])->assertForbidden();
+    $this->delete(route('admin.users.bulk.destroy'), ['user_ids' => [$target->id]])->assertForbidden();
 
     expect($target->fresh()->is_active)->toBeTrue();
 });
@@ -273,16 +276,18 @@ test('a super admin can lose the role when another active super admin exists', f
 test('resetting a password issues a new one that works and the old one stops working', function () {
     $target = User::factory()->create();
     $oldHash = $target->password;
+    $newPassword = 'Replacement-Password-2026';
 
     $this->actingAs(userManager())
-        ->put(route('admin.users.password.update', $target))
+        ->put(route('admin.users.password.update', $target), [
+            'password' => $newPassword,
+            'password_confirmation' => $newPassword,
+        ])
         ->assertRedirect()
-        ->assertInertiaFlash('credential.reason', 'reset');
-
-    $password = session('inertia.flash_data.credential.password');
+        ->assertInertiaFlash('toast.message', 'Password berhasil direset.');
 
     expect($target->fresh()->password)->not->toBe($oldHash)
-        ->and(Hash::check($password, $target->fresh()->password))->toBeTrue()
+        ->and(Hash::check($newPassword, $target->fresh()->password))->toBeTrue()
         ->and(Hash::check('password', $target->fresh()->password))->toBeFalse();
 });
 
@@ -296,6 +301,128 @@ test('a member can be deactivated and activated again', function () {
 
     $this->patch(route('admin.users.status.update', $target), ['is_active' => true])->assertRedirect();
     expect($target->fresh()->is_active)->toBeTrue();
+});
+
+test('selected accounts can be activated and deactivated together', function () {
+    $manager = userManager();
+    $activeUser = User::factory()->create();
+    $inactiveUser = User::factory()->create(['is_active' => false]);
+
+    $this->actingAs($manager)
+        ->patch(route('admin.users.bulk-status.update'), [
+            'user_ids' => [$activeUser->id, $inactiveUser->id],
+            'is_active' => false,
+        ])
+        ->assertRedirect()
+        ->assertInertiaFlash('toast.message', '1 akun berhasil dinonaktifkan.');
+
+    expect($activeUser->fresh()->is_active)->toBeFalse()
+        ->and($inactiveUser->fresh()->is_active)->toBeFalse();
+
+    $this->patch(route('admin.users.bulk-status.update'), [
+        'user_ids' => [$activeUser->id, $inactiveUser->id],
+        'is_active' => true,
+    ])->assertRedirect();
+
+    expect($activeUser->fresh()->is_active)->toBeTrue()
+        ->and($inactiveUser->fresh()->is_active)->toBeTrue();
+});
+
+test('bulk status rejects duplicate account selections', function () {
+    $manager = userManager();
+    $target = User::factory()->create();
+
+    $this->actingAs($manager)
+        ->patch(route('admin.users.bulk-status.update'), [
+            'user_ids' => [$target->id, $target->id],
+            'is_active' => false,
+        ])
+        ->assertSessionHasErrors('user_ids.1');
+
+    expect($target->fresh()->is_active)->toBeTrue();
+});
+
+test('bulk status preserves the last active super admin', function () {
+    $operator = User::factory()->create();
+    $operator->givePermissionTo(Permission::findOrCreate('users.manage', 'web'));
+    $lastAdmin = User::factory()->create();
+    $lastAdmin->assignRole('Super Admin');
+
+    $this->actingAs($operator)
+        ->patch(route('admin.users.bulk-status.update'), [
+            'user_ids' => [$lastAdmin->id],
+            'is_active' => false,
+        ])
+        ->assertRedirect()
+        ->assertInertiaFlash('toast.message', 'Super Admin aktif terakhir tidak dapat dinonaktifkan.');
+
+    expect($lastAdmin->fresh()->is_active)->toBeTrue();
+});
+
+test('bulk actions cannot deactivate or delete the current account', function () {
+    $manager = userManager();
+
+    $this->actingAs($manager)
+        ->patch(route('admin.users.bulk-status.update'), [
+            'user_ids' => [$manager->id],
+            'is_active' => false,
+        ])
+        ->assertRedirect()
+        ->assertInertiaFlash('toast.message', 'Akun Anda sendiri tidak dapat dinonaktifkan.');
+
+    $this->delete(route('admin.users.bulk.destroy'), ['user_ids' => [$manager->id]])
+        ->assertRedirect()
+        ->assertInertiaFlash('toast.message', 'Akun Anda sendiri tidak dapat dihapus.');
+
+    expect($manager->fresh()->is_active)->toBeTrue();
+});
+
+test('bulk delete removes selected unused accounts', function () {
+    $manager = userManager();
+    $targets = User::factory()->count(2)->create();
+
+    $this->actingAs($manager)
+        ->delete(route('admin.users.bulk.destroy'), [
+            'user_ids' => $targets->pluck('id')->all(),
+        ])
+        ->assertRedirect()
+        ->assertInertiaFlash('toast.message', '2 akun berhasil dihapus.');
+
+    foreach ($targets as $target) {
+        expect(User::query()->whereKey($target->id)->exists())->toBeFalse();
+    }
+});
+
+test('bulk delete rolls back when a selected account is still linked to a project', function () {
+    $manager = userManager();
+    $unusedUser = User::factory()->create();
+    $projectOwner = User::factory()->create();
+    Project::factory()->create(['proposer_id' => $projectOwner->id]);
+
+    $this->actingAs($manager)
+        ->delete(route('admin.users.bulk.destroy'), [
+            'user_ids' => [$unusedUser->id, $projectOwner->id],
+        ])
+        ->assertRedirect()
+        ->assertInertiaFlash('toast.message', 'Sebagian akun masih terhubung ke proyek atau aktivitas. Tidak ada akun yang dihapus.');
+
+    expect(User::query()->whereKey($unusedUser->id)->exists())->toBeTrue()
+        ->and(User::query()->whereKey($projectOwner->id)->exists())->toBeTrue();
+});
+
+test('bulk delete preserves the last active super admin', function () {
+    $operator = User::factory()->create();
+    $operator->givePermissionTo(Permission::findOrCreate('users.manage', 'web'));
+    $lastAdmin = User::factory()->create();
+    $lastAdmin->assignRole('Super Admin');
+
+    $this->actingAs($operator)
+        ->delete(route('admin.users.bulk.destroy'), ['user_ids' => [$lastAdmin->id]])
+        ->assertRedirect()
+        ->assertInertiaFlash('toast.message', 'Super Admin aktif terakhir tidak dapat dihapus.');
+
+    expect(User::query()->whereKey($lastAdmin->id)->exists())->toBeTrue()
+        ->and($lastAdmin->fresh()->is_active)->toBeTrue();
 });
 
 test('you cannot deactivate yourself or the last active super admin', function () {

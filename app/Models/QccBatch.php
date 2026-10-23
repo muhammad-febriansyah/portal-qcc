@@ -8,7 +8,13 @@ use Database\Factories\QccBatchFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon $starts_on
+ * @property Carbon $ends_on
+ * @property BatchStatus $status
+ */
 #[Fillable(['code', 'name', 'starts_on', 'ends_on', 'status'])]
 class QccBatch extends Model
 {

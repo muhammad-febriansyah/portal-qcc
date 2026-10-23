@@ -43,6 +43,7 @@ export type DataTableColumnDef<TData extends RowData> = ColumnDef<
 export type DataTableSort = { id: string; desc: boolean } | null;
 
 type DataTableProps<TData extends RowData> = {
+    leadingColumns?: DataTableColumnDef<TData>[];
     columns: DataTableColumnDef<TData>[];
     data: TData[];
     page: number;
@@ -68,6 +69,7 @@ type DataTableProps<TData extends RowData> = {
 };
 
 export function DataTable<TData extends RowData>({
+    leadingColumns = [],
     columns,
     data,
     page,
@@ -93,6 +95,7 @@ export function DataTable<TData extends RowData>({
     const stableData = useMemo(() => data, [data]);
     const displayColumns = useMemo<DataTableColumnDef<TData>[]>(
         () => [
+            ...leadingColumns,
             {
                 id: 'row_number',
                 header: 'No.',
@@ -105,7 +108,7 @@ export function DataTable<TData extends RowData>({
             },
             ...columns,
         ],
-        [columns, page, pageSize],
+        [columns, leadingColumns, page, pageSize],
     );
     const table = useTable({
         features,
@@ -216,62 +219,57 @@ export function DataTable<TData extends RowData>({
                         ))}
                     </TableHeader>
                     <TableBody>
-                        {isLoading ? (
-                            Array.from(
-                                { length: Math.min(pageSize, 5) },
-                                (_, index) => (
-                                    <TableRow
-                                        key={`loading-${index}`}
-                                        aria-hidden="true"
-                                    >
-                                        {displayColumns.map(
-                                            (column, columnIndex) => (
-                                                <TableCell
-                                                    key={
-                                                        column.id ?? columnIndex
-                                                    }
-                                                >
-                                                    <Skeleton className="h-4 w-3/4" />
-                                                </TableCell>
-                                            ),
-                                        )}
+                        {isLoading
+                            ? Array.from(
+                                  { length: Math.min(pageSize, 5) },
+                                  (_, index) => (
+                                      <TableRow
+                                          key={`loading-${index}`}
+                                          aria-hidden="true"
+                                      >
+                                          {displayColumns.map(
+                                              (column, columnIndex) => (
+                                                  <TableCell
+                                                      key={
+                                                          column.id ??
+                                                          columnIndex
+                                                      }
+                                                  >
+                                                      <Skeleton className="h-4 w-3/4" />
+                                                  </TableCell>
+                                              ),
+                                          )}
+                                      </TableRow>
+                                  ),
+                              )
+                            : table.getRowModel().rows.length
+                              ? table.getRowModel().rows.map((row) => (
+                                    <TableRow key={row.id}>
+                                        {row.getAllCells().map((cell) => (
+                                            <TableCell key={cell.id}>
+                                                <table.FlexRender cell={cell} />
+                                            </TableCell>
+                                        ))}
                                     </TableRow>
-                                ),
-                            )
-                        ) : table.getRowModel().rows.length ? (
-                            table.getRowModel().rows.map((row) => (
-                                <TableRow key={row.id}>
-                                    {row.getAllCells().map((cell) => (
-                                        <TableCell key={cell.id}>
-                                            <table.FlexRender cell={cell} />
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
-                            ))
-                        ) : (
-                            <TableRow>
-                                <TableCell
-                                    colSpan={Math.max(displayColumns.length, 1)}
-                                    className="h-48"
-                                >
-                                    <Empty className="border-0 p-4">
-                                        <EmptyHeader>
-                                            <EmptyMedia variant="icon">
-                                                <Inbox aria-hidden="true" />
-                                            </EmptyMedia>
-                                            <EmptyTitle>
-                                                {emptyTitle}
-                                            </EmptyTitle>
-                                            <EmptyDescription>
-                                                {emptyDescription}
-                                            </EmptyDescription>
-                                        </EmptyHeader>
-                                    </Empty>
-                                </TableCell>
-                            </TableRow>
-                        )}
+                                ))
+                              : null}
                     </TableBody>
                 </Table>
+                {!isLoading && table.getRowModel().rows.length === 0 && (
+                    <div className="border-t border-border/70">
+                        <Empty className="min-h-48 border-0 p-4">
+                            <EmptyHeader>
+                                <EmptyMedia variant="icon">
+                                    <Inbox aria-hidden="true" />
+                                </EmptyMedia>
+                                <EmptyTitle>{emptyTitle}</EmptyTitle>
+                                <EmptyDescription>
+                                    {emptyDescription}
+                                </EmptyDescription>
+                            </EmptyHeader>
+                        </Empty>
+                    </div>
+                )}
             </div>
             <div
                 className={cn(

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Ai\Exceptions\AiUnavailable;
 use App\Services\Teams\CandidateShortlist;
 use App\Services\Teams\Matching\TeamMatchingClient;
+use App\Services\Teams\Matching\TeamMatchingRequestBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -54,7 +55,7 @@ function matchCandidate(string $name, Competency $competency, ?Organization $org
  */
 function aiAnswer(array $members): array
 {
-    return ['recommended_members' => $members, 'team_gaps' => [], 'cautions' => []];
+    return ['recommended_members' => $members, 'team_gaps' => [], 'cautions' => [], 'mitigations' => []];
 }
 
 function aiMember(User $user, string $role, int $competencyId): array
@@ -122,6 +123,29 @@ test('starting without AI set up is refused with a clear message and queues noth
     expect(TeamMatchingRun::query()->count())->toBe(0);
 });
 
+test('matching prompt includes project context and mitigation schema', function () {
+    $this->project->forceFill([
+        'current_situation' => 'Dokumen diverifikasi manual.',
+        'improvement_plan' => 'Otomatisasi verifikasi.',
+        'rca' => 'Proses belum terstandar.',
+        'business_benefit' => 'Waktu proses turun.',
+    ])->save();
+
+    $shortlist = app(CandidateShortlist::class);
+    $request = app(TeamMatchingRequestBuilder::class)->build($this->project, $shortlist->snapshot($this->project, $shortlist->for($this->project)));
+
+    expect($request['input']['project'])
+        ->toMatchArray([
+            'current_situation' => 'Dokumen diverifikasi manual.',
+            'improvement_plan' => 'Otomatisasi verifikasi.',
+            'root_cause_analysis' => 'Proses belum terstandar.',
+            'business_benefit' => 'Waktu proses turun.',
+        ])
+        ->and($request['schema']['required'])->toContain('mitigations')
+        ->and($request['schema']['properties']['mitigations']['items']['properties']['type']['enum'])
+        ->toBe(['COACHING', 'TRAINING', 'MENTOR']);
+});
+
 test('starting with AI ready stores the snapshot and queues the job', function () {
     aiIsReady();
     Queue::fake();
@@ -163,7 +187,13 @@ test('there is nothing to match without requirements or candidates', function ()
 });
 
 test('a valid suggestion is stored and marked ready', function () {
-    fakeMatchingClient(aiAnswer([aiMember($this->a, 'LEADER', $this->skill->id), aiMember($this->b, 'MEMBER', $this->skill->id)]));
+    $answer = aiAnswer([aiMember($this->a, 'LEADER', $this->skill->id), aiMember($this->b, 'MEMBER', $this->skill->id)]);
+    $answer['mitigations'] = [[
+        'gap' => 'Pengalaman analisis data terbatas.',
+        'recommendation' => 'Jadwalkan sesi coaching analisis data.',
+        'type' => 'COACHING',
+    ]];
+    fakeMatchingClient($answer);
     $run = queuedRun($this->project, []);
 
     app()->call([new RunTeamMatching($run->id), 'handle']);
@@ -172,8 +202,44 @@ test('a valid suggestion is stored and marked ready', function () {
 
     expect($run->status)->toBe(TeamMatchingStatus::Ready)
         ->and($run->output_json['rule_problems'])->toBe([])
+        ->and($run->output_json['mitigations'][0]['type'])->toBe('COACHING')
         ->and($run->model)->toBe('fake-model')
         ->and($run->validated_at)->not->toBeNull();
+});
+
+test('output with missing or unknown mitigation fields is rejected', function () {
+    $validMitigation = [
+        'gap' => 'Pengalaman analisis data terbatas.',
+        'recommendation' => 'Jadwalkan sesi coaching analisis data.',
+        'type' => 'COACHING',
+    ];
+    $invalidMitigations = [
+        [['gap' => $validMitigation['gap'], 'type' => 'COACHING']],
+        [$validMitigation + ['invented_field' => 'tidak boleh ada']],
+        [array_merge($validMitigation, ['type' => 'ADVICE'])],
+    ];
+    $members = [aiMember($this->a, 'LEADER', $this->skill->id), aiMember($this->b, 'MEMBER', $this->skill->id)];
+
+    $missingMitigations = aiAnswer($members);
+    unset($missingMitigations['mitigations']);
+    $invalidAnswers = [$missingMitigations];
+
+    foreach ($invalidMitigations as $mitigations) {
+        $answer = aiAnswer($members);
+        $answer['mitigations'] = $mitigations;
+        $invalidAnswers[] = $answer;
+    }
+
+    foreach ($invalidAnswers as $answer) {
+        fakeMatchingClient($answer);
+        $run = queuedRun($this->project, []);
+
+        app()->call([new RunTeamMatching($run->id), 'handle']);
+
+        expect($run->fresh()->status)->toBe(TeamMatchingStatus::Failed)
+            ->and($run->fresh()->error_code)->toBe('invalid_output')
+            ->and($run->fresh()->output_json)->toBeNull();
+    }
 });
 
 test('a made-up candidate or competency is rejected and nothing is kept', function () {
@@ -274,7 +340,13 @@ test('the candidate page tells the user when AI is not ready and shows the lates
         ->assertInertia(fn (Assert $page) => $page->where('ai.ready', false)->where('matching', null));
 
     aiIsReady();
-    fakeMatchingClient(aiAnswer([aiMember($this->a, 'LEADER', $this->skill->id), aiMember($this->b, 'MEMBER', $this->skill->id)]));
+    $answer = aiAnswer([aiMember($this->a, 'LEADER', $this->skill->id), aiMember($this->b, 'MEMBER', $this->skill->id)]);
+    $answer['mitigations'] = [[
+        'gap' => 'Keterampilan analisis data perlu diperkuat.',
+        'recommendation' => 'Ikuti pelatihan analisis data dasar.',
+        'type' => 'TRAINING',
+    ]];
+    fakeMatchingClient($answer);
     $run = queuedRun($this->project, []);
     app()->call([new RunTeamMatching($run->id), 'handle']);
 
@@ -283,6 +355,7 @@ test('the candidate page tells the user when AI is not ready and shows the lates
             ->where('ai.ready', true)
             ->where('matching.status', 'READY')
             ->has('matching.members', 2)
+            ->where('matching.mitigations.0.type', 'TRAINING')
             ->where('matching.members.0.name', 'Anggota Satu'));
 });
 

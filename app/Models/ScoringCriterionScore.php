@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/** @property-read RubricCriterion|null $criterion */
 class ScoringCriterionScore extends Model
 {
     /** @var list<string> */

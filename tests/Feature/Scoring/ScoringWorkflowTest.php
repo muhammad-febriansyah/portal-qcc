@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\ScoringRun;
 use App\Models\User;
 use App\Services\AuditDescriber;
+use Database\Seeders\ProjectAccessSeeder;
 use Database\Seeders\ScoringPermissionSeeder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Queue;
@@ -53,7 +54,7 @@ test('starting a run needs the scoring.run permission', function () {
 
 test('starting a run queues one job and records who asked', function () {
     Queue::fake();
-    $owner = userWith('scoring.run');
+    $owner = userWith('scoring.run', 'projects.view', 'projects.viewAny');
     $version = scoringRubric();
     $projectId = scoringProjectId();
     $this->actingAs($owner);
@@ -68,7 +69,7 @@ test('starting a run queues one job and records who asked', function () {
 
 test('repeating the same idempotency key returns the same run and queues nothing more', function () {
     Queue::fake();
-    $owner = userWith('scoring.run');
+    $owner = userWith('scoring.run', 'projects.view', 'projects.viewAny');
     $version = scoringRubric();
     $projectId = scoringProjectId();
 
@@ -81,7 +82,7 @@ test('repeating the same idempotency key returns the same run and queues nothing
 
 test('a second run is refused while one is still active for the same project and rubric', function () {
     Queue::fake();
-    $owner = userWith('scoring.run');
+    $owner = userWith('scoring.run', 'projects.view', 'projects.viewAny');
     $version = scoringRubric();
     $projectId = scoringProjectId();
 
@@ -93,7 +94,7 @@ test('a second run is refused while one is still active for the same project and
 
 test('a draft rubric, a rubric not totalling 100 and an unknown project are refused', function () {
     Queue::fake();
-    $owner = userWith('scoring.run');
+    $owner = userWith('scoring.run', 'projects.view', 'projects.viewAny');
 
     expect(fn () => app(StartScoringRun::class)->handle(scoringProjectId(), scoringRubric(status: 'draft'), $owner))->toThrow(ValidationException::class)
         ->and(fn () => app(StartScoringRun::class)->handle(scoringProjectId(), scoringRubric([30, 30]), $owner))->toThrow(ValidationException::class)
@@ -104,7 +105,7 @@ test('a draft rubric, a rubric not totalling 100 and an unknown project are refu
 
 test('approving without changes makes the ai total the final score', function () {
     $run = runWaitingForReview();
-    $reviewer = userWith('scoring.approve');
+    $reviewer = userWith('scoring.approve', 'projects.view', 'projects.viewAny');
 
     app(ReviewScoringRun::class)->approve($run, $reviewer, comment: 'Sesuai.');
 
@@ -123,7 +124,7 @@ test('approving without changes makes the ai total the final score', function ()
 
 test('a reviewer score replaces the ai score, needs a reason, and the total is recalculated', function () {
     $run = runWaitingForReview();
-    $reviewer = userWith('scoring.approve');
+    $reviewer = userWith('scoring.approve', 'projects.view', 'projects.viewAny');
     $firstCriterionId = $run->rubricVersion->criteria->first()->id;
 
     expect(fn () => app(ReviewScoringRun::class)->approve($run, $reviewer, [$firstCriterionId => 60]))
@@ -152,7 +153,7 @@ test('the same score as the ai is not treated as an override', function () {
     $run = runWaitingForReview();
     $firstCriterionId = $run->rubricVersion->criteria->first()->id;
 
-    app(ReviewScoringRun::class)->approve($run, userWith('scoring.approve'), [$firstCriterionId => 90]);
+    app(ReviewScoringRun::class)->approve($run, userWith('scoring.approve', 'projects.view', 'projects.viewAny'), [$firstCriterionId => 90]);
 
     expect($run->refresh()->result->reviewer_weighted_score)->toBeNull()
         ->and(AuditLog::query()->where('event', 'scoring.overridden')->count())->toBe(0);
@@ -160,7 +161,7 @@ test('the same score as the ai is not treated as an override', function () {
 
 test('reviewer scores must stay between 0 and 100 and belong to this result', function () {
     $run = runWaitingForReview();
-    $reviewer = userWith('scoring.approve');
+    $reviewer = userWith('scoring.approve', 'projects.view', 'projects.viewAny');
     $firstCriterionId = $run->rubricVersion->criteria->first()->id;
 
     expect(fn () => app(ReviewScoringRun::class)->approve($run, $reviewer, [$firstCriterionId => 101], 'x'))->toThrow(ValidationException::class)
@@ -171,8 +172,8 @@ test('reviewer scores must stay between 0 and 100 and belong to this result', fu
 
 test('a second approval of the same run is refused so exactly one decision exists', function () {
     $run = runWaitingForReview();
-    $first = userWith('scoring.approve');
-    $second = userWith('scoring.approve');
+    $first = userWith('scoring.approve', 'projects.view', 'projects.viewAny');
+    $second = userWith('scoring.approve', 'projects.view', 'projects.viewAny');
 
     app(ReviewScoringRun::class)->approve($run, $first);
 
@@ -192,9 +193,61 @@ test('only users with the right permission may review', function () {
     expect($run->refresh()->status)->toBe(ScoringStatus::PendingReview);
 });
 
+test('scoring detail exposes criteria and evidence context only to authorized reviewers', function () {
+    $this->seed(ScoringPermissionSeeder::class);
+    $this->seed(ProjectAccessSeeder::class);
+    $run = runWaitingForReview();
+    $run->forceFill(['input_manifest_json' => [[
+        'evidence_id' => 7,
+        'title' => 'Laporan Step 1',
+        'sha256' => hash('sha256', 'Isi laporan.'),
+    ]]])->save();
+    $reviewer = User::factory()->create();
+    $reviewer->assignRole(Role::findOrCreate('Owner QCC', 'web'));
+
+    $this->actingAs($reviewer)
+        ->get(route('admin.scoring.show', $run))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('admin/scoring/show')
+            ->where('run.projectTitle', 'Proyek uji')
+            ->where('run.result.aiScore', '83.00')
+            ->where('run.result.criteria.0.code', 'K1')
+            ->where('run.result.criteria.0.rationale', 'Alasan')
+            ->where('run.evidence.0.title', 'Laporan Step 1')
+            ->where('run.canApprove', true));
+
+    foreach (['Mentor', 'Team Leader', 'SIMer / Member'] as $roleName) {
+        $user = User::factory()->create();
+        $user->assignRole(Role::findOrCreate($roleName, 'web'));
+
+        $this->actingAs($user)
+            ->get(route('admin.scoring.show', $run))
+            ->assertForbidden();
+        $this->post(route('admin.scoring.approve', $run))->assertForbidden();
+        $this->post(route('admin.scoring.request-revision', $run), ['reason' => 'Lihat nilai'])->assertForbidden();
+    }
+
+    expect($run->fresh()->status)->toBe(ScoringStatus::PendingReview)
+        ->and(AuditLog::query()->whereIn('event', ['scoring.approved', 'scoring.revision_requested'])->count())->toBe(0);
+});
+
+test('Mentor cannot approve scoring even when explicitly granted permission', function () {
+    $run = runWaitingForReview();
+    $mentor = userWith('scoring.view', 'scoring.approve', 'projects.view', 'projects.viewAny');
+    $mentor->assignRole(Role::findOrCreate('Mentor', 'web'));
+
+    $this->actingAs($mentor)
+        ->post(route('admin.scoring.approve', $run))
+        ->assertForbidden();
+
+    expect($run->fresh()->status)->toBe(ScoringStatus::PendingReview)
+        ->and($run->result->fresh()->final_score)->toBeNull();
+});
+
 test('requesting a revision needs a reason, keeps the ai scores and gives no final score', function () {
     $run = runWaitingForReview();
-    $reviewer = userWith('scoring.review');
+    $reviewer = userWith('scoring.review', 'projects.view', 'projects.viewAny');
 
     expect(fn () => app(ReviewScoringRun::class)->requestRevision($run, $reviewer, '  '))->toThrow(ValidationException::class);
 
@@ -208,11 +261,31 @@ test('requesting a revision needs a reason, keeps the ai scores and gives no fin
     expect(AuditLog::query()->where('event', 'scoring.revision_requested')->where('reason', 'Lengkapi evidence step 3.')->exists())->toBeTrue();
 });
 
+test('scoring approval and revision decisions notify the project team', function () {
+    $run = runWaitingForReview();
+    $observer = userWith('scoring.view', 'projects.viewAny');
+    $reviewer = userWith('scoring.review', 'scoring.approve', 'projects.view', 'projects.viewAny');
+
+    app(ReviewScoringRun::class)->requestRevision($run, $reviewer, 'Periksa ulang target.');
+    expect($observer->notifications()->sole()->data)->toMatchArray([
+        'title' => 'AI Scoring perlu revisi',
+        'decision' => 'SCORING_REVISION',
+    ]);
+
+    $secondRun = runWaitingForReview();
+    app(ReviewScoringRun::class)->approve($secondRun, $reviewer);
+
+    $decisions = $observer->notifications()->get()->pluck('data')->pluck('decision')->all();
+
+    expect($observer->notifications()->count())->toBe(2)
+        ->and($decisions)->toContain('SCORING_REVISION', 'SCORING_APPROVED');
+});
+
 test('a run that is not pending review cannot be decided', function () {
     $run = runWaitingForReview();
     $run->forceFill(['status' => ScoringStatus::AiScoring])->save();
 
-    expect(fn () => app(ReviewScoringRun::class)->approve($run, userWith('scoring.approve')))->toThrow(ValidationException::class);
+    expect(fn () => app(ReviewScoringRun::class)->approve($run, userWith('scoring.approve', 'projects.view', 'projects.viewAny')))->toThrow(ValidationException::class);
 });
 
 test('mentors, leaders and members have no scoring permission by default', function () {
@@ -237,7 +310,7 @@ test('mentors, leaders and members have no scoring permission by default', funct
 
 test('scoring events read as plain sentences in the audit log', function () {
     $run = runWaitingForReview();
-    $reviewer = userWith('scoring.approve');
+    $reviewer = userWith('scoring.approve', 'projects.view', 'projects.viewAny');
     $reviewer->forceFill(['name' => 'Rina Reviewer'])->save();
 
     $this->actingAs($reviewer);

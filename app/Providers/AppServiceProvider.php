@@ -6,8 +6,8 @@ use App\Listeners\RecordAuthActivity;
 use App\Services\AuditService;
 use App\Services\Scoring\Contracts\EvidenceResolver;
 use App\Services\Scoring\Contracts\ScoringModelClient;
-use App\Services\Scoring\NullEvidenceResolver;
 use App\Services\Scoring\OpenAiScoringClient;
+use App\Services\Scoring\ProjectEvidenceResolver;
 use App\Services\Teams\Matching\OpenAiTeamMatchingClient;
 use App\Services\Teams\Matching\TeamMatchingClient;
 use Carbon\CarbonImmutable;
@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Inertia\ExceptionResponse;
+use Inertia\Inertia;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -27,7 +29,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(AuditService::class);
         $this->app->bind(ScoringModelClient::class, OpenAiScoringClient::class);
         $this->app->bind(TeamMatchingClient::class, OpenAiTeamMatchingClient::class);
-        $this->app->bind(EvidenceResolver::class, NullEvidenceResolver::class);
+        $this->app->bind(EvidenceResolver::class, ProjectEvidenceResolver::class);
     }
 
     /**
@@ -38,6 +40,16 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         Event::subscribe(RecordAuthActivity::class);
+
+        Inertia::handleExceptionsUsing(function (ExceptionResponse $response): ?ExceptionResponse {
+            if (in_array($response->statusCode(), [403, 404, 419, 429, 500, 503], true)) {
+                return $response->render('errors/show', [
+                    'status' => $response->statusCode(),
+                ])->withSharedData();
+            }
+
+            return null;
+        });
     }
 
     /**

@@ -3,13 +3,17 @@
 namespace App\Models;
 
 use App\Concerns\Auditable;
+use App\Notifications\VerifyEmailNotification;
+use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -19,7 +23,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property int $id
  * @property string $name
  * @property string $email
- * @property Carbon|null $email_verified_at
+ * @property Carbon|CarbonImmutable|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
@@ -27,14 +31,22 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $remember_token
  * @property string|null $sim_id
  * @property string|null $avatar_path
+ * @property string|null $position
+ * @property string|null $work_location
+ * @property string|null $availability_status
+ * @property list<string>|null $qcc_experience_batches
+ * @property bool $needs_profile_setup
  * @property int|null $organization_id
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property int $competencies_count
+ * @property int $verified_count
+ * @property-read Pivot $pivot
  */
-#[Fillable(['name', 'email', 'password', 'sim_id', 'organization_id'])]
+#[Fillable(['name', 'email', 'password', 'sim_id', 'organization_id', 'availability_status', 'position', 'work_location', 'work_contact', 'personal_contact', 'qcc_experience_batches', 'needs_profile_setup'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'avatar_path'])]
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use Auditable, HasFactory, HasRoles, Notifiable;
@@ -62,13 +74,15 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'qcc_experience_batches' => 'array',
+            'needs_profile_setup' => 'boolean',
         ];
     }
 
     /**
      * Public URL of the profile photo, or null when none was uploaded.
      *
-     * @return Attribute<string|null, never>
+     * @return Attribute<non-falsy-string|null, never>
      */
     protected function avatar(): Attribute
     {
@@ -83,12 +97,36 @@ class User extends Authenticatable
         return $this->hasMany(MemberCompetency::class);
     }
 
+    /** @return HasMany<ReviewAssignment, $this> */
+    public function reviewAssignments(): HasMany
+    {
+        return $this->hasMany(ReviewAssignment::class, 'reviewer_id');
+    }
+
     /**
      * @return BelongsTo<Organization, $this>
      */
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    public function hasCompleteProfile(): bool
+    {
+        return filled($this->organization_id)
+            && filled($this->position)
+            && filled($this->work_location)
+            && filled($this->availability_status);
+    }
+
+    public function mustCompleteProfile(): bool
+    {
+        return $this->needs_profile_setup && ! $this->hasCompleteProfile();
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new VerifyEmailNotification);
     }
 
     public function auditEventPrefix(): string

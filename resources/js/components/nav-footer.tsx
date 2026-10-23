@@ -33,12 +33,10 @@ export function NavFooter({
                                         rel="noopener noreferrer"
                                     />
                                 }
-                                className="text-neutral-600 hover:text-neutral-800  "
+                                className="text-neutral-600 hover:text-neutral-800"
                             >
-                                    {item.icon && (
-                                        <item.icon className="h-5 w-5" />
-                                    )}
-                                    <span>{item.title}</span>
+                                {item.icon && <item.icon className="h-5 w-5" />}
+                                <span>{item.title}</span>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     ))}

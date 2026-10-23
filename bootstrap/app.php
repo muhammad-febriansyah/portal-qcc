@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\ApplySystemSettings;
+use App\Http\Middleware\EnsureProfileIsComplete;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -18,7 +20,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
+        $middleware->alias([
+            'profile.complete' => EnsureProfileIsComplete::class,
+        ]);
+
         $middleware->web(append: [
+            ApplySystemSettings::class,
             HandleAppearance::class,
             HandleInertiaRequests::class,
             EnsureUserIsActive::class,

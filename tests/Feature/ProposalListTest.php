@@ -140,3 +140,47 @@ test('proposal sorting is applied by the server', function () {
         'direction' => 'asc',
     ]))))->toBe(['Alpha', 'Zebra']);
 });
+
+test('a proposer can view their submitted proposal details', function () {
+    $proposer = proposalViewer('Team Leader', viewAny: false);
+    $project = Project::factory()->status(ProposalStatus::Submitted)->create([
+        'proposer_id' => $proposer->id,
+        'background' => 'Background details',
+        'learning_goals_json' => ['Improve problem analysis'],
+    ]);
+
+    $this->actingAs($proposer)
+        ->get(route('proposals.show', $project))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('proposals/show')
+            ->where('proposal.id', $project->id)
+            ->where('proposal.code', sprintf('PRP-%04d', $project->id))
+            ->where('proposal.status_label', 'Diajukan')
+            ->where('proposal.background', 'Background details')
+            ->where('proposal.learning_goals.0', 'Improve problem analysis')
+            ->where('proposal.can_edit_draft', false));
+});
+
+test('an unrelated member cannot view proposal details directly', function () {
+    $member = proposalViewer('SIMer / Member', viewAny: false);
+    $project = Project::factory()->status(ProposalStatus::Submitted)->create();
+
+    $this->actingAs($member)->get(route('proposals.show', $project))->assertForbidden();
+});
+
+test('the index carries both the proposal table and my own drafts', function () {
+    $owner = proposalViewer('Team Leader', viewAny: false);
+    $owner->givePermissionTo(Permission::findOrCreate('projects.create', 'web'));
+    $draft = Project::factory()->create(['title' => 'Draf saya', 'proposer_id' => $owner->id]);
+    Project::factory()->status(ProposalStatus::Draft)->create(['title' => 'Draf orang lain']);
+
+    $this->actingAs($owner)->get(route('proposals.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('drafts', 1)
+            ->where('drafts.0.id', $draft->id)
+            ->where('can_create', true)
+            ->has('proposals.data', 1)
+            ->where('proposals.data.0.can_edit_draft', true)
+            ->where('proposals.data.0.can_find_candidates', true));
+});

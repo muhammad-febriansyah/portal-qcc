@@ -8,6 +8,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $group_id
+ * @property string $code
+ * @property string $name
+ * @property bool $is_active
+ * @property-read CompetencyGroup|null $group
+ */
 class Competency extends Model
 {
     /** @use HasFactory<CompetencyFactory> */
@@ -33,6 +40,7 @@ class Competency extends Model
         ];
     }
 
+    /** @return BelongsTo<CompetencyGroup, $this> */
     public function group(): BelongsTo
     {
         return $this->belongsTo(CompetencyGroup::class, 'group_id');

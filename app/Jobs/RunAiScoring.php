@@ -6,6 +6,7 @@ use App\Enums\ScoringStatus;
 use App\Models\ScoringResult;
 use App\Models\ScoringRun;
 use App\Services\AuditService;
+use App\Services\ProjectNotifier;
 use App\Services\Scoring\Contracts\EvidenceResolver;
 use App\Services\Scoring\Contracts\ScoringModelClient;
 use App\Services\Scoring\Exceptions\InvalidScoringResult;
@@ -44,6 +45,7 @@ class RunAiScoring implements ShouldBeUnique, ShouldQueue
         ScoringResultValidator $validator,
         WeightedScoringCalculator $calculator,
         AuditService $audit,
+        ProjectNotifier $notifier,
     ): void {
         $run = ScoringRun::query()->with('rubricVersion.criteria')->find($this->runId);
 
@@ -99,7 +101,7 @@ class RunAiScoring implements ShouldBeUnique, ShouldQueue
             throw $e;
         }
 
-        DB::transaction(function () use ($run, $payload, $answer, $calculator, $audit): void {
+        DB::transaction(function () use ($run, $payload, $answer, $calculator, $audit, $notifier): void {
             $criteria = $run->rubricVersion->criteria->keyBy('code');
             $scores = [];
 
@@ -135,6 +137,15 @@ class RunAiScoring implements ShouldBeUnique, ShouldQueue
             ])->save();
 
             $audit->record('scoring.completed', $run, after: ['ai_weighted_score' => $result->ai_weighted_score], subjectLabel: "Penilaian proyek #{$run->project_id}");
+            $project = $run->project;
+            $notifier->notify(
+                $notifier->scoringReviewers($project),
+                $project,
+                'AI Scoring selesai',
+                "Hasil scoring proyek {$project->title} siap direview.",
+                route('admin.scoring.show', $run, false),
+                'SCORING_COMPLETED',
+            );
         });
     }
 

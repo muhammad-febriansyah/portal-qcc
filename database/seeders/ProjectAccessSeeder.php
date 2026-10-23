@@ -14,10 +14,10 @@ class ProjectAccessSeeder extends Seeder
      */
     private const ROLE_PERMISSIONS = [
         'Super Admin' => ['projects.view', 'projects.viewAny'],
-        'Owner QCC' => ['projects.view', 'projects.viewAny'],
-        'Mentor' => ['projects.view'],
-        'Team Leader' => ['projects.view', 'projects.create', 'projects.update'],
-        'SIMer / Member' => ['projects.view', 'projects.create', 'projects.update'],
+        'Owner QCC' => ['projects.view', 'projects.viewAny', 'projects.review', 'projects.approve', 'evidence.view', 'review-assignments.manage', 'competencies.verify'],
+        'Mentor' => ['projects.view', 'projects.review', 'projects.approve'],
+        'Team Leader' => ['projects.view', 'projects.create', 'projects.update', 'projects.submit', 'evidence.view', 'evidence.upload'],
+        'SIMer / Member' => ['projects.view', 'projects.create', 'projects.update', 'projects.submit', 'evidence.view', 'evidence.upload'],
     ];
 
     public function run(): void
@@ -31,5 +31,10 @@ class ProjectAccessSeeder extends Seeder
                 $role->givePermissionTo(Permission::findOrCreate($name, 'web'));
             }
         }
+
+        Role::findOrCreate('Super Admin', 'web')->revokePermissionTo([
+            Permission::findOrCreate('projects.review', 'web'),
+            Permission::findOrCreate('projects.approve', 'web'),
+        ]);
     }
 }

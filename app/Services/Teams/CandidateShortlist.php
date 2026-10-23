@@ -2,10 +2,13 @@
 
 namespace App\Services\Teams;
 
+use App\Models\MemberCompetency;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use stdClass;
 
 /**
  * Finds the people who could join a project team, based on the competencies the
@@ -43,8 +46,8 @@ class CandidateShortlist
             ->get(['competency_master.id as competency_id', 'competency_master.code', 'competency_master.name', 'project_requirements.minimum_level'])
             ->map(fn (object $row): array => [
                 'competency_id' => (int) $row->competency_id,
-                'code' => $row->code,
-                'name' => $row->name,
+                'code' => (string) $row->code,
+                'name' => (string) $row->name,
                 'minimum_level' => $row->minimum_level === null ? null : (int) $row->minimum_level,
             ])
             ->all();
@@ -62,7 +65,7 @@ class CandidateShortlist
             ->get(['id', 'name', 'position', 'organization_id', 'availability_status'])
             ->keyBy('id');
 
-        $held = DB::table('member_competencies')
+        $held = MemberCompetency::query()
             ->whereIn('user_id', $userIds)
             ->whereIn('competency_id', array_column($requirements, 'competency_id'))
             ->orderBy('competency_id')
@@ -87,25 +90,29 @@ class CandidateShortlist
                 'availability_status' => $person->availability_status,
                 'matched_count' => (int) $row->matched_count,
                 'requirement_count' => count($requirements),
-                'competencies' => $held->get($row->user_id, collect())->map(fn (object $entry): array => [
-                    'competency_id' => (int) $entry->competency_id,
-                    'self_level' => (int) $entry->self_level,
+                'competencies' => array_values($held->get($row->user_id)?->map(fn (MemberCompetency $entry): array => [
+                    'competency_id' => $entry->competency_id,
+                    'self_level' => $entry->self_level,
                     'verified_level' => $entry->verified_level === null ? null : (int) $entry->verified_level,
-                ])->values()->all(),
+                ])->all() ?? []),
             ];
         }
 
-        return ['requirements' => $requirements, 'candidates' => $candidates];
+        return ['requirements' => array_values($requirements), 'candidates' => $candidates];
     }
 
     /**
-     * What an AI run may see about the shortlist: IDs, organizations, availability and levels.
+     * What an AI run may see about the shortlist: IDs, organizations, availability,
+     * competency levels and aggregate counts of prior QCC project experience.
      *
      * @param  array{requirements: list<array<string, mixed>>, candidates: list<array<string, mixed>>}  $shortlist
      * @return array<string, mixed>
      */
     public function snapshot(Project $project, array $shortlist): array
     {
+        $userIds = array_column($shortlist['candidates'], 'user_id');
+        $experience = $this->qccExperience($project, $userIds);
+
         return [
             'project_id' => $project->id,
             'generated_at' => now()->toIso8601String(),
@@ -113,13 +120,64 @@ class CandidateShortlist
                 'competency_id' => $requirement['competency_id'],
                 'minimum_level' => $requirement['minimum_level'],
             ], $shortlist['requirements']),
-            'candidates' => array_map(fn (array $candidate): array => [
-                'candidate_user_id' => $candidate['user_id'],
-                'organization_id' => $candidate['organization_id'],
-                'availability_status' => $candidate['availability_status'],
-                'competencies' => $candidate['competencies'],
-            ], $shortlist['candidates']),
+            'candidates' => array_map(function (array $candidate) use ($experience): array {
+                $candidateExperience = $experience->get($candidate['user_id']) ?? [
+                    'projects_count' => 0,
+                    'leader_projects_count' => 0,
+                    'completed_projects_count' => 0,
+                ];
+
+                return [
+                    'candidate_user_id' => $candidate['user_id'],
+                    'organization_id' => $candidate['organization_id'],
+                    'availability_status' => $candidate['availability_status'],
+                    'competencies' => $candidate['competencies'],
+                    'qcc_experience' => [
+                        'projects_count' => $candidateExperience['projects_count'],
+                        'leader_projects_count' => $candidateExperience['leader_projects_count'],
+                        'completed_projects_count' => $candidateExperience['completed_projects_count'],
+                    ],
+                ];
+            }, $shortlist['candidates']),
         ];
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     * @return Collection<int|string, array{user_id: int, projects_count: int, leader_projects_count: int, completed_projects_count: int}>
+     */
+    private function qccExperience(Project $project, array $userIds): Collection
+    {
+        if ($userIds === []) {
+            return collect();
+        }
+
+        $completedProjects = DB::table('qcc_steps')
+            ->whereBetween('step_number', [1, 8])
+            ->select('project_id')
+            ->groupBy('project_id')
+            ->havingRaw('COUNT(*) = ?', [8])
+            ->havingRaw('SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) = ?', ['APPROVED', 8]);
+
+        return DB::table('project_members as project_member')
+            ->join('projects', 'projects.id', '=', 'project_member.project_id')
+            ->leftJoinSub($completedProjects, 'completed_projects', 'completed_projects.project_id', '=', 'project_member.project_id')
+            ->whereIn('project_member.user_id', $userIds)
+            ->where('project_member.project_id', '<>', $project->id)
+            ->whereNull('projects.deleted_at')
+            ->groupBy('project_member.user_id')
+            ->select('project_member.user_id')
+            ->selectRaw('COUNT(DISTINCT project_member.project_id) as projects_count')
+            ->selectRaw("COUNT(DISTINCT CASE WHEN project_member.role_in_project = 'LEADER' THEN project_member.project_id END) as leader_projects_count")
+            ->selectRaw('COUNT(DISTINCT completed_projects.project_id) as completed_projects_count')
+            ->get()
+            ->map(fn (stdClass $row): array => [
+                'user_id' => (int) $row->user_id,
+                'projects_count' => (int) $row->projects_count,
+                'leader_projects_count' => (int) $row->leader_projects_count,
+                'completed_projects_count' => (int) $row->completed_projects_count,
+            ])
+            ->keyBy('user_id');
     }
 
     /**

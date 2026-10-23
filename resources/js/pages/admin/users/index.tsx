@@ -1,10 +1,16 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
-import { CircleCheck, CirclePause, KeyRound, PencilLine, Plus, Power } from 'lucide-react';
+import {
+    CircleCheck,
+    CirclePause,
+    KeyRound,
+    PencilLine,
+    Plus,
+    Power,
+    Trash2,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { CredentialDialog } from '@/components/credential-dialog';
-import type { Credential } from '@/components/credential-dialog';
 import { DataTable } from '@/components/data-table';
 import type {
     DataTableColumnDef,
@@ -12,14 +18,28 @@ import type {
 } from '@/components/data-table';
 import { DataTableRowActions } from '@/components/data-table-row-actions';
 import { PageHeader } from '@/components/page-header';
+import { FormField } from '@/components/form-field';
+import { useAppName } from '@/hooks/use-app-name';
 import { UserFormDialog } from '@/components/user-form-dialog';
 import type {
     OrganizationOption,
     UserFormValues,
 } from '@/components/user-form-dialog';
 import { Badge } from '@/components/ui/badge';
+import { roleBadgeVariant } from '@/lib/badge-variants';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Select,
     SelectContent,
@@ -27,11 +47,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { index } from '@/routes/admin/users';
 import { update as updatePassword } from '@/routes/admin/users/password';
 import { update as updateStatus } from '@/routes/admin/users/status';
+import { update as updateBulkStatus } from '@/routes/admin/users/bulk-status';
+import { destroy as destroyBulkUsers } from '@/routes/admin/users/bulk';
 
 type UserRow = UserFormValues & {
     organization_name: string | null;
@@ -81,15 +102,7 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
     const Icon = isActive ? CircleCheck : CirclePause;
 
     return (
-        <Badge
-            variant="secondary"
-            className={cn(
-                'gap-1',
-                isActive
-                    ? 'bg-[#16834a]/10 text-[#16834a]'
-                    : 'bg-muted text-muted-foreground',
-            )}
-        >
+        <Badge variant={isActive ? 'success' : 'secondary'} className="gap-1">
             <Icon aria-hidden="true" />
             {isActive ? 'Aktif' : 'Nonaktif'}
         </Badge>
@@ -102,12 +115,19 @@ export default function UsersIndex({
     roleOptions,
     organizationOptions,
 }: Props) {
+    const appName = useAppName();
     const [searchValue, setSearchValue] = useState(filters.search);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserRow | null>(null);
-    const [credential, setCredential] = useState<Credential | null>(null);
+    const [resetUser, setResetUser] = useState<UserRow | null>(null);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+    const [bulkProcessing, setBulkProcessing] = useState(false);
+    const resetForm = useForm({ password: '', password_confirmation: '' });
 
     function visit(nextQuery: UserQuery, resetPage = true): void {
+        setSelectedIds([]);
+
         const query = {
             search: nextQuery.search ?? filters.search,
             role: nextQuery.role ?? filters.role,
@@ -147,16 +167,6 @@ export default function UsersIndex({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchValue]);
 
-    useEffect(() => {
-        return router.on('flash', (event) => {
-            const flash = (event as CustomEvent).detail?.flash;
-
-            if (flash?.credential) {
-                setCredential(flash.credential as Credential);
-            }
-        });
-    }, []);
-
     function openCreateDialog(): void {
         setEditingUser(null);
         setIsDialogOpen(true);
@@ -167,8 +177,16 @@ export default function UsersIndex({
         setIsDialogOpen(true);
     }
 
-    function resetPassword(user: UserRow): void {
-        router.put(updatePassword.url(user.id), {}, { preserveScroll: true });
+    function openResetPassword(user: UserRow): void {
+        resetForm.reset();
+        resetForm.clearErrors();
+        setResetUser(user);
+    }
+
+    function closeResetPassword(): void {
+        setResetUser(null);
+        resetForm.reset();
+        resetForm.clearErrors();
     }
 
     function toggleStatus(user: UserRow): void {
@@ -178,6 +196,98 @@ export default function UsersIndex({
             { preserveScroll: true },
         );
     }
+
+    function toggleSelectedUser(userId: number, isChecked: boolean): void {
+        setSelectedIds((current) =>
+            isChecked
+                ? [...new Set([...current, userId])]
+                : current.filter((id) => id !== userId),
+        );
+    }
+
+    function toggleVisibleUsers(isChecked: boolean): void {
+        const visibleIds = users.data
+            .filter((user) => !user.is_self)
+            .map((user) => user.id);
+
+        setSelectedIds((current) => {
+            const remaining = current.filter((id) => !visibleIds.includes(id));
+
+            return isChecked ? [...remaining, ...visibleIds] : remaining;
+        });
+    }
+
+    function updateSelectedStatus(isActive: boolean): void {
+        if (selectedIds.length === 0) {
+            return;
+        }
+
+        router.patch(
+            updateBulkStatus.url(),
+            { user_ids: selectedIds, is_active: isActive },
+            {
+                preserveScroll: true,
+                onStart: () => setBulkProcessing(true),
+                onFinish: () => setBulkProcessing(false),
+                onSuccess: () => setSelectedIds([]),
+            },
+        );
+    }
+
+    function deleteSelectedUsers(): void {
+        if (selectedIds.length === 0) {
+            return;
+        }
+
+        router.delete(destroyBulkUsers.url(), {
+            data: { user_ids: selectedIds },
+            preserveScroll: true,
+            onStart: () => setBulkProcessing(true),
+            onFinish: () => setBulkProcessing(false),
+            onSuccess: () => {
+                setSelectedIds([]);
+                setBulkDeleteOpen(false);
+            },
+        });
+    }
+
+    const selectableIds = users.data
+        .filter((user) => !user.is_self)
+        .map((user) => user.id);
+    const selectedVisibleCount = selectableIds.filter((id) =>
+        selectedIds.includes(id),
+    ).length;
+    const allVisibleSelected =
+        selectableIds.length > 0 &&
+        selectedVisibleCount === selectableIds.length;
+    const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+
+    const leadingColumns: DataTableColumnDef<UserRow>[] = [
+        {
+            id: 'select',
+            header: () => (
+                <Checkbox
+                    aria-label="Pilih semua anggota di halaman ini"
+                    checked={allVisibleSelected}
+                    indeterminate={someVisibleSelected}
+                    disabled={selectableIds.length === 0}
+                    onCheckedChange={(checked) =>
+                        toggleVisibleUsers(checked === true)
+                    }
+                />
+            ),
+            cell: ({ row }) => (
+                <Checkbox
+                    aria-label={`Pilih ${row.original.name}`}
+                    checked={selectedIds.includes(row.original.id)}
+                    disabled={row.original.is_self}
+                    onCheckedChange={(checked) =>
+                        toggleSelectedUser(row.original.id, checked === true)
+                    }
+                />
+            ),
+        },
+    ];
 
     const columns = useMemo<DataTableColumnDef<UserRow>[]>(
         () => [
@@ -222,7 +332,9 @@ export default function UsersIndex({
                 header: 'Role',
                 cell: ({ row }) =>
                     row.original.role ? (
-                        <Badge variant="outline">{row.original.role}</Badge>
+                        <Badge variant={roleBadgeVariant(row.original.role)}>
+                            {row.original.role}
+                        </Badge>
                     ) : (
                         '—'
                     ),
@@ -266,11 +378,7 @@ export default function UsersIndex({
                                     {
                                         label: 'Reset Password',
                                         icon: KeyRound,
-                                        requiresConfirmation: true,
-                                        confirmTitle: 'Reset password?',
-                                        confirmDescription: `Password lama ${user.name} akan diganti dengan password sementara baru.`,
-                                        confirmLabel: 'Reset',
-                                        onSelect: () => resetPassword(user),
+                                        onSelect: () => openResetPassword(user),
                                     },
                                     {
                                         label: user.is_active
@@ -284,8 +392,8 @@ export default function UsersIndex({
                                             ? 'Nonaktifkan akun?'
                                             : 'Aktifkan akun?',
                                         confirmDescription: user.is_active
-                                            ? `${user.name} tidak akan bisa masuk ke Portal QCC sampai akunnya diaktifkan kembali.`
-                                            : `${user.name} dapat masuk kembali ke Portal QCC.`,
+                                            ? `${user.name} tidak akan bisa masuk ke ${appName} sampai akunnya diaktifkan kembali.`
+                                            : `${user.name} dapat masuk kembali ke ${appName}.`,
                                         confirmLabel: user.is_active
                                             ? 'Nonaktifkan'
                                             : 'Aktifkan',
@@ -299,7 +407,7 @@ export default function UsersIndex({
             },
         ],
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [],
+        [appName, users.data],
     );
 
     const sort: DataTableSort = {
@@ -321,7 +429,7 @@ export default function UsersIndex({
                         { title: 'Anggota', href: index() },
                     ]}
                     title="Anggota"
-                    description="Kelola akun, organisasi, dan role pengguna Portal QCC."
+                    description={`Kelola akun, organisasi, dan role pengguna ${appName}.`}
                     actions={
                         <Button
                             type="button"
@@ -337,6 +445,7 @@ export default function UsersIndex({
                 <Card className="gap-0 py-0">
                     <DataTable
                         embedded
+                        leadingColumns={leadingColumns}
                         columns={columns}
                         data={users.data}
                         rowId={(row) => String(row.id)}
@@ -425,6 +534,49 @@ export default function UsersIndex({
                                 </Select>
                             </div>
                         }
+                        toolbar={
+                            selectedIds.length > 0 ? (
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="mr-1 text-sm text-muted-foreground">
+                                        {selectedIds.length} dipilih
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                        disabled={bulkProcessing}
+                                        onClick={() =>
+                                            updateSelectedStatus(true)
+                                        }
+                                    >
+                                        <CircleCheck aria-hidden="true" />
+                                        Aktifkan
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        className="bg-amber-500 text-white hover:bg-amber-600"
+                                        disabled={bulkProcessing}
+                                        onClick={() =>
+                                            updateSelectedStatus(false)
+                                        }
+                                    >
+                                        <CirclePause aria-hidden="true" />
+                                        Nonaktifkan
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        className="bg-rose-600 text-white hover:bg-rose-700"
+                                        disabled={bulkProcessing}
+                                        onClick={() => setBulkDeleteOpen(true)}
+                                    >
+                                        <Trash2 aria-hidden="true" />
+                                        Hapus
+                                    </Button>
+                                </div>
+                            ) : null
+                        }
                         emptyTitle={
                             hasActiveFilter
                                 ? 'Anggota tidak ditemukan'
@@ -433,7 +585,7 @@ export default function UsersIndex({
                         emptyDescription={
                             hasActiveFilter
                                 ? 'Ubah kata kunci atau filter untuk melihat hasil lain.'
-                                : 'Tambah anggota pertama untuk memberi akses ke Portal QCC.'
+                                : `Tambah anggota pertama untuk memberi akses ke ${appName}.`
                         }
                     />
                 </Card>
@@ -446,10 +598,133 @@ export default function UsersIndex({
                 roleOptions={roleOptions}
                 organizationOptions={organizationOptions}
             />
-            <CredentialDialog
-                credential={credential}
-                onClose={() => setCredential(null)}
-            />
+            <Dialog
+                open={resetUser !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        closeResetPassword();
+                    }
+                }}
+            >
+                <DialogContent className="gap-6 sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Reset password</DialogTitle>
+                    </DialogHeader>
+                    <form
+                        className="grid gap-5"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+
+                            if (!resetUser) {
+                                return;
+                            }
+
+                            resetForm.put(updatePassword.url(resetUser.id), {
+                                preserveScroll: true,
+                                onSuccess: closeResetPassword,
+                            });
+                        }}
+                    >
+                        <FormField
+                            id="reset-password"
+                            label="Password baru"
+                            required
+                            error={
+                                resetForm.errors.password ===
+                                'Konfirmasi password tidak sama.'
+                                    ? undefined
+                                    : resetForm.errors.password
+                            }
+                        >
+                            <Input
+                                type="password"
+                                autoComplete="new-password"
+                                placeholder="Masukkan password baru"
+                                value={resetForm.data.password}
+                                onChange={(event) =>
+                                    resetForm.setData(
+                                        'password',
+                                        event.target.value,
+                                    )
+                                }
+                            />
+                        </FormField>
+                        <FormField
+                            id="reset-password-confirmation"
+                            label="Konfirmasi password"
+                            required
+                            error={
+                                resetForm.errors.password_confirmation ??
+                                (resetForm.errors.password ===
+                                'Konfirmasi password tidak sama.'
+                                    ? resetForm.errors.password
+                                    : undefined)
+                            }
+                        >
+                            <Input
+                                type="password"
+                                autoComplete="new-password"
+                                placeholder="Ulangi password baru"
+                                value={resetForm.data.password_confirmation}
+                                onChange={(event) =>
+                                    resetForm.setData(
+                                        'password_confirmation',
+                                        event.target.value,
+                                    )
+                                }
+                            />
+                        </FormField>
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={closeResetPassword}
+                                disabled={resetForm.processing}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={resetForm.processing}
+                            >
+                                {resetForm.processing && <Spinner />}
+                                Simpan password
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+            <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+                <DialogContent className="gap-6 sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Hapus anggota terpilih?</DialogTitle>
+                        <DialogDescription>
+                            {selectedIds.length} akun akan dihapus. Akun yang
+                            masih terhubung ke proyek atau aktivitas tidak dapat
+                            dihapus. Aksi ini tidak dapat dibatalkan.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={bulkProcessing}
+                            onClick={() => setBulkDeleteOpen(false)}
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            type="button"
+                            className="bg-rose-600 text-white hover:bg-rose-700"
+                            disabled={bulkProcessing}
+                            onClick={deleteSelectedUsers}
+                        >
+                            {bulkProcessing && <Spinner />}
+                            Hapus anggota
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

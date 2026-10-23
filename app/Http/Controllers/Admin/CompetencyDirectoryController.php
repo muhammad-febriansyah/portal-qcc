@@ -4,13 +4,19 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\CompetencyLevel;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\RejectMemberCompetencyVerificationRequest;
+use App\Http\Requests\Admin\VerifyMemberCompetencyRequest;
 use App\Models\Competency;
 use App\Models\CompetencyGroup;
 use App\Models\MemberCompetency;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\AuditService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -22,7 +28,7 @@ use Inertia\Response;
  */
 class CompetencyDirectoryController extends Controller
 {
-    private const EFFECTIVE_LEVEL = 'COALESCE(member_competencies.verified_level, member_competencies.self_level)';
+    private const EFFECTIVE_LEVEL = "CASE WHEN member_competencies.verification_status = 'VERIFIED' THEN member_competencies.verified_level ELSE member_competencies.self_level END";
 
     public function index(Request $request): Response
     {
@@ -73,13 +79,110 @@ class CompetencyDirectoryController extends Controller
                     'label' => $competency->code.' - '.$competency->name,
                 ])->all(),
             'levelOptions' => CompetencyLevel::options(),
+            'canVerify' => $request->user()->can('competencies.verify'),
         ]);
+    }
+
+    public function verify(
+        VerifyMemberCompetencyRequest $request,
+        MemberCompetency $memberCompetency,
+        AuditService $audit,
+    ): RedirectResponse {
+        $validated = $request->validated();
+        $actorId = $request->user()->id;
+
+        DB::transaction(function () use ($memberCompetency, $validated, $actorId, $audit): void {
+            $record = MemberCompetency::query()->lockForUpdate()->findOrFail($memberCompetency->id);
+
+            abort_unless($record->user_id !== $actorId, 403, 'Anda tidak dapat memverifikasi kompetensi sendiri.');
+
+            $before = [
+                'verified_level' => $record->verified_level,
+                'verification_status' => $record->verification_status,
+                'verification_note' => $record->verification_note,
+            ];
+
+            $record->forceFill([
+                'verified_level' => (int) $validated['verified_level'],
+                'verified_by' => $actorId,
+                'verified_at' => now(),
+                'verification_status' => MemberCompetency::STATUS_VERIFIED,
+                'verification_note' => $validated['note'] ?? null,
+            ])->saveQuietly();
+
+            $audit->record(
+                'member_competency.verified',
+                $record,
+                before: $before,
+                after: [
+                    'verified_level' => $record->verified_level,
+                    'verification_status' => $record->verification_status,
+                    'verification_note' => $record->verification_note,
+                ],
+                reason: $validated['note'] ?? null,
+            );
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Kompetensi berhasil diverifikasi.']);
+
+        return back();
+    }
+
+    public function reject(
+        RejectMemberCompetencyVerificationRequest $request,
+        MemberCompetency $memberCompetency,
+        AuditService $audit,
+    ): RedirectResponse {
+        $reason = $request->validated('reason');
+        $actorId = $request->user()->id;
+
+        DB::transaction(function () use ($memberCompetency, $reason, $actorId, $audit): void {
+            $record = MemberCompetency::query()->lockForUpdate()->findOrFail($memberCompetency->id);
+
+            abort_unless($record->user_id !== $actorId, 403, 'Anda tidak dapat memverifikasi kompetensi sendiri.');
+
+            $before = [
+                'verified_level' => $record->verified_level,
+                'verification_status' => $record->verification_status,
+                'verification_note' => $record->verification_note,
+            ];
+
+            $record->forceFill([
+                'verified_by' => $actorId,
+                'verified_at' => now(),
+                'verification_status' => MemberCompetency::STATUS_REJECTED,
+                'verification_note' => $reason,
+            ])->saveQuietly();
+
+            $audit->record(
+                'member_competency.rejected',
+                $record,
+                before: $before,
+                after: [
+                    'verified_level' => $record->verified_level,
+                    'verification_status' => $record->verification_status,
+                    'verification_note' => $record->verification_note,
+                ],
+                reason: $reason,
+            );
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Perbaikan kompetensi berhasil diminta.']);
+
+        return back();
     }
 
     /**
      * @param  array<string, mixed>  $state
+     * @return LengthAwarePaginator<int, array{
+     *     id: int, user_id: int, name: string, sim_id: string|null, email: string,
+     *     organization: string|null, role: string|null, competency_code: string, competency_name: string,
+     *     group_code: string|null, self_level: int, self_level_label: string|null,
+     *     verified_level: int|null, verified_level_label: string|null,
+     *     verification_status: string|null, verification_note: string|null
+     * }>
      */
-    private function byCompetency(array $state)
+    private function byCompetency(array $state): LengthAwarePaginator
     {
         $sortColumn = match ($state['sort']) {
             'name' => 'users.name',
@@ -112,7 +215,7 @@ class CompetencyDirectoryController extends Controller
             ->when($state['competency'] !== 'all', fn (Builder $query): Builder => $query->where('member_competencies.competency_id', (int) $state['competency']))
             ->when($state['group'] !== 'all', fn (Builder $query): Builder => $query->where('competency_master.group_id', (int) $state['group']))
             ->when($state['min_level'] > 0, fn (Builder $query): Builder => $query->whereRaw(self::EFFECTIVE_LEVEL.' >= ?', [$state['min_level']]))
-            ->when($state['verified_only'], fn (Builder $query): Builder => $query->whereNotNull('member_competencies.verified_level'))
+            ->when($state['verified_only'], fn (Builder $query): Builder => $query->where('member_competencies.verification_status', MemberCompetency::STATUS_VERIFIED))
             ->orderBy($sortColumn, $state['direction'])
             ->orderBy('users.name')
             ->orderBy('member_competencies.id')
@@ -125,7 +228,7 @@ class CompetencyDirectoryController extends Controller
                 'sim_id' => $row->user->sim_id,
                 'email' => $row->user->email,
                 'organization' => $row->user->organization?->name,
-                'role' => $row->user->roles->pluck('name')->sort()->first(),
+                'role' => is_string($role = $row->user->roles->pluck('name')->sort()->first()) ? $role : null,
                 'competency_code' => $row->competency->code,
                 'competency_name' => $row->competency->name,
                 'group_code' => $row->competency->group?->code,
@@ -133,13 +236,19 @@ class CompetencyDirectoryController extends Controller
                 'self_level_label' => CompetencyLevel::labelFor($row->self_level),
                 'verified_level' => $row->verified_level,
                 'verified_level_label' => CompetencyLevel::labelFor($row->verified_level),
+                'verification_status' => $row->verification_status,
+                'verification_note' => $row->verification_note,
             ]);
     }
 
     /**
      * @param  array<string, mixed>  $state
+     * @return LengthAwarePaginator<int, array{
+     *     id: int, user_id: int, name: string, sim_id: string|null, email: string,
+     *     organization: string|null, role: mixed, competencies_count: int, verified_count: int
+     * }>
      */
-    private function byMember(array $state)
+    private function byMember(array $state): LengthAwarePaginator
     {
         $holdsFiltered = $state['competency'] !== 'all' || $state['group'] !== 'all' || $state['min_level'] > 0 || $state['verified_only'];
 
@@ -152,7 +261,7 @@ class CompetencyDirectoryController extends Controller
             })
             ->withCount([
                 'memberCompetencies as competencies_count',
-                'memberCompetencies as verified_count' => fn (Builder $query): Builder => $query->whereNotNull('verified_level'),
+                'memberCompetencies as verified_count' => fn (Builder $query): Builder => $query->where('verification_status', MemberCompetency::STATUS_VERIFIED),
             ])
             ->with(['organization:id,name', 'roles:id,name'])
             ->when($state['search'] !== '', function (Builder $query) use ($state): void {
@@ -169,8 +278,8 @@ class CompetencyDirectoryController extends Controller
                 $query->whereHas('memberCompetencies', function (Builder $held) use ($state): void {
                     $held->when($state['competency'] !== 'all', fn (Builder $q): Builder => $q->where('competency_id', (int) $state['competency']))
                         ->when($state['group'] !== 'all', fn (Builder $q): Builder => $q->whereHas('competency', fn (Builder $c): Builder => $c->where('group_id', (int) $state['group'])))
-                        ->when($state['min_level'] > 0, fn (Builder $q): Builder => $q->whereRaw('COALESCE(verified_level, self_level) >= ?', [$state['min_level']]))
-                        ->when($state['verified_only'], fn (Builder $q): Builder => $q->whereNotNull('verified_level'));
+                        ->when($state['min_level'] > 0, fn (Builder $q): Builder => $q->whereRaw("CASE WHEN verification_status = 'VERIFIED' THEN verified_level ELSE self_level END >= ?", [$state['min_level']]))
+                        ->when($state['verified_only'], fn (Builder $q): Builder => $q->where('verification_status', MemberCompetency::STATUS_VERIFIED));
                 });
             })
             ->orderBy($state['sort'] === 'competencies_count' ? 'competencies_count' : 'users.name', $state['direction'])
@@ -228,6 +337,8 @@ class CompetencyDirectoryController extends Controller
                     'self_level_label' => CompetencyLevel::labelFor($row->self_level),
                     'verified_level' => $row->verified_level,
                     'verified_level_label' => CompetencyLevel::labelFor($row->verified_level),
+                    'verification_status' => $row->verification_status,
+                    'verification_note' => $row->verification_note,
                 ])->all(),
         ];
     }

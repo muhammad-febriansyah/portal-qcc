@@ -22,7 +22,7 @@ class QccBatchFactory extends Factory
 
         return [
             'code' => 'BATCH-'.fake()->unique()->numerify('####'),
-            'name' => 'Batch '.fake()->unique()->words(2, true),
+            'name' => 'Batch '.fake()->unique()->word(),
             'starts_on' => $startsOn->format('Y-m-d'),
             'ends_on' => (clone $startsOn)->modify('+3 months')->format('Y-m-d'),
             'status' => BatchStatus::Draft,

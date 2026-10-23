@@ -6,6 +6,7 @@ use App\Services\AuditService;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Events\Dispatcher;
 
 class RecordAuthActivity
@@ -14,14 +15,12 @@ class RecordAuthActivity
 
     public function onLogin(Login $event): void
     {
-        $this->audit->record('auth.login', $event->user);
+        $this->audit->record('auth.login', $event->user instanceof Model ? $event->user : null);
     }
 
     public function onLogout(Logout $event): void
     {
-        if ($event->user !== null) {
-            $this->audit->record('auth.logout', $event->user);
-        }
+        $this->audit->record('auth.logout', $event->user instanceof Model ? $event->user : null);
     }
 
     public function onFailed(Failed $event): void

@@ -6,6 +6,7 @@ use App\Enums\ScoringStatus;
 use App\Models\ScoringRun;
 use App\Models\User;
 use App\Services\AuditService;
+use App\Services\ProjectNotifier;
 use App\Services\Scoring\WeightedScoringCalculator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -19,6 +20,7 @@ class ReviewScoringRun
     public function __construct(
         private readonly WeightedScoringCalculator $calculator,
         private readonly AuditService $audit,
+        private readonly ProjectNotifier $notifier,
     ) {}
 
     /**
@@ -102,6 +104,15 @@ class ReviewScoringRun
                 reason: $comment,
                 subjectLabel: $this->label($locked),
             );
+            $this->notifier->notify(
+                $this->notifier->scoringReviewers($locked->project),
+                $locked->project,
+                'AI Scoring disetujui',
+                "Hasil scoring proyek {$locked->project->title} disetujui.",
+                route('admin.scoring.show', $locked, false),
+                'SCORING_APPROVED',
+                $reviewer,
+            );
 
             return $locked->refresh();
         });
@@ -127,6 +138,15 @@ class ReviewScoringRun
             $locked->forceFill(['status' => ScoringStatus::RevisionRequired, 'lock_version' => $locked->lock_version + 1])->save();
 
             $this->audit->record('scoring.revision_requested', $locked, reason: $reason, subjectLabel: $this->label($locked));
+            $this->notifier->notify(
+                $this->notifier->scoringReviewers($locked->project),
+                $locked->project,
+                'AI Scoring perlu revisi',
+                "Hasil scoring proyek {$locked->project->title} perlu diperbaiki: {$reason}",
+                route('admin.scoring.show', $locked, false),
+                'SCORING_REVISION',
+                $reviewer,
+            );
 
             return $locked->refresh();
         });
@@ -137,7 +157,7 @@ class ReviewScoringRun
      */
     private function lockPendingRun(ScoringRun $run): ScoringRun
     {
-        $locked = ScoringRun::query()->with('rubricVersion.criteria')->whereKey($run->id)->lockForUpdate()->firstOrFail();
+        $locked = ScoringRun::query()->with(['rubricVersion.criteria', 'project'])->whereKey($run->id)->lockForUpdate()->firstOrFail();
 
         if ($locked->status !== ScoringStatus::PendingReview) {
             throw ValidationException::withMessages(['status' => 'Penilaian ini sudah diproses atau belum siap direview.']);

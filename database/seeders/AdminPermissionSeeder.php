@@ -18,11 +18,15 @@ class AdminPermissionSeeder extends Seeder
     private const SUPER_ADMIN_PERMISSIONS = [
         'batches.manage',
         'competencies.manage',
+        'competencies.verify',
         'users.manage',
         'audit.view',
         'organizations.manage',
         'roles.manage',
         'rubrics.manage',
+        'rubrics.publish',
+        'system-settings.view',
+        'system-settings.manage',
     ];
 
     public function run(): void

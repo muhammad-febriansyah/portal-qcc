@@ -37,7 +37,7 @@ class ScoringResultValidator
             'criteria.*.uncertainty' => ['present', 'nullable', 'string'],
         ]);
 
-        $problems = $validator->errors()->all();
+        $problems = array_values($validator->errors()->all());
 
         if ($problems !== []) {
             throw new InvalidScoringResult($problems);

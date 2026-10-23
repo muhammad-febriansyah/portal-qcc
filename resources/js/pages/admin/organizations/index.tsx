@@ -7,6 +7,7 @@ import { DataTable } from '@/components/data-table';
 import { DataTableRowActions } from '@/components/data-table-row-actions';
 import { FormField } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
+import { useAppName } from '@/hooks/use-app-name';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -66,6 +67,7 @@ export default function OrganizationsIndex({
     organizations,
     filters,
 }: OrganizationPageProps) {
+    const appName = useAppName();
     const [searchValue, setSearchValue] = useState(filters.search);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -194,7 +196,7 @@ export default function OrganizationsIndex({
                 cell: ({ row }) => (
                     <Badge
                         variant={
-                            row.original.is_active ? 'default' : 'secondary'
+                            row.original.is_active ? 'success' : 'secondary'
                         }
                     >
                         {row.original.is_active ? 'Aktif' : 'Nonaktif'}
@@ -264,7 +266,7 @@ export default function OrganizationsIndex({
                         },
                     ]}
                     title="Master Organisasi"
-                    description="Kelola daftar organisasi yang digunakan di Portal QCC."
+                    description={`Kelola daftar organisasi yang digunakan di ${appName}.`}
                     actions={
                         <Button
                             type="button"

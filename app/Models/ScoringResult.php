@@ -2,10 +2,21 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property array<int, string>|null $cautions_json
+ * @property string|null $ai_weighted_score
+ * @property string|null $reviewer_weighted_score
+ * @property string|null $final_score
+ * @property CarbonImmutable|string|null $reviewed_at
+ * @property-read User|null $reviewer
+ * @property-read Collection<int, ScoringCriterionScore> $criterionScores
+ */
 class ScoringResult extends Model
 {
     /** @var list<string> */
@@ -17,6 +28,8 @@ class ScoringResult extends Model
     protected function casts(): array
     {
         return [
+            'created_at' => 'immutable_datetime',
+            'updated_at' => 'immutable_datetime',
             'cautions_json' => 'array',
             'ai_weighted_score' => 'decimal:2',
             'reviewer_weighted_score' => 'decimal:2',
@@ -29,6 +42,12 @@ class ScoringResult extends Model
     public function run(): BelongsTo
     {
         return $this->belongsTo(ScoringRun::class, 'scoring_run_id');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
     }
 
     /** @return HasMany<ScoringCriterionScore, $this> */

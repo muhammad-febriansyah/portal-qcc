@@ -1,7 +1,14 @@
 import { Head, router } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
-import { CircleCheck, CircleDashed, Lock, PencilLine, Plus, Trash2 } from 'lucide-react';
+import {
+    CircleCheck,
+    CircleDashed,
+    Lock,
+    PencilLine,
+    Plus,
+    Trash2,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { BatchFormDialog } from '@/components/batch-form-dialog';
@@ -17,6 +24,7 @@ import type {
 import { DataTableRowActions } from '@/components/data-table-row-actions';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
+import type { BadgeVariant } from '@/lib/badge-variants';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -26,7 +34,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { destroy, index } from '@/routes/admin/batches';
 
@@ -64,18 +71,21 @@ type Props = {
     statusOptions: BatchStatusOption[];
 };
 
-const statusStyles: Record<string, { icon: LucideIcon; className: string }> = {
+const statusStyles: Record<
+    string,
+    { icon: LucideIcon; variant: BadgeVariant }
+> = {
     draft: {
         icon: CircleDashed,
-        className: 'bg-secondary text-secondary-foreground',
+        variant: 'warning',
     },
     active: {
         icon: CircleCheck,
-        className: 'bg-[#16834a]/10 text-[#16834a]',
+        variant: 'success',
     },
     closed: {
         icon: Lock,
-        className: 'bg-muted text-muted-foreground',
+        variant: 'secondary',
     },
 };
 
@@ -88,7 +98,7 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
     const Icon = style.icon;
 
     return (
-        <Badge variant="secondary" className={cn('gap-1', style.className)}>
+        <Badge variant={style.variant} className="gap-1">
             <Icon aria-hidden="true" />
             {label}
         </Badge>

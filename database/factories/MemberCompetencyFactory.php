@@ -28,7 +28,7 @@ class MemberCompetencyFactory extends Factory
     {
         return $this->state(fn () => [
             'verified_level' => $level,
-            'verification_status' => 'verified',
+            'verification_status' => 'VERIFIED',
             'verified_at' => now(),
         ]);
     }

@@ -1,6 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Info,
+    ListChecks,
     Plus,
     Sparkles,
     TriangleAlert,
@@ -30,6 +31,7 @@ import type {
     TeamRole,
 } from '@/lib/team-rules';
 import { dashboard } from '@/routes';
+import { index as settingsIndex } from '@/routes/admin/settings';
 import { candidates as candidatesRoute } from '@/routes/proposals';
 import { start } from '@/routes/proposals/matching';
 import { confirm } from '@/routes/proposals/team';
@@ -61,13 +63,27 @@ type Matching = {
     id: number;
     status: 'QUEUED' | 'PROCESSING' | 'READY' | 'FAILED';
     status_label: string;
+    source: 'AI' | 'MANUAL';
     error_code: string | null;
     confirmed_at: string | null;
     members: Suggestion[];
     team_gaps: string[];
     cautions: string[];
+    mitigations: Mitigation[];
     rule_problems: string[];
 } | null;
+
+type Mitigation = {
+    gap: string;
+    recommendation: string;
+    type: 'COACHING' | 'TRAINING' | 'MENTOR';
+};
+
+const mitigationTypeLabels: Record<Mitigation['type'], string> = {
+    COACHING: 'Coaching',
+    TRAINING: 'Pelatihan',
+    MENTOR: 'Pendampingan mentor',
+};
 
 type CurrentTeamMember = {
     user_id: number;
@@ -98,6 +114,7 @@ type Props = {
     ai: Ai;
     matching: Matching;
     team: CurrentTeamMember[];
+    can_edit_team: boolean;
 };
 
 function initials(name: string): string {
@@ -261,15 +278,17 @@ export default function ProposalCandidates({
     ai,
     matching,
     team,
+    can_edit_team,
 }: Props) {
     const { errors } = usePage().props as { errors: Record<string, string> };
     const [starting, setStarting] = useState(false);
     const [confirming, setConfirming] = useState(false);
+    const [manualMode, setManualMode] = useState(false);
     const isRunning =
         matching?.status === 'QUEUED' || matching?.status === 'PROCESSING';
     const isReady = matching?.status === 'READY';
     const isConfirmed = isReady && matching.confirmed_at !== null;
-    const canEdit = isReady && !isConfirmed;
+    const canEdit = can_edit_team && (manualMode || (isReady && !isConfirmed));
 
     const aiPicks = useMemo<TeamPick[]>(
         () =>
@@ -362,7 +381,8 @@ export default function ProposalCandidates({
 
     const problems = checkTeam(picks, candidateMap);
     const gaps = teamGaps(picks, candidateMap, requirements);
-    const changedFromAi = !sameTeam(picks, aiPicks);
+    const changedFromAi =
+        matching?.source === 'MANUAL' ? false : !sameTeam(picks, aiPicks);
     const serverErrors = Object.entries(errors)
         .filter(([key]) => key === 'team' || key.startsWith('members'))
         .map(([, message]) => message);
@@ -403,14 +423,15 @@ export default function ProposalCandidates({
     }
 
     function confirmTeam(): void {
-        if (!matching) {
+        if (!matching && !manualMode) {
             return;
         }
 
         router.post(
             confirm.url(proposal.id),
             {
-                run_id: matching.id,
+                run_id: manualMode ? undefined : matching?.id,
+                manual: manualMode,
                 members: picks.map((pick) => ({
                     user_id: pick.user_id,
                     role_in_project: pick.role,
@@ -418,9 +439,20 @@ export default function ProposalCandidates({
             },
             {
                 preserveScroll: true,
+                onSuccess: () => setManualMode(false),
                 onStart: () => setConfirming(true),
                 onFinish: () => setConfirming(false),
             },
+        );
+    }
+
+    function startManualTeam(): void {
+        setManualMode(true);
+        setPicks(
+            team.map((member) => ({
+                user_id: member.user_id,
+                role: member.role === 'LEADER' ? 'LEADER' : 'MEMBER',
+            })),
         );
     }
 
@@ -490,6 +522,19 @@ export default function ProposalCandidates({
                     description={`${proposal.code} · ${proposal.title}`}
                 />
 
+                <Alert className="mb-6">
+                    <Info aria-hidden="true" />
+                    <AlertTitle>
+                        Leader proyek berbeda dari role akun
+                    </AlertTitle>
+                    <AlertDescription>
+                        Label Leader hanya berlaku untuk susunan proyek ini.
+                        Konfirmasi tim tidak mengubah role akun SIMer menjadi
+                        Team Leader; aturan penetapannya masih menunggu
+                        keputusan DEC-05.
+                    </AlertDescription>
+                </Alert>
+
                 <Card className="mb-6 gap-0 py-0">
                     <CardContent className="grid gap-3 p-5">
                         <p className="text-sm font-medium">
@@ -527,7 +572,7 @@ export default function ProposalCandidates({
                             {ai.message}{' '}
                             {ai.can_manage && (
                                 <Link
-                                    href="/admin/settings"
+                                    href={settingsIndex()}
                                     className="font-medium underline underline-offset-2"
                                 >
                                     Buka Pengaturan Sistem
@@ -544,6 +589,28 @@ export default function ProposalCandidates({
                             {errors.ai ?? errors.matching}
                         </AlertDescription>
                     </Alert>
+                )}
+
+                {can_edit_team && (
+                    <div className="mb-6 flex flex-wrap items-center gap-3">
+                        <Button
+                            type="button"
+                            variant={manualMode ? 'teal' : 'outline'}
+                            onClick={startManualTeam}
+                        >
+                            <ListChecks
+                                data-icon="inline-start"
+                                aria-hidden="true"
+                            />
+                            Susun tim manual
+                        </Button>
+                        {manualMode && (
+                            <span className="text-sm text-muted-foreground">
+                                Pilih kandidat dan tetapkan satu leader. Aturan
+                                tim tetap diperiksa server.
+                            </span>
+                        )}
+                    </div>
                 )}
 
                 {requirements.length > 0 && candidates.length > 0 && (
@@ -623,7 +690,7 @@ export default function ProposalCandidates({
                                             }
                                         >
                                             {member.role === 'LEADER'
-                                                ? 'Leader'
+                                                ? 'Leader proyek'
                                                 : 'Anggota'}
                                         </Badge>
                                         {canEdit && (
@@ -715,7 +782,9 @@ export default function ProposalCandidates({
                                         aria-hidden="true"
                                     />
                                     <h2 className="text-base font-semibold">
-                                        Rekomendasi Tim AI
+                                        {matching.source === 'MANUAL'
+                                            ? 'Susunan Tim Manual'
+                                            : 'Rekomendasi Tim AI'}
                                     </h2>
                                     {isConfirmed && (
                                         <Badge variant="success">
@@ -749,7 +818,8 @@ export default function ProposalCandidates({
                                 {cardsFor(suggestedCandidates)}
 
                                 {(matching.team_gaps.length > 0 ||
-                                    matching.cautions.length > 0) && (
+                                    matching.cautions.length > 0 ||
+                                    matching.mitigations.length > 0) && (
                                     <Card className="gap-0 py-0">
                                         <CardContent className="grid gap-2 p-5 text-[13px]">
                                             {matching.team_gaps.length > 0 && (
@@ -772,6 +842,43 @@ export default function ProposalCandidates({
                                                         '; ',
                                                     )}
                                                 </p>
+                                            )}
+                                            {matching.mitigations.length >
+                                                0 && (
+                                                <div className="grid gap-3 border-t pt-3">
+                                                    <p className="font-medium">
+                                                        Rekomendasi pengembangan
+                                                    </p>
+                                                    {matching.mitigations.map(
+                                                        (mitigation, index) => (
+                                                            <div
+                                                                key={`${mitigation.type}-${index}`}
+                                                                className="grid gap-1 rounded-lg bg-muted/50 p-3"
+                                                            >
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <Badge variant="secondary">
+                                                                        {
+                                                                            mitigationTypeLabels[
+                                                                                mitigation
+                                                                                    .type
+                                                                            ]
+                                                                        }
+                                                                    </Badge>
+                                                                    <span className="font-medium">
+                                                                        {
+                                                                            mitigation.gap
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-muted-foreground">
+                                                                    {
+                                                                        mitigation.recommendation
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                        ),
+                                                    )}
+                                                </div>
                                             )}
                                         </CardContent>
                                     </Card>
