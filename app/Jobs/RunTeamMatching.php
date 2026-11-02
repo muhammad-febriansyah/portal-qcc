@@ -60,6 +60,7 @@ class RunTeamMatching implements ShouldBeUnique, ShouldQueue
 
         $run->forceFill([
             'status' => TeamMatchingStatus::Processing,
+            'started_at' => now(),
             'prompt_version' => $request['prompt_version'],
             'request_hash' => $request['request_hash'],
         ])->save();

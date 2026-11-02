@@ -39,6 +39,10 @@ class ProposalWizardController extends Controller
             'batches' => $this->batchOptions(),
             'competencyOptions' => $this->competencyOptions(),
             'levelOptions' => CompetencyLevel::options(),
+            'attachmentLimit' => [
+                'maxFiles' => (int) config('qcc.attachments.max_files'),
+                'maxSizeMb' => (int) config('qcc.attachments.max_size_mb'),
+            ],
             'drafts' => $this->draftOptions($request),
         ]);
     }
@@ -136,6 +140,10 @@ class ProposalWizardController extends Controller
                 'minimum_level' => $requirement->minimum_level,
             ])->all(),
             'levelOptions' => CompetencyLevel::options(),
+            'attachmentLimit' => [
+                'maxFiles' => (int) config('qcc.attachments.max_files'),
+                'maxSizeMb' => (int) config('qcc.attachments.max_size_mb'),
+            ],
             'drafts' => $this->draftOptions(request()),
         ]);
     }

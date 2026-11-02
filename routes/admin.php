@@ -31,6 +31,9 @@ Route::middleware(['auth', 'verified'])
         Route::post('settings/test-email', [SystemSettingsController::class, 'testEmail'])
             ->middleware('throttle:3,1')
             ->name('settings.test-email');
+        Route::post('settings/test-ai', [SystemSettingsController::class, 'testAi'])
+            ->middleware('throttle:5,1')
+            ->name('settings.test-ai');
 
         Route::get('reviewer-assignments', [ReviewAssignmentController::class, 'index'])
             ->name('reviewer-assignments.index');

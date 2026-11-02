@@ -525,7 +525,7 @@ function SessionForm({
                 )}
             </fieldset>
             <DialogFooter>
-                <Button type="button" variant="destructive" onClick={onClose}>
+                <Button type="button" variant="outline" onClick={onClose}>
                     Batal
                 </Button>
                 <Button
@@ -606,14 +606,14 @@ function AckForm({
                     }
                     placeholder={
                         report.author_type === 'TEAM_LEADER'
-                            ? 'Masukan Mentor untuk laporan tim'
+                            ? 'Tulis tanggapan mentor untuk laporan tim'
                             : 'Apa yang akan dilakukan tim?'
                     }
                     className="min-h-28"
                 />
             </FormField>
             <DialogFooter>
-                <Button type="button" variant="destructive" onClick={onClose}>
+                <Button type="button" variant="outline" onClick={onClose}>
                     Batal
                 </Button>
                 <Button type="submit" disabled={form.processing}>
@@ -840,8 +840,9 @@ export default function ProjectMentoring({
                                                     {when(report.session_at)} ·{' '}
                                                     {report.author_type ===
                                                     'TEAM_LEADER'
-                                                        ? `Dikirim ${report.author ?? 'Team Leader'} · Mentor ${report.mentor ?? '—'}`
-                                                        : `Mentor ${report.mentor ?? '—'}`}
+                                                        ? `${report.status === 'DRAFT' ? 'Dibuat' : 'Dikirim'} ${report.author ?? 'Team Leader'} · ${report.mentor ?? 'Mentor belum ditugaskan'}`
+                                                        : (report.mentor ??
+                                                          'Mentor belum ditugaskan')}
                                                 </p>
                                             </div>
                                             <Badge

@@ -741,7 +741,7 @@ export default function ProposalShow({ proposal }: Props) {
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="destructive"
+                                variant="outline"
                                 onClick={() => setDecisionOpen(false)}
                             >
                                 Batal

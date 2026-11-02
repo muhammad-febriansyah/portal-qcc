@@ -73,6 +73,12 @@ export function ReviewControls({
     return (
         <div className="grid gap-3 rounded-lg border bg-muted/30 p-4">
             <p className="text-sm font-medium">Review step</p>
+            {canStartReview && (
+                <p className="text-[13px] text-muted-foreground">
+                    Mulai review dulu. Setelah itu kamu bisa menyetujui step
+                    atau meminta revisi.
+                </p>
+            )}
             {errors.step && (
                 <p className="text-[13px] text-destructive" role="alert">
                     {errors.step}
@@ -176,7 +182,7 @@ export function ReviewControls({
                             <DialogFooter>
                                 <Button
                                     type="button"
-                                    variant="destructive"
+                                    variant="outline"
                                     onClick={() => setOpen(false)}
                                 >
                                     Batal

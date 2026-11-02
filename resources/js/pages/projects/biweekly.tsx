@@ -476,7 +476,7 @@ function ReportForm({
                 )}
             </fieldset>
             <DialogFooter>
-                <Button type="button" variant="destructive" onClick={onClose}>
+                <Button type="button" variant="outline" onClick={onClose}>
                     Batal
                 </Button>
                 <Button

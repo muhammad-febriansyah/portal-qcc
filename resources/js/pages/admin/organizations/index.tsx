@@ -412,7 +412,7 @@ export default function OrganizationsIndex({
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="destructive"
+                                variant="outline"
                                 className="h-10 px-4 text-sm"
                                 disabled={form.processing}
                                 onClick={() => setIsDialogOpen(false)}

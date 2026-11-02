@@ -7,11 +7,15 @@ use App\Http\Requests\Admin\UpdateSystemPoliciesRequest;
 use App\Http\Requests\UpdateSystemSettingsRequest;
 use App\Mail\SmtpTestMail;
 use App\Models\SystemSetting;
+use App\Services\Ai\AiConnection;
+use App\Services\Ai\Exceptions\AiUnavailable;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -103,6 +107,51 @@ class SystemSettingsController extends Controller
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => 'SMTP menerima email uji. Periksa inbox dan folder spam.',
+        ]);
+
+        return back();
+    }
+
+    /**
+     * Checks the saved API key and model with OpenAI's model lookup. The call sends no
+     * project data and no tokens are spent.
+     */
+    public function testAi(AiConnection $ai): RedirectResponse
+    {
+        Gate::authorize('system-settings.manage');
+
+        try {
+            $credentials = $ai->credentials();
+        } catch (AiUnavailable $exception) {
+            return back()->withErrors(['ai_connection' => $exception->getMessage()]);
+        }
+
+        try {
+            $response = Http::withToken($credentials['key'])
+                ->acceptJson()
+                ->connectTimeout(5)
+                ->timeout(10)
+                ->get(rtrim((string) config('scoring.openai.base_url'), '/').'/models/'.rawurlencode($credentials['model']));
+        } catch (ConnectionException) {
+            return back()->withErrors(['ai_connection' => 'Tidak bisa menghubungi OpenAI. Periksa koneksi internet server.']);
+        }
+
+        $message = match (true) {
+            $response->successful() => null,
+            $response->status() === 401 => 'API key tidak valid atau sudah dicabut.',
+            $response->status() === 403 => 'API key tidak punya akses ke model '.$credentials['model'].'.',
+            $response->status() === 404 => 'Model '.$credentials['model'].' tidak ditemukan untuk akun ini.',
+            $response->status() === 429 => 'OpenAI membatasi permintaan sekarang. Coba lagi beberapa saat.',
+            default => 'OpenAI membalas status '.$response->status().'. Coba lagi nanti.',
+        };
+
+        if ($message !== null) {
+            return back()->withErrors(['ai_connection' => $message]);
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => 'Terhubung ke OpenAI. API key valid dan model '.$credentials['model'].' tersedia.',
         ]);
 
         return back();

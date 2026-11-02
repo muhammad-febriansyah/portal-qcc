@@ -119,6 +119,13 @@ class ProposalController extends Controller
     {
         Gate::authorize('findCandidates', $project);
 
+        // The matching screen polls every few seconds while a run is active; it only needs the run.
+        if ($request->header('X-Inertia-Partial-Data') === 'matching') {
+            return Inertia::render('proposals/candidates', [
+                'matching' => $this->latestMatching($project, $fingerprint),
+            ]);
+        }
+
         $result = $shortlist->for($project);
         $manualSearch = trim((string) ($request->validate(['manual_search' => ['nullable', 'string', 'max:255']])['manual_search'] ?? ''));
         $manualResult = $manualSearch === '' ? ['candidates' => []] : $shortlist->search($project, $manualSearch, 100);

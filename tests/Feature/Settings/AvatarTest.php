@@ -8,6 +8,7 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function () {
     Storage::fake('public');
+    config()->set('qcc_features.avatar_uploads', true);
 });
 
 test('guests cannot change an avatar', function () {

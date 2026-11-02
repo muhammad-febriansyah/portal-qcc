@@ -211,7 +211,9 @@ class MentoringController extends Controller
             $this->notifier->notify($recipients, $project, $title, $message, route('projects.mentoring.index', $project, false), 'MENTORING_SUBMITTED', $request->user());
         });
 
-        return $this->done($project, 'Feedback mentoring dikirim ke tim.');
+        return $this->done($project, $request->user()->hasRole('Mentor')
+            ? 'Feedback mentoring dikirim ke tim.'
+            : 'Laporan mentoring dikirim ke mentor.');
     }
 
     public function acknowledge(Request $request, Project $project, MentoringReport $report): RedirectResponse
@@ -256,7 +258,7 @@ class MentoringController extends Controller
             'actions.*.pic_id' => ['required', 'integer', Rule::exists('project_members', 'user_id')
                 ->where('project_id', $project->id)->where('status', 'ACTIVE')->whereNull('left_at')],
             'actions.*.due_date' => ['required', 'date_format:Y-m-d'],
-        ], ['session_at.required' => 'Waktu sesi wajib diisi.', 'topic.required' => 'Topik wajib diisi.', 'project_mentor_id.required' => 'Pilih mentor yang ditugaskan.']);
+        ], ['session_at.required' => 'Tanggal dan jam sesi wajib diisi.', 'topic.required' => 'Topik wajib diisi.', 'project_mentor_id.required' => 'Pilih mentor yang ditugaskan.']);
     }
 
     /** @param list<array{id?: int, title: string, description?: string|null, pic_id: int, due_date: string}> $actions */

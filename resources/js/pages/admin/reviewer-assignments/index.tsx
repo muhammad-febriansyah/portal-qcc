@@ -568,7 +568,7 @@ export default function ReviewerAssignmentsIndex({
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="destructive"
+                                variant="outline"
                                 onClick={() => setDialogOpen(false)}
                                 disabled={form.processing}
                             >

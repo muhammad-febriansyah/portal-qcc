@@ -45,6 +45,7 @@ type Props = {
     problems: string[];
     gaps: TeamRequirement[];
     changedFromAi: boolean;
+    hasAiSuggestion: boolean;
     processing: boolean;
     serverErrors: string[];
     onRoleChange: (userId: number, role: TeamRole) => void;
@@ -71,6 +72,7 @@ export function TeamPanel({
     problems,
     gaps,
     changedFromAi,
+    hasAiSuggestion,
     processing,
     serverErrors,
     onRoleChange,
@@ -109,8 +111,7 @@ export function TeamPanel({
                 <Select
                     value={pick.role}
                     onValueChange={(value) =>
-                        value &&
-                        onRoleChange(pick.user_id, value as TeamRole)
+                        value && onRoleChange(pick.user_id, value as TeamRole)
                     }
                     items={roleItems}
                 >
@@ -164,12 +165,20 @@ export function TeamPanel({
                 </div>
 
                 <Badge
-                    variant={changedFromAi ? 'warning' : 'info'}
+                    variant={
+                        !hasAiSuggestion
+                            ? 'secondary'
+                            : changedFromAi
+                              ? 'warning'
+                              : 'info'
+                    }
                     className="w-fit font-normal"
                 >
-                    {changedFromAi
-                        ? 'Diubah dari saran AI'
-                        : 'Mengikuti saran AI'}
+                    {!hasAiSuggestion
+                        ? 'Disusun manual'
+                        : changedFromAi
+                          ? 'Diubah dari saran AI'
+                          : 'Mengikuti saran AI'}
                 </Badge>
 
                 {picks.length === 0 ? (
@@ -194,7 +203,7 @@ export function TeamPanel({
                             </div>
                         )}
                         {members.length > 0 && (
-                            <div className="relative ml-4 border-l border-dashed border-primary/30 pl-4 pt-1">
+                            <div className="relative ml-4 border-l border-dashed border-primary/30 pt-1 pl-4">
                                 <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
                                     Anggota tim
                                 </p>
@@ -214,10 +223,7 @@ export function TeamPanel({
                 )}
 
                 {problems.length > 0 ? (
-                    <Alert
-                        variant="destructive"
-                        className={errorAlertClass}
-                    >
+                    <Alert variant="destructive" className={errorAlertClass}>
                         <TriangleAlert aria-hidden="true" />
                         <AlertTitle>Belum bisa dikonfirmasi</AlertTitle>
                         <AlertDescription>
@@ -317,19 +323,21 @@ export function TeamPanel({
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        className="h-10 px-3"
-                        disabled={!changedFromAi || processing}
-                        onClick={onReset}
-                    >
-                        <RotateCcw
-                            data-icon="inline-start"
-                            aria-hidden="true"
-                        />
-                        Ikuti saran AI
-                    </Button>
+                    {hasAiSuggestion && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10 px-3"
+                            disabled={!changedFromAi || processing}
+                            onClick={onReset}
+                        >
+                            <RotateCcw
+                                data-icon="inline-start"
+                                aria-hidden="true"
+                            />
+                            Ikuti saran AI
+                        </Button>
+                    )}
                 </div>
             </CardContent>
         </Card>

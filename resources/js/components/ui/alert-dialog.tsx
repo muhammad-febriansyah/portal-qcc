@@ -156,7 +156,7 @@ function AlertDialogAction({
 
 function AlertDialogCancel({
   className,
-  variant = "destructive",
+  variant = "outline",
   size = "default",
   ...props
 }: AlertDialogPrimitive.Close.Props &

@@ -705,8 +705,8 @@ export default function ProposalCandidates({
 
     const problems = checkTeam(picks, candidateMap);
     const gaps = teamGaps(picks, candidateMap, requirements);
-    const changedFromAi =
-        matching?.source === 'MANUAL' ? false : !sameTeam(picks, aiPicks);
+    const hasAiSuggestion = isReady && matching?.source === 'AI';
+    const changedFromAi = hasAiSuggestion && !sameTeam(picks, aiPicks);
     const serverErrors = Object.entries(errors)
         .filter(
             ([key]) =>
@@ -967,6 +967,7 @@ export default function ProposalCandidates({
                 }
                 gaps={gaps}
                 changedFromAi={changedFromAi}
+                hasAiSuggestion={hasAiSuggestion}
                 processing={confirming}
                 serverErrors={serverErrors}
                 onRoleChange={changeRole}
@@ -1215,8 +1216,7 @@ export default function ProposalCandidates({
                     <AlertDescription>
                         Label Leader hanya berlaku untuk susunan proyek ini.
                         Konfirmasi tim tidak mengubah role akun SIMer menjadi
-                        Team Leader; aturan penetapannya masih menunggu
-                        keputusan DEC-05.
+                        Team Leader.
                     </AlertDescription>
                 </Alert>
 
@@ -1306,7 +1306,8 @@ export default function ProposalCandidates({
 
                 {requirements.length > 0 &&
                     candidates.length > 0 &&
-                    can_edit_team && (
+                    can_edit_team &&
+                    ai.ready && (
                         <div className="mb-6 flex flex-wrap items-center gap-3">
                             <Button
                                 type="button"
@@ -1755,8 +1756,9 @@ export default function ProposalCandidates({
                                     </Card>
                                 )}
                                 <p className="text-xs text-muted-foreground">
-                                    Ini saran, bukan tim. Tim baru terbentuk
-                                    setelah kamu mengonfirmasi susunannya.
+                                    {matching.source === 'MANUAL'
+                                        ? 'Susunan ini dibuat manual oleh Owner QCC.'
+                                        : 'Ini saran, bukan tim. Tim baru terbentuk setelah kamu mengonfirmasi susunannya.'}
                                 </p>
                             </section>
                         )}

@@ -594,7 +594,7 @@ export default function ScoringShow({ run }: { run: Run }) {
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="destructive"
+                                variant="outline"
                                 onClick={() => setIsApprovalOpen(false)}
                             >
                                 Batal
@@ -644,7 +644,7 @@ export default function ScoringShow({ run }: { run: Run }) {
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="destructive"
+                                variant="outline"
                                 onClick={() => setIsRevisionOpen(false)}
                             >
                                 Batal

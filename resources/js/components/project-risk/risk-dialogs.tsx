@@ -318,7 +318,7 @@ function RiskForm({
             <DialogFooter>
                 <Button
                     type="button"
-                    variant="destructive"
+                    variant="outline"
                     onClick={() => onOpenChange(false)}
                 >
                     Batal
@@ -515,7 +515,7 @@ function ActionForm({
             <DialogFooter>
                 <Button
                     type="button"
-                    variant="destructive"
+                    variant="outline"
                     onClick={() => onOpenChange(false)}
                 >
                     Batal

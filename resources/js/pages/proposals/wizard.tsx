@@ -58,7 +58,6 @@ import {
 } from '@/routes/proposals';
 import {
     destroy as destroyAttachment,
-    preview as previewAttachment,
     store as storeAttachments,
 } from '@/routes/proposals/attachments';
 
@@ -77,6 +76,12 @@ type ExistingAttachment = {
     size_bytes: number;
     scan_status: string;
     preview_url: string | null;
+};
+const attachmentStatusLabels: Record<string, string> = {
+    PENDING_SCAN: 'Menunggu pemeriksaan',
+    PASSED: 'Siap dibuka',
+    REJECTED: 'Ditolak',
+    FAILED: 'Gagal diperiksa',
 };
 type ProjectDraft = {
     id: number;
@@ -110,6 +115,7 @@ type Props = {
     competencyOptions?: RequirementCompetencyOption[];
     requirements?: ProjectRequirement[];
     levelOptions?: { value: number; label: string }[];
+    attachmentLimit?: { maxFiles: number; maxSizeMb: number };
 };
 type DraftForm = {
     batch_id: string;
@@ -211,7 +217,7 @@ function initialData(project: ProjectDraft | null, step: number): DraftForm {
         scope: project?.scope ?? '',
         learning_goals:
             project?.learning_goals?.length === 3
-                ? project.learning_goals
+                ? project.learning_goals.map((goal) => goal ?? '')
                 : ['', '', ''],
         rca: project?.rca ?? '',
         improvement_plan: project?.improvement_plan ?? '',
@@ -235,6 +241,7 @@ export default function ProposalWizard({
     competencyOptions = [],
     requirements = [],
     levelOptions = [],
+    attachmentLimit = { maxFiles: 5, maxSizeMb: 50 },
 }: Props) {
     const [requirementsDirty, setRequirementsDirty] = useState(false);
     const [pendingFiles, setPendingFiles] = useState<UploadItem[]>([]);
@@ -402,7 +409,7 @@ export default function ProposalWizard({
                         error={fieldError('batch_id')}
                     >
                         <Select
-                            value={form.data.batch_id || undefined}
+                            value={form.data.batch_id}
                             onValueChange={(value) =>
                                 form.setData('batch_id', value ?? '')
                             }
@@ -734,8 +741,13 @@ export default function ProposalWizard({
                                 }
                                 onRetry={() => uploadFiles()}
                                 accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx"
-                                maxFiles={10 - existingAttachments.length}
-                                maxFileSizeBytes={50 * 1024 * 1024}
+                                maxFiles={Math.min(
+                                    attachmentLimit.maxFiles,
+                                    10 - existingAttachments.length,
+                                )}
+                                maxFileSizeBytes={
+                                    attachmentLimit.maxSizeMb * 1024 * 1024
+                                }
                                 disabled={
                                     uploadForm.processing ||
                                     existingAttachments.length >= 10
@@ -762,25 +774,42 @@ export default function ProposalWizard({
                                             className="size-5 shrink-0 text-muted-foreground"
                                         />
                                         <div className="min-w-0 flex-1">
-                                            <a
-                                                href={previewAttachment.url({
-                                                    project: project.id,
-                                                    attachment: attachment.id,
-                                                })}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="truncate text-sm font-medium hover:text-primary hover:underline"
-                                            >
-                                                {attachment.original_name}
-                                            </a>
+                                            {attachment.preview_url ? (
+                                                <a
+                                                    href={
+                                                        attachment.preview_url
+                                                    }
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="truncate text-sm font-medium hover:text-primary hover:underline"
+                                                >
+                                                    {attachment.original_name}
+                                                </a>
+                                            ) : (
+                                                <span className="truncate text-sm font-medium">
+                                                    {attachment.original_name}
+                                                </span>
+                                            )}
                                             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                                 <span>
                                                     {fileSize(
                                                         attachment.size_bytes,
                                                     )}
                                                 </span>
-                                                <Badge variant="outline">
-                                                    Menunggu pemeriksaan
+                                                <Badge
+                                                    variant={
+                                                        attachment.scan_status ===
+                                                        'PASSED'
+                                                            ? 'success'
+                                                            : attachment.scan_status ===
+                                                                'PENDING_SCAN'
+                                                              ? 'outline'
+                                                              : 'destructive'
+                                                    }
+                                                >
+                                                    {attachmentStatusLabels[
+                                                        attachment.scan_status
+                                                    ] ?? attachment.scan_status}
                                                 </Badge>
                                             </div>
                                         </div>

@@ -7,6 +7,7 @@ import {
     Image,
     LockKeyhole,
     Mail,
+    Plug,
     Send,
     Settings2,
 } from 'lucide-react';
@@ -44,6 +45,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { dashboard } from '@/routes';
 import {
     index as systemSettingsIndex,
+    testAi as testSystemAi,
     testEmail as testSystemEmail,
     update as updateSystemSettings,
 } from '@/routes/admin/settings';
@@ -141,6 +143,7 @@ export default function SystemSettingsIndex({
         ai_api_key: '',
     });
     const testEmailForm = useForm({ email: '' });
+    const aiTestForm = useForm<{ ai_connection?: string }>({});
     const [isTestEmailDialogOpen, setIsTestEmailDialogOpen] = useState(false);
 
     function submitTestEmail(event: FormEvent<HTMLFormElement>): void {
@@ -918,6 +921,43 @@ export default function SystemSettingsIndex({
                                             />
                                         </FormField>
                                     </div>
+                                    {canManage && (
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <Button
+                                                type="button"
+                                                className="bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500"
+                                                disabled={aiTestForm.processing}
+                                                onClick={() =>
+                                                    aiTestForm.post(
+                                                        testSystemAi.url(),
+                                                        {
+                                                            preserveScroll: true,
+                                                        },
+                                                    )
+                                                }
+                                            >
+                                                {aiTestForm.processing ? (
+                                                    <Spinner />
+                                                ) : (
+                                                    <Plug aria-hidden="true" />
+                                                )}
+                                                Tes koneksi AI
+                                            </Button>
+                                            <p className="text-xs text-muted-foreground">
+                                                Memakai API key dan model yang
+                                                tersimpan. Simpan kebijakan dulu
+                                                jika baru mengubahnya.
+                                            </p>
+                                        </div>
+                                    )}
+                                    {aiTestForm.errors.ai_connection && (
+                                        <p
+                                            role="alert"
+                                            className="text-sm text-destructive"
+                                        >
+                                            {aiTestForm.errors.ai_connection}
+                                        </p>
+                                    )}
                                     {policyForm.errors.ai_api_key && (
                                         <p
                                             role="alert"
@@ -977,7 +1017,7 @@ export default function SystemSettingsIndex({
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="destructive"
+                                variant="outline"
                                 disabled={testEmailForm.processing}
                                 onClick={() => setIsTestEmailDialogOpen(false)}
                             >

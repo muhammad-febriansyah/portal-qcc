@@ -46,6 +46,7 @@ class TeamMatchingRun extends Model
             'candidate_snapshot_json' => 'array',
             'output_json' => 'array',
             'token_usage_json' => 'array',
+            'started_at' => 'datetime',
             'validated_at' => 'datetime',
             'confirmed_at' => 'datetime',
         ];

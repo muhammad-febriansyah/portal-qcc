@@ -169,7 +169,7 @@ function VerificationForm({
                     <DialogFooter>
                         <Button
                             type="button"
-                            variant="destructive"
+                            variant="outline"
                             className="h-10 px-4 text-sm"
                             onClick={onClose}
                             disabled={processing}

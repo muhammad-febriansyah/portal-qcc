@@ -3,6 +3,7 @@
 use App\Actions\Teams\StartTeamMatching;
 use App\Enums\ProposalStatus;
 use App\Enums\TeamMatchingStatus;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\RunTeamMatching;
 use App\Models\Competency;
 use App\Models\MemberCompetency;
@@ -256,6 +257,38 @@ test('a suggestion that arrives after the run timed out does not revive it', fun
     expect($run->status)->toBe(TeamMatchingStatus::Failed)
         ->and($run->error_code)->toBe('processing_timeout')
         ->and($run->output_json)->toBeNull();
+});
+
+test('a run records when processing started', function () {
+    $answer = aiAnswer([aiMember($this->a, 'LEADER', $this->skill->id), aiMember($this->b, 'MEMBER', $this->skill->id)]);
+    fakeMatchingClient($answer);
+    $run = queuedRun($this->project, []);
+
+    app()->call([new RunTeamMatching($run->id), 'handle']);
+
+    $run->refresh();
+
+    expect($run->started_at)->not->toBeNull()
+        ->and($run->started_at->lessThanOrEqualTo($run->validated_at))->toBeTrue();
+});
+
+test('a matching poll returns only the run and not the candidate lists', function () {
+    $version = app(HandleInertiaRequests::class)->version(request());
+
+    $props = $this->actingAs(matchSearcher())
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => $version,
+            'X-Inertia-Partial-Component' => 'proposals/candidates',
+            'X-Inertia-Partial-Data' => 'matching',
+        ])
+        ->get(route('proposals.candidates', $this->project))
+        ->assertOk()
+        ->json('props');
+
+    expect($props)->toHaveKey('matching')
+        ->not->toHaveKey('candidates')
+        ->not->toHaveKey('team');
 });
 
 test('output with missing or unknown mitigation fields is rejected', function () {
