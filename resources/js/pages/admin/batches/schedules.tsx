@@ -12,6 +12,14 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { dashboard } from '@/routes';
 import { index as batchesIndex } from '@/routes/admin/batches';
 import {
@@ -19,12 +27,19 @@ import {
     update as schedulesUpdate,
 } from '@/routes/admin/batches/schedules';
 
+type ScheduleType = 'BIWEEKLY' | 'MENTORING';
+
 type Schedule = {
     id: number;
-    schedule_type: 'BIWEEKLY' | 'MENTORING';
+    schedule_type: ScheduleType;
     sequence_no: number;
     scheduled_on: string;
 };
+
+const scheduleTypeItems: { value: ScheduleType; label: string }[] = [
+    { value: 'BIWEEKLY', label: 'Bi-weekly' },
+    { value: 'MENTORING', label: 'Mentoring' },
+];
 
 type Props = {
     batch: { id: number; name: string; starts_on: string; ends_on: string };
@@ -68,10 +83,10 @@ function ScheduleRow({
                         : 'Tanggal sesi mentoring'}
                 </p>
             </div>
-            <div>
-                <label className="sr-only" htmlFor={`schedule-${schedule.id}`}>
+            <div className="w-full sm:w-[200px]">
+                <Label className="sr-only" htmlFor={`schedule-${schedule.id}`}>
                     Tanggal jadwal
-                </label>
+                </Label>
                 <DatePicker
                     id={`schedule-${schedule.id}`}
                     value={form.data.scheduled_on}
@@ -90,7 +105,7 @@ function ScheduleRow({
             </div>
             <Button
                 type="submit"
-                variant="default"
+                className="h-10 px-4 text-sm"
                 disabled={form.processing || !form.isDirty}
             >
                 Simpan tanggal
@@ -147,39 +162,41 @@ export default function BatchSchedules({ batch, schedules }: Props) {
                     <CardContent>
                         <form
                             onSubmit={add}
-                            className="grid gap-4 sm:grid-cols-[1fr_120px_170px_auto] sm:items-end"
+                            className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_120px_200px_auto] sm:items-end"
                         >
-                            <div>
-                                <label
-                                    htmlFor="schedule-type"
-                                    className="mb-1 block text-sm font-medium"
-                                >
-                                    Jenis
-                                </label>
-                                <select
-                                    id="schedule-type"
-                                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                            <div className="grid gap-2.5">
+                                <Label htmlFor="schedule-type">Jenis</Label>
+                                <Select
                                     value={form.data.schedule_type}
-                                    onChange={(event) =>
+                                    items={scheduleTypeItems}
+                                    onValueChange={(value) =>
                                         form.setData(
                                             'schedule_type',
-                                            event.target.value as
-                                                | 'BIWEEKLY'
-                                                | 'MENTORING',
+                                            (value ??
+                                                'BIWEEKLY') as ScheduleType,
                                         )
                                     }
                                 >
-                                    <option value="BIWEEKLY">Bi-weekly</option>
-                                    <option value="MENTORING">Mentoring</option>
-                                </select>
+                                    <SelectTrigger
+                                        id="schedule-type"
+                                        className="h-10 w-full"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {scheduleTypeItems.map((item) => (
+                                            <SelectItem
+                                                key={item.value}
+                                                value={item.value}
+                                            >
+                                                {item.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
-                            <div>
-                                <label
-                                    htmlFor="sequence-no"
-                                    className="mb-1 block text-sm font-medium"
-                                >
-                                    Nomor
-                                </label>
+                            <div className="grid gap-2.5">
+                                <Label htmlFor="sequence-no">Nomor</Label>
                                 <Input
                                     id="sequence-no"
                                     type="number"
@@ -192,16 +209,12 @@ export default function BatchSchedules({ batch, schedules }: Props) {
                                             Number(event.target.value),
                                         )
                                     }
+                                    className="h-10 text-sm"
                                     required
                                 />
                             </div>
-                            <div>
-                                <label
-                                    htmlFor="scheduled-on"
-                                    className="mb-1 block text-sm font-medium"
-                                >
-                                    Tanggal
-                                </label>
+                            <div className="grid gap-2.5">
+                                <Label htmlFor="scheduled-on">Tanggal</Label>
                                 <DatePicker
                                     id="scheduled-on"
                                     value={form.data.scheduled_on}
@@ -218,7 +231,11 @@ export default function BatchSchedules({ batch, schedules }: Props) {
                                     className="h-10"
                                 />
                             </div>
-                            <Button type="submit" disabled={form.processing}>
+                            <Button
+                                type="submit"
+                                className="h-10 px-4 text-sm"
+                                disabled={form.processing}
+                            >
                                 Tambah
                             </Button>
                         </form>
