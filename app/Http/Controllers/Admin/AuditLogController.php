@@ -81,6 +81,7 @@ class AuditLogController extends Controller
                 ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
                 ->values()
                 ->all(),
+            'retentionDays' => (int) config('qcc.audit.retention_days'),
         ]);
     }
 }

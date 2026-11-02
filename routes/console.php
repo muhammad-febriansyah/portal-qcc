@@ -13,6 +13,10 @@ Schedule::command('qcc:notifications:send-overdue')
     ->dailyAt('08:00')
     ->timezone(config('app.timezone'));
 
+Schedule::command('qcc:audit:prune')
+    ->dailyAt('01:00')
+    ->timezone(config('app.timezone'));
+
 /*
 | `composer run dev` replaces the framework's queue listener, which only listens to the
 | default queue. AI team matching and AI scoring run on the `ai` queue (see config/scoring.php),

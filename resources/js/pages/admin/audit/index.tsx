@@ -1,7 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
-import { Eye } from 'lucide-react';
+import { Eye, Info } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AuditDetailDialog } from '@/components/audit-detail-dialog';
 import type { AuditRow } from '@/components/audit-detail-dialog';
@@ -15,6 +15,7 @@ import { DateRangePicker } from '@/components/date-picker';
 import type { DateRangeValue } from '@/components/date-picker';
 import { PageHeader } from '@/components/page-header';
 import { useAppName } from '@/hooks/use-app-name';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { moduleBadgeVariant } from '@/lib/badge-variants';
 import { Card } from '@/components/ui/card';
@@ -48,9 +49,15 @@ type Props = {
     };
     filters: AuditFilters;
     moduleOptions: { value: string; label: string }[];
+    retentionDays: number;
 };
 
-export default function AuditIndex({ logs, filters, moduleOptions }: Props) {
+export default function AuditIndex({
+    logs,
+    filters,
+    moduleOptions,
+    retentionDays,
+}: Props) {
     const appName = useAppName();
     const [searchValue, setSearchValue] = useState(filters.search);
     const [selectedLog, setSelectedLog] = useState<AuditRow | null>(null);
@@ -221,6 +228,18 @@ export default function AuditIndex({ logs, filters, moduleOptions }: Props) {
                     title="Audit Log"
                     description={`Riwayat aktivitas pengguna di ${appName}: siapa melakukan apa dan kapan.`}
                 />
+
+                <Alert className="mb-6 border-primary/30 bg-primary/10 text-primary *:[svg]:text-primary">
+                    <Info aria-hidden="true" />
+                    <AlertTitle>
+                        Audit log disimpan {retentionDays} hari
+                    </AlertTitle>
+                    <AlertDescription>
+                        Log yang lebih lama diarsipkan ke server lalu dihapus
+                        dari daftar ini setiap hari pukul 01.00. Arsip tidak
+                        tampil di halaman ini.
+                    </AlertDescription>
+                </Alert>
 
                 <Card className="gap-0 py-0">
                     <DataTable
