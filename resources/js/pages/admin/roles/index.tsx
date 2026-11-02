@@ -35,7 +35,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
+import { FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -237,7 +237,7 @@ export default function RolesIndex({ roles, permissionCatalog }: Props) {
                 />
 
                 <div className="grid gap-6">
-                    <Alert>
+                    <Alert className="border-primary/30 bg-primary/10 text-primary *:[svg]:text-primary">
                         <Info aria-hidden="true" />
                         <AlertTitle>Perubahan akses tercatat</AlertTitle>
                         <AlertDescription>
@@ -247,7 +247,7 @@ export default function RolesIndex({ roles, permissionCatalog }: Props) {
 
                     <div className="grid gap-2">
                         <Label htmlFor="permission-search">Cari fitur</Label>
-                        <div className="relative max-w-xl">
+                        <div className="relative w-full sm:max-w-md">
                             <Search
                                 aria-hidden="true"
                                 className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -259,7 +259,7 @@ export default function RolesIndex({ roles, permissionCatalog }: Props) {
                                     setPermissionSearch(event.target.value)
                                 }
                                 placeholder="Contoh: Anggota, Proposal QCC, setujui"
-                                className="pl-9"
+                                className="h-10 pl-9"
                             />
                         </div>
                         <p className="text-sm text-muted-foreground">
@@ -282,16 +282,16 @@ export default function RolesIndex({ roles, permissionCatalog }: Props) {
                                 <TabsTrigger
                                     key={role.id}
                                     value={String(role.id)}
-                                    className="h-12 min-w-0 justify-start gap-3 rounded-lg border border-transparent px-3 data-active:border-primary/25 data-active:bg-background data-active:shadow-sm"
+                                    className="h-auto min-h-12 min-w-0 justify-start gap-3 rounded-lg border border-transparent px-3 py-2 whitespace-normal data-active:border-primary/25 data-active:bg-background data-active:text-foreground data-active:shadow-sm"
                                 >
                                     <ShieldCheck
                                         aria-hidden="true"
                                         className="size-4 shrink-0 text-primary"
                                     />
-                                    <span className="truncate">
+                                    <span className="min-w-0 text-left leading-tight break-words">
                                         {role.name}
                                     </span>
-                                    <span className="ml-auto shrink-0 rounded-full bg-background px-2 py-0.5 text-xs text-muted-foreground">
+                                    <span className="ml-auto shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
                                         {role.permissions.length}
                                     </span>
                                 </TabsTrigger>
@@ -384,114 +384,143 @@ function RoleAccessCard({
     }
 
     return (
-        <Card className="gap-0">
-            <CardHeader className="border-b">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="grid gap-1">
-                        <CardTitle className="flex items-center gap-2">
+        <form onSubmit={submitPermissions}>
+            <Card className="gap-0 py-0">
+                <CardHeader className="flex flex-col gap-3 border-b py-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="grid gap-1.5">
+                        <CardTitle className="flex items-center gap-2 text-base">
                             <ShieldCheck
                                 aria-hidden="true"
                                 className="size-4 text-primary"
                             />
                             {role.name}
+                            {role.name === 'Super Admin' && (
+                                <Badge variant={roleBadgeVariant(role.name)}>
+                                    Sistem
+                                </Badge>
+                            )}
                         </CardTitle>
                         <CardDescription>
                             {form.data.permissions.length} fitur aktif dari{' '}
                             {permissionCount}
                         </CardDescription>
                     </div>
-                    {role.name === 'Super Admin' && (
-                        <Badge variant={roleBadgeVariant(role.name)}>
-                            Sistem
-                        </Badge>
-                    )}
-                </div>
-                <InputError message={form.errors.permissions} />
-            </CardHeader>
-            <form onSubmit={submitPermissions}>
-                <CardContent className="grid gap-4 pt-4">
-                    {permissionGroups.length > 0 ? (
-                        permissionGroups.map(([menu, group]) => {
-                            const MenuIcon = group.icon;
-
-                            return (
-                                <FieldSet
-                                    key={menu}
-                                    className="min-w-0 rounded-lg border bg-muted/20 p-3"
-                                >
-                                    <FieldLegend variant="label">
-                                        <span className="flex items-center gap-2">
-                                            <MenuIcon
-                                                aria-hidden="true"
-                                                className="size-4 text-primary"
-                                            />
-                                            {menu}
-                                        </span>
-                                    </FieldLegend>
-                                    <div className="grid gap-2 sm:grid-cols-2">
-                                        {group.permissions.map((permission) => {
-                                            const label =
-                                                getPermissionLabel(permission);
-                                            const isRequired =
-                                                role.name === 'Super Admin' &&
-                                                permission === 'roles.manage';
-                                            const checkboxId = `role-${role.id}-${permission.replaceAll('.', '-')}`;
-
-                                            return (
-                                                <FieldLabel
-                                                    key={permission}
-                                                    htmlFor={checkboxId}
-                                                    className="flex min-h-11 min-w-0 items-center gap-2 rounded-md border bg-background px-3 py-2"
-                                                >
-                                                    <Checkbox
-                                                        id={checkboxId}
-                                                        checked={form.data.permissions.includes(
-                                                            permission,
-                                                        )}
-                                                        disabled={
-                                                            form.processing ||
-                                                            isRequired
-                                                        }
-                                                        onCheckedChange={(
-                                                            checked,
-                                                        ) =>
-                                                            togglePermission(
-                                                                permission,
-                                                                checked ===
-                                                                    true,
-                                                            )
-                                                        }
-                                                    />
-                                                    <span className="truncate text-sm">
-                                                        {label.action}
-                                                    </span>
-                                                    {isRequired && (
-                                                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                                                            Wajib
-                                                        </span>
-                                                    )}
-                                                </FieldLabel>
-                                            );
-                                        })}
-                                    </div>
-                                </FieldSet>
-                            );
-                        })
-                    ) : (
-                        <p className="rounded-md bg-muted px-3 py-4 text-sm text-muted-foreground">
-                            Tidak ada fitur yang cocok dengan pencarian.
-                        </p>
-                    )}
-                    <div className="flex justify-end border-t pt-4">
+                    <div className="flex items-center gap-3">
+                        {form.isDirty && (
+                            <span className="text-sm text-muted-foreground">
+                                Ada perubahan belum disimpan
+                            </span>
+                        )}
                         <Button
                             type="submit"
+                            className="h-10 px-4 text-sm"
                             disabled={form.processing || !form.isDirty}
                         >
                             {form.processing ? 'Menyimpan…' : 'Simpan Akses'}
                         </Button>
                     </div>
+                </CardHeader>
+                <CardContent className="grid gap-4 py-6">
+                    <InputError message={form.errors.permissions} />
+                    {permissionGroups.length > 0 ? (
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                            {permissionGroups.map(([menu, group]) => {
+                                const MenuIcon = group.icon;
+                                const headingId = `role-${role.id}-group-${menu
+                                    .toLocaleLowerCase()
+                                    .replace(/[^a-z0-9]+/g, '-')}`;
+                                const activeCount = group.permissions.filter(
+                                    (permission) =>
+                                        form.data.permissions.includes(
+                                            permission,
+                                        ),
+                                ).length;
+
+                                return (
+                                    <section
+                                        key={menu}
+                                        aria-labelledby={headingId}
+                                        className="grid content-start gap-3 rounded-lg border bg-muted/20 p-4"
+                                    >
+                                        <h3
+                                            id={headingId}
+                                            className="flex items-center gap-2 text-sm font-semibold"
+                                        >
+                                            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                                                <MenuIcon
+                                                    aria-hidden="true"
+                                                    className="size-4"
+                                                />
+                                            </span>
+                                            {menu}
+                                            <span className="ml-auto text-xs font-medium text-muted-foreground tabular-nums">
+                                                {activeCount}/
+                                                {group.permissions.length}
+                                            </span>
+                                        </h3>
+                                        <div className="grid gap-2">
+                                            {group.permissions.map(
+                                                (permission) => {
+                                                    const label =
+                                                        getPermissionLabel(
+                                                            permission,
+                                                        );
+                                                    const isRequired =
+                                                        role.name ===
+                                                            'Super Admin' &&
+                                                        permission ===
+                                                            'roles.manage';
+                                                    const checkboxId = `role-${role.id}-${permission.replaceAll('.', '-')}`;
+
+                                                    return (
+                                                        <FieldLabel
+                                                            key={permission}
+                                                            htmlFor={checkboxId}
+                                                            className="flex min-h-11 w-full min-w-0 items-center gap-3 rounded-md border bg-background px-3 py-2 font-normal hover:bg-muted/40"
+                                                        >
+                                                            <Checkbox
+                                                                id={checkboxId}
+                                                                checked={form.data.permissions.includes(
+                                                                    permission,
+                                                                )}
+                                                                disabled={
+                                                                    form.processing ||
+                                                                    isRequired
+                                                                }
+                                                                onCheckedChange={(
+                                                                    checked,
+                                                                ) =>
+                                                                    togglePermission(
+                                                                        permission,
+                                                                        checked ===
+                                                                            true,
+                                                                    )
+                                                                }
+                                                            />
+                                                            <span className="min-w-0 flex-1 text-sm leading-snug">
+                                                                {label.action}
+                                                            </span>
+                                                            {isRequired && (
+                                                                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                                                    Wajib
+                                                                </span>
+                                                            )}
+                                                        </FieldLabel>
+                                                    );
+                                                },
+                                            )}
+                                        </div>
+                                    </section>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <p className="rounded-md bg-muted px-3 py-4 text-sm text-muted-foreground">
+                            Tidak ada fitur yang cocok dengan pencarian.
+                        </p>
+                    )}
                 </CardContent>
-            </form>
-        </Card>
+            </Card>
+        </form>
     );
 }
