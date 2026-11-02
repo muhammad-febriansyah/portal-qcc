@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\CompetencyLevel;
 use App\Models\AuditLog;
 use App\Models\Competency;
 use App\Models\CompetencyGroup;
@@ -36,7 +37,7 @@ test('a person only sees their own competencies', function () {
             ->component('my-competencies/index')
             ->has('competencies.data', 1)
             ->where('competencies.data.0.code', 'C001')
-            ->where('competencies.data.0.self_level_label', 'Proficient')
+            ->where('competencies.data.0.self_level_label', 'Proficient (Mahir)')
             ->where('competencies.data.0.verified_level', null));
 });
 
@@ -53,7 +54,7 @@ test('the list shows the verified level apart from the self assessed one', funct
         ->assertInertia(fn (Assert $page) => $page
             ->where('competencies.data.0.self_level', 4)
             ->where('competencies.data.0.verified_level', 2)
-            ->where('competencies.data.0.verified_level_label', 'Basic'));
+            ->where('competencies.data.0.verified_level_label', 'Basic (Dasar)'));
 });
 
 test('the add dialog only offers active competencies the person does not have yet', function () {
@@ -157,6 +158,17 @@ test('changing the level never touches the verified level, and the competency ca
         ->and($row->competency_id)->toBe($originalCompetency);
 });
 
+test('a rejected verification can be removed so the person can start again', function () {
+    $me = User::factory()->create();
+    $rejected = MemberCompetency::factory()->verified()->create(['user_id' => $me->id]);
+    $rejected->forceFill(['verification_status' => 'REJECTED'])->save();
+
+    $this->actingAs($me);
+    $this->delete(route('my-competencies.destroy', $rejected))->assertRedirect();
+
+    expect(MemberCompetency::query()->whereKey($rejected->id)->exists())->toBeFalse();
+});
+
 test('nobody can change or delete someone else\'s competency', function () {
     $owner = User::factory()->create();
     $row = MemberCompetency::factory()->create(['user_id' => $owner->id, 'self_level' => 2]);
@@ -197,5 +209,14 @@ test('changes are audited in plain language', function () {
 
     expect($describer->describe($created))->toBe('Rina Peserta menambahkan kompetensi C001 - Analisis Data ke daftarnya')
         ->and($describer->describe($updated))->toBe('Rina Peserta mengubah level kompetensi C001 - Analisis Data (level saya)')
-        ->and($describer->changes($updated))->toBe([['label' => 'Level saya', 'before' => 'Basic', 'after' => 'Expert']]);
+        ->and($describer->changes($updated))->toBe([['label' => 'Level saya', 'before' => 'Basic (Dasar)', 'after' => 'Expert (Ahli)']]);
+});
+
+it('shows every competency level with its Indonesian alias', function () {
+    expect(collect(CompetencyLevel::options())->pluck('label', 'value')->all())->toBe([
+        1 => 'Awareness (Pemula)',
+        2 => 'Basic (Dasar)',
+        3 => 'Proficient (Mahir)',
+        4 => 'Expert (Ahli)',
+    ]);
 });

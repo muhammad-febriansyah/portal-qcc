@@ -29,7 +29,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { index as auditIndex } from '@/routes/admin/audit';
-import { index as rubricsIndex } from '@/routes/admin/rubrics';
+import { index as batchesIndex } from '@/routes/admin/batches';
 import { index as settingsIndex } from '@/routes/admin/settings';
 import { index as usersIndex } from '@/routes/admin/users';
 import { index as competencyDirectoryIndex } from '@/routes/admin/competency-directory';
@@ -48,8 +48,9 @@ const attentionLinks: Record<
 > = {
     no_organization: usersIndex,
     no_sim_id: usersIndex,
+    incomplete_contacts: usersIndex,
     no_competency: competencyDirectoryIndex,
-    unpublished_rubric: rubricsIndex,
+    batch_schedules_incomplete: batchesIndex,
     ai_not_configured: settingsIndex,
 };
 

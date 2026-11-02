@@ -12,6 +12,10 @@ use Spatie\Permission\Models\Role;
 
 require_once __DIR__.'/Scoring/helpers.php';
 
+beforeEach(function (): void {
+    config()->set('qcc_features.chapter_ten_scoring', true);
+});
+
 function exportMember(): User
 {
     $member = User::factory()->create();

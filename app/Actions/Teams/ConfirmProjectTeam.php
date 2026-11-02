@@ -7,6 +7,8 @@ use App\Models\Project;
 use App\Models\TeamMatchingRun;
 use App\Models\User;
 use App\Services\AuditService;
+use App\Services\ProjectNotifier;
+use App\Services\Teams\Matching\TeamMatchingInputFingerprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,6 +23,8 @@ class ConfirmProjectTeam
     public function __construct(
         private readonly ReplaceProjectTeam $replace,
         private readonly AuditService $audit,
+        private readonly TeamMatchingInputFingerprint $fingerprint,
+        private readonly ProjectNotifier $notifier,
     ) {}
 
     /**
@@ -28,9 +32,9 @@ class ConfirmProjectTeam
      *
      * @throws ValidationException
      */
-    public function handle(Project $project, TeamMatchingRun $run, array $members, User $actor): void
+    public function handle(Project $project, TeamMatchingRun $run, array $members, int $picId, User $actor): void
     {
-        DB::transaction(function () use ($project, $run, $members, $actor): void {
+        DB::transaction(function () use ($project, $run, $members, $picId, $actor): void {
             $lockedProject = Project::query()->whereKey($project->id)->lockForUpdate()->firstOrFail();
 
             if (! in_array($lockedProject->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)) {
@@ -53,6 +57,10 @@ class ConfirmProjectTeam
                 throw ValidationException::withMessages(['team' => 'Rekomendasi ini sudah dikonfirmasi sebelumnya.']);
             }
 
+            if (! $this->fingerprint->matches($lockedProject, $run->candidate_snapshot_json['input_fingerprint'] ?? null)) {
+                throw ValidationException::withMessages(['team' => 'Informasi proposal atau kebutuhan kompetensi berubah. Perbarui rekomendasi dan konfirmasi tim kembali.']);
+            }
+
             $eligible = [
                 ...array_column($run->candidate_snapshot_json['candidates'] ?? [], 'candidate_user_id'),
                 ...array_column($this->currentTeam($project), 'user_id'),
@@ -62,9 +70,15 @@ class ConfirmProjectTeam
                 throw ValidationException::withMessages(['members' => ['Ada anggota yang bukan dari daftar kandidat rekomendasi ini.']]);
             }
 
+            if (! in_array($picId, array_map('intval', array_column($members, 'user_id')), true)) {
+                throw ValidationException::withMessages(['pic_id' => 'PIC proposal harus dipilih dari anggota tim yang dikonfirmasi.']);
+            }
+
             $before = $this->currentTeam($project);
+            $beforePicId = $lockedProject->pic_id;
 
             $this->replace->handle($project, $members);
+            $lockedProject->forceFill(['pic_id' => $picId])->save();
 
             $suggested = collect($run->output_json['recommended_members'] ?? [])
                 ->map(fn (array $member): string => $member['user_id'].':'.$member['proposed_role'])->sort()->values()->all();
@@ -77,13 +91,24 @@ class ConfirmProjectTeam
             $this->audit->record(
                 'team_matching.confirmed',
                 $run,
-                before: ['team' => $before],
+                before: ['team' => $before, 'pic_id' => $beforePicId],
                 after: [
                     'team' => $this->currentTeam($project),
+                    'pic_id' => $picId,
                     'source' => $isManual ? 'MANUAL' : 'AI',
                     'changed_from_ai' => ! $isManual && $suggested !== $chosen,
                 ],
                 subjectLabel: 'Proposal PRP-'.sprintf('%04d', $project->id),
+            );
+
+            $this->notifier->notify(
+                User::query()->whereKey($lockedProject->proposer_id)->get(),
+                $lockedProject,
+                'Susunan tim proposal sudah dikonfirmasi',
+                'Tim untuk '.$lockedProject->title.' sudah dikonfirmasi. Silakan lanjutkan pengajuan proposal.',
+                route('proposals.show', $lockedProject, false),
+                'TEAM_COMPOSITION_CONFIRMED',
+                $actor,
             );
         });
     }

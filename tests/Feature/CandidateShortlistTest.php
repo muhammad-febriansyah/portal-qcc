@@ -35,6 +35,7 @@ function candidate(string $name, Competency $competency, int $self = 3, ?int $ve
         'competency_id' => $competency->id,
         'self_level' => $self,
         'verified_level' => $verified,
+        'verification_status' => $verified === null ? null : 'VERIFIED',
     ]);
 
     return $user;
@@ -91,7 +92,29 @@ test('the minimum level counts the verified level before the self level', functi
     candidate('Mandiri Rendah Verifikasi Tinggi', $this->skill, self: 1, verified: 3);
     candidate('Mandiri Cukup', $this->skill, self: 3);
 
-    expect(shortlistNames($strict))->toEqualCanonicalizing(['Mandiri Rendah Verifikasi Tinggi', 'Mandiri Cukup']);
+    expect(shortlistNames($strict))->toEqualCanonicalizing([
+        'Mandiri Tinggi Verifikasi Rendah',
+        'Mandiri Rendah Verifikasi Tinggi',
+        'Mandiri Cukup',
+    ]);
+});
+
+test('a rejected or outdated verification is ignored and the self assessed level counts', function () {
+    $strict = Project::factory()->create();
+    requireSkill($strict, $this->skill, minimum: 3);
+
+    $rejected = candidate('Verifikasi Ditolak', $this->skill, self: 3, verified: 1);
+    MemberCompetency::query()->where('user_id', $rejected->id)->update(['verification_status' => 'REJECTED']);
+
+    $outdated = candidate('Ubah Setelah Verifikasi', $this->skill, self: 3, verified: 1);
+    MemberCompetency::query()->where('user_id', $outdated->id)->update(['verification_status' => 'PENDING']);
+
+    $candidates = collect(shortlistFor($strict)['candidates'])->keyBy('name');
+
+    expect($candidates['Verifikasi Ditolak']['matched_count'])->toBe(1)
+        ->and($candidates['Verifikasi Ditolak']['competencies'][0]['verified_level'])->toBeNull()
+        ->and($candidates['Ubah Setelah Verifikasi']['matched_count'])->toBe(1)
+        ->and($candidates['Ubah Setelah Verifikasi']['competencies'][0]['verified_level'])->toBeNull();
 });
 
 test('better matches come first and the list is bounded', function () {
@@ -104,6 +127,19 @@ test('better matches come first and the list is bounded', function () {
 
     expect(shortlistNames($this->project))->toBe(['Lengkap', 'Sebagian'])
         ->and(app(CandidateShortlist::class)->for($this->project, 1)['candidates'])->toHaveCount(1);
+});
+
+test('manual search reaches eligible candidates outside the top thirty', function () {
+    foreach (range(1, 31) as $number) {
+        candidate($number === 31 ? 'Kandidat Di Luar Batas' : "Kandidat {$number}", $this->skill);
+    }
+
+    $shortlist = app(CandidateShortlist::class);
+    $default = $shortlist->for($this->project);
+    $manual = $shortlist->search($this->project, 'Di Luar Batas');
+
+    expect($default['candidates'])->toHaveCount(30)
+        ->and(array_column($manual['candidates'], 'name'))->toBe(['Kandidat Di Luar Batas']);
 });
 
 test('a project without requirements has no candidates', function () {

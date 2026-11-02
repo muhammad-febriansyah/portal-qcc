@@ -31,6 +31,16 @@ trait Auditable
         return null;
     }
 
+    /**
+     * Attributes that should not appear in automatic audit snapshots.
+     *
+     * @return list<string>
+     */
+    protected function auditIgnoredAttributes(): array
+    {
+        return [];
+    }
+
     public static function bootAuditable(): void
     {
         static::created(function (self $model): void {
@@ -74,6 +84,7 @@ trait Auditable
         return Arr::except($attributes, [
             ...$this->getHidden(),
             ...$this->getAppends(),
+            ...$this->auditIgnoredAttributes(),
             $this->getKeyName(),
             $this->getCreatedAtColumn(),
             $this->getUpdatedAtColumn(),

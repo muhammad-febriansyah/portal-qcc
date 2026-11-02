@@ -636,7 +636,7 @@ export default function CompetenciesIndex({
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="destructive"
                                 className="h-10 px-4 text-sm"
                                 disabled={form.processing}
                                 onClick={() => setIsDialogOpen(false)}
@@ -736,7 +736,7 @@ export default function CompetenciesIndex({
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="destructive"
                                 className="h-10 px-4 text-sm"
                                 disabled={importForm.processing}
                                 onClick={() => setIsImportDialogOpen(false)}

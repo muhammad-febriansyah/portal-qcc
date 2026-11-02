@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import {
     ArrowRight,
     CalendarDays,
@@ -8,10 +8,13 @@ import {
     ListTodo,
     MessageCircle,
 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { CsvExportButton } from '@/components/csv-export-button';
+import { DataTable, type DataTableColumnDef } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Card,
     CardContent,
@@ -19,14 +22,6 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import {
-    Empty,
-    EmptyContent,
-    EmptyDescription,
-    EmptyHeader,
-    EmptyMedia,
-    EmptyTitle,
-} from '@/components/ui/empty';
 import { dashboard } from '@/routes';
 import { index as qccProjectsIndex } from '@/routes/qcc-projects';
 import {
@@ -38,6 +33,11 @@ import { show as projectStepsShow } from '@/routes/projects/steps';
 import { index as projectBiweeklyIndex } from '@/routes/projects/biweekly';
 import { index as projectMentoringIndex } from '@/routes/projects/mentoring';
 import { index as projectRisksIndex } from '@/routes/projects/risks';
+import { index as projectStepsDirectoryIndex } from '@/routes/project-steps';
+import { index as projectBiweeklyDirectoryIndex } from '@/routes/biweekly-directory';
+import { index as projectMentoringDirectoryIndex } from '@/routes/mentoring-directory';
+import { index as projectEvidenceDirectoryIndex } from '@/routes/evidence-repository';
+import { index as projectRisksDirectoryIndex } from '@/routes/risk-directory';
 import {
     biweeklyReports as exportBiweeklyReports,
     mentoringReports as exportMentoringReports,
@@ -67,18 +67,16 @@ type ProjectRow = {
     evidence_count: number;
 };
 
-type PageLink = { url: string | null; label: string; active: boolean };
-
 type Props = {
     view: DirectoryView;
+    availableTabs: DirectoryView[];
+    filters: { search: string; per_page: number };
     projects: {
         data: ProjectRow[];
         current_page: number;
-        from: number | null;
-        to: number | null;
+        per_page: number;
         total: number;
         last_page: number;
-        links: PageLink[];
     };
 };
 
@@ -168,9 +166,27 @@ const statusVariants: Record<string, BadgeVariant> = {
     REJECTED: 'destructive',
 };
 
-export default function ProjectDirectory({ view, projects }: Props) {
+const projectTabs: {
+    key: DirectoryView;
+    label: string;
+    href: () => string;
+    icon: typeof FolderKanban;
+}[] = [
+    { key: 'projects', label: 'Ringkasan', href: () => qccProjectsIndex.url(), icon: FolderKanban },
+    { key: 'steps', label: '8 Step', href: () => projectStepsDirectoryIndex.url(), icon: ListChecks },
+    { key: 'biweekly', label: 'Bi-weekly', href: () => projectBiweeklyDirectoryIndex.url(), icon: CalendarDays },
+    { key: 'mentoring', label: 'Mentoring', href: () => projectMentoringDirectoryIndex.url(), icon: MessageCircle },
+    { key: 'risks', label: 'Aksi & Risiko', href: () => projectRisksDirectoryIndex.url(), icon: ListTodo },
+    { key: 'evidence', label: 'Evidence', href: () => projectEvidenceDirectoryIndex.url(), icon: FileCheck2 },
+];
+
+export default function ProjectDirectory({
+    view,
+    availableTabs,
+    filters,
+    projects,
+}: Props) {
     const config = directoryConfig[view];
-    const PageIcon = config.icon;
     const exportHref = {
         projects: exportQccProjects.url(),
         steps: exportProjectSteps.url(),
@@ -180,7 +196,7 @@ export default function ProjectDirectory({ view, projects }: Props) {
         evidence: null,
     }[view];
 
-    function projectHref(projectId: number): string {
+    const projectHref = useCallback((projectId: number): string => {
         if (view === 'steps') {
             return projectStepsShow.url({ project: projectId });
         }
@@ -202,7 +218,125 @@ export default function ProjectDirectory({ view, projects }: Props) {
         }
 
         return proposalShow.url(projectId);
+    }, [view]);
+
+    const currentTabHref =
+        projectTabs.find((tab) => tab.key === view)?.href() ??
+        qccProjectsIndex.url();
+    const [search, setSearch] = useState(filters.search);
+
+    function visit(
+        next: Partial<{ search: string; per_page: number; page: number }>,
+        resetPage = true,
+    ): void {
+        router.get(
+            currentTabHref,
+            {
+                search: next.search ?? filters.search,
+                per_page: next.per_page ?? projects.per_page,
+                page: resetPage
+                    ? 1
+                    : (next.page ?? projects.current_page),
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                only: ['projects', 'filters'],
+            },
+        );
     }
+
+    useEffect(() => setSearch(filters.search), [filters.search]);
+    useEffect(() => {
+        if (search === filters.search) {
+            return;
+        }
+
+        const timeout = window.setTimeout(() => visit({ search }), 350);
+
+        return () => window.clearTimeout(timeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [search]);
+
+    const columns = useMemo<DataTableColumnDef<ProjectRow>[]>(
+        () => [
+            {
+                accessorKey: 'code',
+                header: 'Kode',
+                cell: ({ row }) => (
+                    <span className="font-medium tabular-nums">
+                        {row.original.code}
+                    </span>
+                ),
+            },
+            {
+                accessorKey: 'title',
+                header: 'Proyek QCC',
+                cell: ({ row }) => (
+                    <span className="line-clamp-2 min-w-48 font-medium">
+                        {row.original.title}
+                    </span>
+                ),
+            },
+            {
+                accessorKey: 'batch',
+                header: 'Batch',
+                cell: ({ row }) => row.original.batch ?? 'Tanpa batch',
+            },
+            {
+                accessorKey: 'proposer',
+                header: 'Pengaju',
+                cell: ({ row }) => row.original.proposer ?? '—',
+            },
+            {
+                id: 'ringkasan',
+                header:
+                    view === 'steps'
+                        ? '8 Step disetujui'
+                        : view === 'evidence'
+                          ? 'Evidence tersimpan'
+                          : 'Status',
+                cell: ({ row }) => {
+                    if (view === 'steps') {
+                        return `${row.original.approved_steps_count} dari 8`;
+                    }
+
+                    if (view === 'evidence') {
+                        return row.original.evidence_count;
+                    }
+
+                    return (
+                        <Badge
+                            variant={
+                                statusVariants[row.original.status] ??
+                                'secondary'
+                            }
+                        >
+                            {row.original.status_label}
+                        </Badge>
+                    );
+                },
+            },
+            {
+                id: 'actions',
+                header: 'Aksi',
+                cell: ({ row }) => (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        render={<Link href={projectHref(row.original.id)} />}
+                        nativeButton={false}
+                    >
+                        {config.actionLabel}
+                        <ArrowRight data-icon="inline-end" />
+                    </Button>
+                ),
+            },
+        ],
+        [config.actionLabel, projectHref, view],
+    );
 
     return (
         <>
@@ -222,28 +356,77 @@ export default function ProjectDirectory({ view, projects }: Props) {
                     }
                 />
 
+                <Tabs
+                    value={view}
+                    onValueChange={(value) => {
+                        const selectedTab = projectTabs.find(
+                            (tab) => tab.key === value,
+                        );
+
+                        if (selectedTab && availableTabs.includes(selectedTab.key)) {
+                            router.visit(selectedTab.href());
+                        }
+                    }}
+                    className="mb-5 w-full"
+                >
+                    <TabsList
+                        aria-label="Bagian proyek QCC"
+                        className="w-full max-w-full flex-nowrap justify-start overflow-x-auto"
+                    >
+                    {projectTabs
+                        .filter((tab) => availableTabs.includes(tab.key))
+                        .map((tab) => (
+                            <TabsTrigger
+                                key={tab.key}
+                                value={tab.key}
+                            >
+                                <tab.icon
+                                    aria-hidden="true"
+                                    data-icon="inline-start"
+                                />
+                                {tab.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
+
                 <Card className="gap-0 py-0">
                     <CardHeader className="border-b py-4">
                         <CardTitle className="text-base font-semibold">
                             {config.listTitle}
                         </CardTitle>
                         <CardDescription>
-                            {projects.total} proyek dapat diakses
+                            {projects.total} proyek ditemukan
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
-                        {projects.data.length === 0 ? (
-                            <Empty className="min-h-64 border-0">
-                                <EmptyHeader>
-                                    <EmptyMedia variant="icon">
-                                        <PageIcon aria-hidden="true" />
-                                    </EmptyMedia>
-                                    <EmptyTitle>{config.emptyTitle}</EmptyTitle>
-                                    <EmptyDescription>
-                                        {config.emptyDescription}
-                                    </EmptyDescription>
-                                </EmptyHeader>
-                                <EmptyContent>
+                        <DataTable
+                            embedded
+                            columns={columns}
+                            data={projects.data}
+                            rowId={(project) => String(project.id)}
+                            page={projects.current_page}
+                            pageSize={projects.per_page}
+                            total={projects.total}
+                            onPageChange={(page) => visit({ page }, false)}
+                            onPageSizeChange={(per_page) =>
+                                visit({ per_page })
+                            }
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder="Cari kode, proyek, batch, atau pengaju..."
+                            emptyTitle={
+                                search
+                                    ? 'Proyek tidak ditemukan'
+                                    : config.emptyTitle
+                            }
+                            emptyDescription={
+                                search
+                                    ? 'Coba kata kunci lain atau hapus pencarian.'
+                                    : config.emptyDescription
+                            }
+                            emptyAction={
+                                !search ? (
                                     <Button
                                         variant="outline"
                                         render={
@@ -266,115 +449,10 @@ export default function ProjectDirectory({ view, projects }: Props) {
                                             : 'Buka Proposal QCC'}
                                         <ArrowRight data-icon="inline-end" />
                                     </Button>
-                                </EmptyContent>
-                            </Empty>
-                        ) : (
-                            <ul className="divide-y divide-border/60">
-                                {projects.data.map((project) => (
-                                    <li
-                                        key={project.id}
-                                        className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-                                    >
-                                        <div className="flex min-w-0 items-start gap-3">
-                                            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                                <PageIcon aria-hidden="true" />
-                                            </span>
-                                            <div className="grid min-w-0 gap-1">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <p className="truncate text-sm font-semibold">
-                                                        {project.title}
-                                                    </p>
-                                                    <Badge
-                                                        variant={
-                                                            statusVariants[
-                                                                project.status
-                                                            ] ?? 'secondary'
-                                                        }
-                                                    >
-                                                        {project.status_label}
-                                                    </Badge>
-                                                </div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {project.code}
-                                                    {' · '}
-                                                    {project.batch ??
-                                                        'Tanpa batch'}
-                                                    {' · Pengaju: '}
-                                                    {project.proposer ?? '—'}
-                                                </p>
-                                                {view === 'steps' && (
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {
-                                                            project.approved_steps_count
-                                                        }{' '}
-                                                        dari 8 langkah disetujui
-                                                    </p>
-                                                )}
-                                                {view === 'evidence' && (
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {project.evidence_count}{' '}
-                                                        evidence tersimpan
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="shrink-0"
-                                            render={
-                                                <Link
-                                                    href={projectHref(
-                                                        project.id,
-                                                    )}
-                                                />
-                                            }
-                                            nativeButton={false}
-                                        >
-                                            {config.actionLabel}
-                                            <ArrowRight data-icon="inline-end" />
-                                        </Button>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
+                                ) : undefined
+                            }
+                        />
                     </CardContent>
-                    {projects.last_page > 1 && (
-                        <CardContent className="flex flex-col gap-3 border-t px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-sm text-muted-foreground">
-                                Menampilkan {projects.from}–{projects.to} dari{' '}
-                                {projects.total} proyek
-                            </p>
-                            <nav
-                                aria-label={`Navigasi halaman ${config.title}`}
-                                className="flex flex-wrap gap-2"
-                            >
-                                {projects.links.map((link, index) => (
-                                    <Button
-                                        key={`${link.label}-${index}`}
-                                        variant={
-                                            link.active ? 'default' : 'outline'
-                                        }
-                                        size="sm"
-                                        disabled={!link.url}
-                                        render={
-                                            link.url ? (
-                                                <Link
-                                                    href={link.url}
-                                                    preserveScroll
-                                                />
-                                            ) : undefined
-                                        }
-                                        nativeButton={!link.url}
-                                    >
-                                        {link.label
-                                            .replace(/&laquo;|&raquo;/g, '')
-                                            .trim()}
-                                    </Button>
-                                ))}
-                            </nav>
-                        </CardContent>
-                    )}
                 </Card>
             </div>
         </>

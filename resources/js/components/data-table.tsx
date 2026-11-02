@@ -14,6 +14,7 @@ import {
 import { useMemo } from 'react';
 import {
     Empty,
+    EmptyContent,
     EmptyDescription,
     EmptyHeader,
     EmptyMedia,
@@ -61,6 +62,7 @@ type DataTableProps<TData extends RowData> = {
     isLoading?: boolean;
     emptyTitle?: string;
     emptyDescription?: string;
+    emptyAction?: React.ReactNode;
     pageSizes?: number[];
     rowId?: (row: TData, index: number) => string;
     sortableColumns?: string[];
@@ -87,6 +89,7 @@ export function DataTable<TData extends RowData>({
     isLoading = false,
     emptyTitle = 'Belum ada data',
     emptyDescription = 'Data yang sesuai akan tampil di sini.',
+    emptyAction,
     pageSizes = [10, 25, 50],
     rowId,
     sortableColumns,
@@ -267,6 +270,9 @@ export function DataTable<TData extends RowData>({
                                     {emptyDescription}
                                 </EmptyDescription>
                             </EmptyHeader>
+                        {emptyAction && (
+                            <EmptyContent>{emptyAction}</EmptyContent>
+                        )}
                         </Empty>
                     </div>
                 )}

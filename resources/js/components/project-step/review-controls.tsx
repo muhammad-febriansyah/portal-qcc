@@ -176,7 +176,7 @@ export function ReviewControls({
                             <DialogFooter>
                                 <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="destructive"
                                     onClick={() => setOpen(false)}
                                 >
                                     Batal

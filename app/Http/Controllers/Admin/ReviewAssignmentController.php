@@ -32,8 +32,12 @@ class ReviewAssignmentController extends Controller
         $search = trim((string) ($filters['search'] ?? ''));
         $status = $filters['status'] ?? ReviewAssignment::ACTIVE;
         $perPage = (int) ($filters['per_page'] ?? 10);
+        $reviewPermissionNames = config('qcc_features.chapter_ten_scoring')
+            ? ['projects.review', 'projects.approve', 'scoring.view', 'scoring.review', 'scoring.approve']
+            : ['projects.review', 'projects.approve'];
 
         $assignments = ReviewAssignment::query()
+            ->when(! config('qcc_features.chapter_ten_scoring'), fn (Builder $query): Builder => $query->where('scope', '!=', 'scoring'))
             ->with(['project:id,title,batch_id', 'project.batch:id,name', 'reviewer:id,name,email', 'granter:id,name'])
             ->when($status === ReviewAssignment::ACTIVE, fn (Builder $query): Builder => $query->active())
             ->when($status === ReviewAssignment::REVOKED, fn (Builder $query): Builder => $query->where(fn (Builder $query): Builder => $query
@@ -65,12 +69,9 @@ class ReviewAssignmentController extends Controller
 
         $reviewers = User::query()
             ->where('is_active', true)
-            ->where(function (Builder $query): void {
-                $query->whereHas('permissions', fn (Builder $permissions): Builder => $permissions->whereIn('name', [
-                    'projects.review', 'projects.approve', 'scoring.view', 'scoring.review', 'scoring.approve',
-                ]))->orWhereHas('roles.permissions', fn (Builder $permissions): Builder => $permissions->whereIn('name', [
-                    'projects.review', 'projects.approve', 'scoring.view', 'scoring.review', 'scoring.approve',
-                ]));
+            ->where(function (Builder $query) use ($reviewPermissionNames): void {
+                $query->whereHas('permissions', fn (Builder $permissions): Builder => $permissions->whereIn('name', $reviewPermissionNames))
+                    ->orWhereHas('roles.permissions', fn (Builder $permissions): Builder => $permissions->whereIn('name', $reviewPermissionNames));
             })
             ->with(['permissions', 'roles.permissions'])
             ->orderBy('name')
@@ -102,7 +103,7 @@ class ReviewAssignmentController extends Controller
             ]),
             'projects' => $projects,
             'reviewers' => $reviewers,
-            'scopeOptions' => collect(ReviewAssignment::SCOPES)->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])->values()->all(),
+            'scopeOptions' => collect(ReviewAssignment::SCOPES)->when(! config('qcc_features.chapter_ten_scoring'), fn ($scopes) => $scopes->except('scoring'))->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])->values()->all(),
             'filters' => ['search' => $search, 'status' => $status, 'per_page' => $perPage],
         ]);
     }
@@ -114,7 +115,7 @@ class ReviewAssignmentController extends Controller
         $data = $request->validate([
             'project_id' => ['required', 'integer', Rule::exists('projects', 'id')],
             'reviewer_id' => ['required', 'integer', Rule::exists('users', 'id')->where('is_active', true)],
-            'scope' => ['required', 'string', Rule::in(array_keys(ReviewAssignment::SCOPES))],
+            'scope' => ['required', 'string', Rule::in(array_keys(collect(ReviewAssignment::SCOPES)->when(! config('qcc_features.chapter_ten_scoring'), fn ($scopes) => $scopes->except('scoring'))->all()))],
             'expires_at' => ['nullable', 'date', 'after:today'],
         ]);
         $project = Project::query()->whereKey((int) $data['project_id'])->firstOrFail();
@@ -129,7 +130,7 @@ class ReviewAssignmentController extends Controller
             throw ValidationException::withMessages(['project_id' => 'Review proposal hanya dapat ditugaskan selama proposal menunggu keputusan.']);
         }
 
-        if (in_array($data['scope'], ['steps', 'biweekly', 'scoring'], true) && $project->proposal_status !== ProposalStatus::Approved) {
+        if (in_array($data['scope'], ['steps', 'biweekly'], true) && $project->proposal_status !== ProposalStatus::Approved) {
             throw ValidationException::withMessages(['project_id' => 'Scope ini hanya dapat ditugaskan pada proyek yang sudah disetujui.']);
         }
 
@@ -191,7 +192,7 @@ class ReviewAssignmentController extends Controller
         return match ($scope) {
             'proposal', 'steps' => $user->can('projects.review') || $user->can('projects.approve'),
             'biweekly' => $user->can('projects.review'),
-            'scoring' => $user->can('scoring.view') && ($user->can('scoring.review') || $user->can('scoring.approve')),
+            'scoring' => (bool) config('qcc_features.chapter_ten_scoring') && $user->can('scoring.view') && ($user->can('scoring.review') || $user->can('scoring.approve')),
             default => false,
         };
     }

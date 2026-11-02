@@ -50,6 +50,10 @@ class TeamRuleValidator
             $errors[] = 'Tim harus memiliki tepat 1 leader.';
         }
 
+        if (in_array(null, array_column($members, 'organization_id'), true)) {
+            $errors[] = 'Setiap anggota tim harus memiliki LOB/Divisi.';
+        }
+
         $organizationIds = array_filter(array_column($members, 'organization_id'));
 
         if (count(array_unique($organizationIds)) < self::MIN_ORGANIZATIONS) {

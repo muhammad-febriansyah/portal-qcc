@@ -8,6 +8,8 @@ use App\Models\TeamMatchingRun;
 use App\Models\User;
 use App\Notifications\ProposalWorkflowNotification;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
@@ -95,6 +97,49 @@ it('creates and resumes a proposal draft with its saved wizard step', function (
     ]))->assertRedirect(route('proposals.edit', $project));
 
     expect($project->fresh()->wizard_step)->toBe(2);
+});
+
+it('saves draft fields without moving the wizard forward', function () {
+    $user = proposalWizardCreator();
+    $project = Project::factory()->create([
+        'proposer_id' => $user->id,
+        'wizard_step' => 1,
+        'title' => 'Judul awal',
+    ]);
+
+    $this->actingAs($user)
+        ->patch(route('proposals.update', $project), proposalDraftPayload($project->batch, [
+            'title' => 'Judul yang diperbarui',
+            'wizard_step' => 5,
+            'advance' => false,
+        ]))
+        ->assertRedirect(route('proposals.edit', $project));
+
+    expect($project->fresh())
+        ->title->toBe('Judul yang diperbarui')
+        ->wizard_step->toBe(1);
+});
+
+it('rejects advancing past the next available wizard step', function () {
+    $user = proposalWizardCreator();
+    $project = Project::factory()->create([
+        'proposer_id' => $user->id,
+        'wizard_step' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->patch(route('proposals.update', $project), proposalDraftPayload($project->batch, [
+            'wizard_step' => 3,
+            'advance' => true,
+            'target' => 'Turunkan waktu proses',
+            'scope' => 'Proses verifikasi dokumen',
+            'rca' => 'Duplikasi pemeriksaan',
+            'improvement_plan' => 'Satukan pemeriksaan',
+            'business_benefit' => 'Kurangi waktu tunggu',
+        ]))
+        ->assertSessionHasErrors(['wizard_step']);
+
+    expect($project->fresh()->wizard_step)->toBe(1);
 });
 
 it('requires every field in the current stage before advancing', function () {
@@ -197,12 +242,13 @@ it('stores proposal attachments privately and prevents other users from previewi
 
     $this->actingAs($owner)
         ->post(route('proposals.attachments.store', $project), [
-            'files' => [UploadedFile::fake()->create('supporting-document.pdf', 24, 'application/pdf')],
+            'files' => [UploadedFile::fake()->createWithContent('supporting-document.pdf', "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF")],
         ])
         ->assertRedirect(route('proposals.edit', $project));
 
     $attachment = ProjectAttachment::query()->firstOrFail();
     Storage::disk('local')->assertExists($attachment->path);
+    expect($attachment->scan_status)->toBe('PASSED');
 
     $this->get(route('proposals.attachments.preview', [$project, $attachment]))
         ->assertOk()
@@ -213,6 +259,54 @@ it('stores proposal attachments privately and prevents other users from previewi
     $this->actingAs($otherUser)
         ->get(route('proposals.attachments.preview', [$project, $attachment]))
         ->assertForbidden();
+});
+
+it('rejects invalid proposal attachment content before storing a file', function () {
+    Storage::fake('local');
+    $owner = proposalWizardCreator();
+    $project = Project::factory()->create([
+        'proposer_id' => $owner->id,
+        'proposal_status' => ProposalStatus::Draft,
+    ]);
+
+    $this->actingAs($owner)->post(route('proposals.attachments.store', $project), [
+        'files' => [UploadedFile::fake()->createWithContent('forged.pdf', 'not a PDF')],
+    ])->assertSessionHasErrors('files');
+
+    expect(ProjectAttachment::query()->count())->toBe(0);
+    expect(Storage::disk('local')->allFiles())->toBe([]);
+});
+
+it('inspects old pending proposal attachments without deleting their files', function () {
+    Storage::fake('local');
+    $owner = proposalWizardCreator();
+    $project = Project::factory()->create([
+        'proposer_id' => $owner->id,
+        'proposal_status' => ProposalStatus::Draft,
+    ]);
+    $validPath = 'qcc/proposals/'.$project->id.'/old.pdf';
+    $invalidPath = 'qcc/proposals/'.$project->id.'/invalid.pdf';
+    Storage::disk('local')->put($validPath, "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF");
+    Storage::disk('local')->put($invalidPath, 'not a PDF');
+
+    $valid = ProjectAttachment::query()->create([
+        'project_id' => $project->id, 'uploaded_by' => $owner->id, 'disk' => 'local',
+        'path' => $validPath, 'original_name' => 'old.pdf', 'mime_type' => 'application/pdf',
+        'size_bytes' => 70, 'scan_status' => 'PENDING_SCAN',
+    ]);
+    $invalid = ProjectAttachment::query()->create([
+        'project_id' => $project->id, 'uploaded_by' => $owner->id, 'disk' => 'local',
+        'path' => $invalidPath, 'original_name' => 'invalid.pdf', 'mime_type' => 'application/pdf',
+        'size_bytes' => 9, 'scan_status' => 'PENDING_SCAN',
+    ]);
+
+    $this->artisan('qcc:proposals:inspect-attachments')->assertSuccessful();
+    expect($valid->fresh()->scan_status)->toBe('PASSED')
+        ->and($invalid->fresh()->scan_status)->toBe('REJECTED');
+    Storage::disk('local')->assertExists([$validPath, $invalidPath]);
+
+    $this->actingAs($owner)->get(route('proposals.attachments.preview', [$project, $valid]))->assertOk();
+    $this->get(route('proposals.attachments.preview', [$project, $invalid]))->assertNotFound();
 });
 
 it('shows SIMer that Owner QCC must confirm team and blocks submission first', function () {
@@ -312,4 +406,56 @@ it('notifies active Owner QCC once when a complete SIMer draft still needs team 
             'decision' => 'TEAM_COMPOSITION_PENDING',
             'url' => route('proposals.candidates', $project, false),
         ]);
+});
+
+it('rejects a draft edit when proposal status changes after route binding', function () {
+    $owner = proposalWizardCreator();
+    $batch = QccBatch::factory()->active()->create();
+    $project = Project::factory()->create([
+        'batch_id' => $batch->id,
+        'proposer_id' => $owner->id,
+        'proposal_status' => ProposalStatus::Draft,
+        'title' => 'Judul asli',
+    ]);
+    $url = route('proposals.update', $project);
+    $switched = false;
+
+    Event::listen('eloquent.retrieved: '.Project::class, function (Project $bound) use ($project, &$switched): void {
+        if (! $switched && $bound->id === $project->id) {
+            $switched = true;
+            DB::table('projects')->where('id', $project->id)->update(['proposal_status' => ProposalStatus::Submitted->value]);
+        }
+    });
+
+    $this->actingAs($owner)
+        ->patch($url, proposalDraftPayload($batch, ['title' => 'Perubahan terlambat']))
+        ->assertNotFound();
+
+    expect($project->fresh()->title)->toBe('Judul asli')
+        ->and($project->fresh()->proposal_status)->toBe(ProposalStatus::Submitted);
+});
+
+it('rejects an attachment upload when proposal status changes after route binding', function () {
+    Storage::fake('local');
+    $owner = proposalWizardCreator();
+    $project = Project::factory()->create([
+        'proposer_id' => $owner->id,
+        'proposal_status' => ProposalStatus::Draft,
+    ]);
+    $url = route('proposals.attachments.store', $project);
+    $switched = false;
+
+    Event::listen('eloquent.retrieved: '.Project::class, function (Project $bound) use ($project, &$switched): void {
+        if (! $switched && $bound->id === $project->id) {
+            $switched = true;
+            DB::table('projects')->where('id', $project->id)->update(['proposal_status' => ProposalStatus::Submitted->value]);
+        }
+    });
+
+    $this->actingAs($owner)->post($url, [
+        'files' => [UploadedFile::fake()->createWithContent('valid.pdf', "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF")],
+    ])->assertNotFound();
+
+    expect(ProjectAttachment::query()->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles())->toBe([]);
 });

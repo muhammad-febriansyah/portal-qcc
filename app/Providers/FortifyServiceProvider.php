@@ -94,11 +94,22 @@ class FortifyServiceProvider extends ServiceProvider
      */
     private function configureRateLimiting(): void
     {
-
         RateLimiter::for('login', function (Request $request) {
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
 
             return Limit::perMinute(5)->by($throttleKey);
+        });
+
+        RateLimiter::for('register', function (Request $request) {
+            return Limit::perHour(5)
+                ->by($request->ip() ?? 'unknown')
+                ->response(fn (Request $request, array $headers) => $request->expectsJson()
+                    ? response()->json([
+                        'message' => 'Terlalu banyak percobaan pendaftaran. Silakan coba kembali dalam satu jam.',
+                    ], 429, $headers)
+                    : back()->withErrors([
+                        'email' => 'Terlalu banyak percobaan pendaftaran. Silakan coba kembali dalam satu jam.',
+                    ])->withHeaders($headers));
         });
 
     }

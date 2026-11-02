@@ -240,7 +240,7 @@ function CompetencyForm({
                     <DialogFooter>
                         <Button
                             type="button"
-                            variant="outline"
+                            variant="destructive"
                             className="h-10 px-4 text-sm"
                             onClick={onClose}
                             disabled={processing}

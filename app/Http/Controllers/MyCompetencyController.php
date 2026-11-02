@@ -128,7 +128,7 @@ class MyCompetencyController extends Controller
     {
         Gate::authorize('delete', $memberCompetency);
 
-        if ($memberCompetency->verified_level !== null) {
+        if ($memberCompetency->verified_level !== null && $memberCompetency->verification_status !== MemberCompetency::STATUS_REJECTED) {
             Inertia::flash('toast', [
                 'type' => 'warning',
                 'message' => 'Kompetensi yang sudah terverifikasi tidak dapat dihapus.',

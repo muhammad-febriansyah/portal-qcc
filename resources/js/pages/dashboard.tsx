@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowUpRight,
     CalendarCheck2,
@@ -39,9 +39,11 @@ type RoleDashboardData = {
         average_progress: number | null;
         biweekly_on_time: number;
         biweekly_late: number;
+        biweekly_overdue: number;
         mentoring_sessions: number;
         mentoring_feedback_pending: number;
     };
+    status_counts: { status: string; label: string; count: number }[];
     projects: {
         id: number;
         title: string;
@@ -83,6 +85,11 @@ const summaryCards: {
         icon: CalendarCheck2,
     },
     { key: 'biweekly_late', label: 'Bi-weekly terlambat', icon: CalendarClock },
+    {
+        key: 'biweekly_overdue',
+        label: 'Bi-weekly belum dikirim, lewat tenggat',
+        icon: CalendarClock,
+    },
     {
         key: 'mentoring_sessions',
         label: 'Sesi mentoring',
@@ -159,6 +166,32 @@ function RoleOverview({ overview }: { overview: RoleDashboardData }) {
                     </Card>
                 ))}
             </section>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base font-semibold">
+                        Proyek per status
+                    </CardTitle>
+                    <CardDescription>
+                        Jumlah proyek sesuai akses dan batch pilihan Anda.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {overview.status_counts.map((item) => (
+                        <div
+                            key={item.status}
+                            className="flex items-center justify-between rounded-lg border px-4 py-3"
+                        >
+                            <span className="text-sm text-muted-foreground">
+                                {item.label}
+                            </span>
+                            <span className="text-lg font-semibold tabular-nums">
+                                {item.count}
+                            </span>
+                        </div>
+                    ))}
+                </CardContent>
+            </Card>
 
             <section className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
                 <Card>
@@ -289,9 +322,15 @@ function RoleOverview({ overview }: { overview: RoleDashboardData }) {
 export default function Dashboard({
     adminOverview,
     roleOverview,
+    batches,
+    selectedBatchId,
+    selectedPeriod,
 }: {
     adminOverview: AdminOverviewData | null;
     roleOverview: RoleDashboardData | null;
+    batches: { id: number; name: string }[];
+    selectedBatchId: number | null;
+    selectedPeriod: 'all' | '30' | '90' | '365';
 }) {
     const { auth } = usePage().props;
     const firstName = auth.user?.name.split(' ')[0] ?? '';
@@ -305,11 +344,89 @@ export default function Dashboard({
                     title="Dashboard"
                     description={`Selamat datang, ${firstName}. Berikut ringkasan kerja QCC Anda.`}
                 />
-                {adminOverview ? (
-                    <AdminOverview overview={adminOverview} />
-                ) : roleOverview ? (
-                    <RoleOverview overview={roleOverview} />
-                ) : null}
+                <div className="mb-6 flex flex-wrap items-end gap-4">
+                    <div className="grid gap-1.5">
+                        <label
+                            htmlFor="dashboard-batch"
+                            className="text-sm font-medium"
+                        >
+                            Batch QCC
+                        </label>
+                        <select
+                            id="dashboard-batch"
+                            className="h-10 min-w-52 rounded-md border bg-background px-3 text-sm"
+                            value={selectedBatchId ?? ''}
+                            onChange={(event) =>
+                                router.get(
+                                    dashboard.url(),
+                                    {
+                                        ...(event.target.value
+                                            ? { batch_id: event.target.value }
+                                            : {}),
+                                        period: selectedPeriod,
+                                    },
+                                    {
+                                        preserveScroll: true,
+                                        preserveState: true,
+                                        replace: true,
+                                    },
+                                )
+                            }
+                        >
+                            <option value="">Semua batch</option>
+                            {batches.map((batch) => (
+                                <option key={batch.id} value={batch.id}>
+                                    {batch.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="grid gap-1.5">
+                        <label
+                            htmlFor="dashboard-period"
+                            className="text-sm font-medium"
+                        >
+                            Periode proyek, bi-weekly, mentoring
+                        </label>
+                        <select
+                            id="dashboard-period"
+                            className="h-10 min-w-48 rounded-md border bg-background px-3 text-sm"
+                            value={selectedPeriod}
+                            onChange={(event) =>
+                                router.get(
+                                    dashboard.url(),
+                                    {
+                                        ...(selectedBatchId
+                                            ? { batch_id: selectedBatchId }
+                                            : {}),
+                                        period: event.target.value,
+                                    },
+                                    {
+                                        preserveScroll: true,
+                                        preserveState: true,
+                                        replace: true,
+                                    },
+                                )
+                            }
+                        >
+                            <option value="all">Semua periode</option>
+                            <option value="30">30 hari terakhir</option>
+                            <option value="90">90 hari terakhir</option>
+                            <option value="365">1 tahun terakhir</option>
+                        </select>
+                    </div>
+                    <p className="pb-2 text-xs text-muted-foreground">
+                        Periode proyek dihitung dari tanggal dibuat; laporan
+                        dari tanggal periode/sesi. Tugas tertunda tetap mencakup
+                        semua tenggat.
+                    </p>
+                </div>
+                {adminOverview && <AdminOverview overview={adminOverview} />}
+                {roleOverview && (
+                    <div className={adminOverview ? 'mt-8' : undefined}>
+                        <RoleOverview overview={roleOverview} />
+                    </div>
+                )}
             </main>
         </>
     );

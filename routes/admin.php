@@ -2,9 +2,9 @@
 
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\BatchController;
+use App\Http\Controllers\Admin\BatchScheduleController;
 use App\Http\Controllers\Admin\CompetencyController;
 use App\Http\Controllers\Admin\CompetencyDirectoryController;
-use App\Http\Controllers\Admin\ProposalReviewController;
 use App\Http\Controllers\Admin\ReviewAssignmentController;
 use App\Http\Controllers\Admin\RolePermissionController;
 use App\Http\Controllers\Admin\RubricSetController;
@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\UserPasswordController;
 use App\Http\Controllers\Admin\UserStatusController;
 use App\Http\Controllers\DataExportController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Middleware\EnsureOptionalFeatureEnabled;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'verified'])
@@ -31,9 +32,6 @@ Route::middleware(['auth', 'verified'])
             ->middleware('throttle:3,1')
             ->name('settings.test-email');
 
-        Route::get('proposals', [ProposalReviewController::class, 'index'])
-            ->name('proposals.index');
-
         Route::get('reviewer-assignments', [ReviewAssignmentController::class, 'index'])
             ->name('reviewer-assignments.index');
         Route::post('reviewer-assignments', [ReviewAssignmentController::class, 'store'])
@@ -46,27 +44,22 @@ Route::middleware(['auth', 'verified'])
         Route::put('roles/{role}/permissions', [RolePermissionController::class, 'update'])
             ->name('roles.permissions.update');
 
-        Route::get('scoring/export', [DataExportController::class, 'scoring'])
-            ->name('scoring.export');
-        Route::resource('scoring', ScoringController::class)
-            ->only(['index', 'show', 'store'])
-            ->parameters(['scoring' => 'scoringRun']);
-        Route::post('scoring/{scoringRun}/approve', [ScoringController::class, 'approve'])
-            ->name('scoring.approve');
-        Route::post('scoring/{scoringRun}/request-revision', [ScoringController::class, 'requestRevision'])
-            ->name('scoring.request-revision');
+        Route::get('scoring/export', [DataExportController::class, 'scoring'])->middleware(EnsureOptionalFeatureEnabled::class.':chapter_ten_scoring')->name('scoring.export');
+        Route::resource('scoring', ScoringController::class)->only(['index', 'show', 'store'])->parameters(['scoring' => 'scoringRun'])->middleware(EnsureOptionalFeatureEnabled::class.':chapter_ten_scoring');
+        Route::post('scoring/{scoringRun}/approve', [ScoringController::class, 'approve'])->middleware(EnsureOptionalFeatureEnabled::class.':chapter_ten_scoring')->name('scoring.approve');
+        Route::post('scoring/{scoringRun}/request-revision', [ScoringController::class, 'requestRevision'])->middleware(EnsureOptionalFeatureEnabled::class.':chapter_ten_scoring')->name('scoring.request-revision');
+        Route::resource('rubrics', RubricSetController::class)->only(['index', 'store', 'update'])->parameters(['rubrics' => 'rubricSet'])->middleware(EnsureOptionalFeatureEnabled::class.':chapter_ten_scoring');
+        Route::post('rubrics/{rubricSet}/versions', [RubricSetController::class, 'createVersion'])->middleware(EnsureOptionalFeatureEnabled::class.':chapter_ten_scoring')->name('rubrics.versions.store');
+        Route::post('rubrics/{rubricSet}/versions/{rubricVersion}/publish', [RubricSetController::class, 'publish'])->middleware(EnsureOptionalFeatureEnabled::class.':chapter_ten_scoring')->name('rubrics.versions.publish');
 
-        Route::resource('rubrics', RubricSetController::class)
-            ->only(['index', 'store', 'update'])
-            ->parameters(['rubrics' => 'rubricSet']);
-        Route::post('rubrics/{rubricSet}/versions', [RubricSetController::class, 'createVersion'])
-            ->name('rubrics.versions.store');
-        Route::post('rubrics/{rubricSet}/versions/{rubricVersion}/publish', [RubricSetController::class, 'publish'])
-            ->name('rubrics.versions.publish');
+        Route::get('proposals', fn () => to_route('approval.index'))->name('proposals.index');
 
         Route::resource('batches', BatchController::class)
             ->only(['index', 'store', 'update', 'destroy'])
             ->parameters(['batches' => 'batch']);
+        Route::get('batches/{batch}/schedules', [BatchScheduleController::class, 'index'])->name('batches.schedules.index');
+        Route::post('batches/{batch}/schedules', [BatchScheduleController::class, 'store'])->name('batches.schedules.store');
+        Route::patch('batches/{batch}/schedules/{schedule}', [BatchScheduleController::class, 'update'])->name('batches.schedules.update');
 
         Route::resource('organizations', OrganizationController::class)
             ->only(['index', 'store', 'update']);

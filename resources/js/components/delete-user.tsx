@@ -90,7 +90,7 @@ export default function DeleteUser() {
                                         <DialogClose
                                             render={
                                                 <Button
-                                                    variant="secondary"
+                                                    variant="destructive"
                                                     onClick={() =>
                                                         resetAndClearErrors()
                                                     }

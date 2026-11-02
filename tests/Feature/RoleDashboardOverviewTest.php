@@ -157,6 +157,17 @@ test('role dashboard summarizes submitted report punctuality and mentoring feedb
         $report->forceFill(['submitted_at' => $submittedAt])->save();
     }
 
+    foreach ([$visible, $hidden] as $project) {
+        BiweeklyReport::query()->create([
+            'project_id' => $project->id,
+            'period_no' => BiweeklyReport::query()->where('project_id', $project->id)->count() + 1,
+            'starts_on' => today()->subWeeks(2),
+            'ends_on' => today()->subDay(),
+            'status' => 'DRAFT',
+            'created_by' => $owner->id,
+        ]);
+    }
+
     MentoringReport::query()->create([
         'project_id' => $visible->id,
         'project_mentor_id' => $assignment->id,
@@ -181,6 +192,95 @@ test('role dashboard summarizes submitted report punctuality and mentoring feedb
         ->assertInertia(fn (Assert $page) => $page
             ->where('roleOverview.summary.biweekly_on_time', 1)
             ->where('roleOverview.summary.biweekly_late', 1)
+            ->where('roleOverview.summary.biweekly_overdue', 1)
+            ->where('roleOverview.status_counts.4.count', 1)
             ->where('roleOverview.summary.mentoring_sessions', 2)
             ->where('roleOverview.summary.mentoring_feedback_pending', 1));
+});
+
+test('dashboard batch filter scopes every QCC count and keeps hidden batches out of options', function () {
+    $user = roleDashboardUser('Team Leader', 'projects.view');
+    $first = roleDashboardProject(User::factory()->create(), 'Batch terlihat A');
+    $second = roleDashboardProject(User::factory()->create(), 'Batch terlihat B', ProposalStatus::Submitted);
+    roleDashboardProject(User::factory()->create(), 'Batch tersembunyi');
+
+    foreach ([$first, $second] as $project) {
+        $project->members()->attach($user->id, ['role_in_project' => 'LEADER', 'status' => 'ACTIVE', 'joined_at' => now()]);
+    }
+
+    $this->actingAs($user)->get(route('dashboard', ['batch_id' => $first->batch_id]))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('selectedBatchId', $first->batch_id)
+            ->has('batches', 2)
+            ->where('roleOverview.summary.active_projects', 1)
+            ->where('roleOverview.status_counts.4.count', 1)
+            ->where('roleOverview.status_counts.1.count', 0)
+            ->has('roleOverview.projects', 1)
+            ->where('roleOverview.projects.0.title', 'Batch terlihat A'));
+});
+
+test('dashboard period filters projects by creation date and reports by reporting period', function () {
+    $today = today()->setTime(12, 0);
+    $this->travelTo($today);
+
+    $leader = roleDashboardUser('Team Leader', 'projects.view');
+    $recentProject = roleDashboardProject(User::factory()->create(), 'Proyek baru');
+    $olderProject = roleDashboardProject(User::factory()->create(), 'Proyek lama');
+    $recentProject->forceFill(['created_at' => $today->copy()->subDays(10)])->save();
+    $olderProject->forceFill(['created_at' => $today->copy()->subDays(60)])->save();
+
+    foreach ([$recentProject, $olderProject] as $project) {
+        $project->members()->attach($leader->id, ['role_in_project' => 'LEADER', 'status' => 'ACTIVE', 'joined_at' => now()]);
+    }
+
+    foreach ([[$recentProject, $today->copy()->subDays(5)], [$olderProject, $today->copy()->subDays(5)], [$olderProject, $today->copy()->subDays(60)]] as [$project, $periodEnd]) {
+        $report = BiweeklyReport::query()->create([
+            'project_id' => $project->id,
+            'period_no' => BiweeklyReport::query()->where('project_id', $project->id)->count() + 1,
+            'starts_on' => $periodEnd->copy()->subDays(13)->toDateString(),
+            'ends_on' => $periodEnd->toDateString(),
+            'status' => 'SUBMITTED',
+            'created_by' => $leader->id,
+        ]);
+        $report->forceFill(['submitted_at' => $periodEnd->copy()->addDay()])->save();
+    }
+
+    $mentor = User::factory()->create();
+    $assignment = ProjectMentor::query()->create([
+        'project_id' => $recentProject->id,
+        'mentor_id' => $mentor->id,
+        'assigned_by' => $leader->id,
+        'status' => 'ACTIVE',
+        'assigned_at' => now(),
+    ]);
+    MentoringReport::query()->create([
+        'project_id' => $recentProject->id,
+        'project_mentor_id' => $assignment->id,
+        'session_at' => $today->copy()->subDays(4),
+        'topic' => 'Sesi periode ini',
+        'status' => 'SUBMITTED',
+        'submitted_at' => now(),
+        'created_by' => $mentor->id,
+    ]);
+
+    $this->actingAs($leader)->get(route('dashboard', ['period' => '30']))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('selectedPeriod', '30')
+            ->where('roleOverview.summary.active_projects', 1)
+            ->where('roleOverview.status_counts.4.count', 1)
+            ->has('roleOverview.projects', 1)
+            ->where('roleOverview.projects.0.title', 'Proyek baru')
+            ->where('roleOverview.summary.biweekly_late', 2)
+            ->where('roleOverview.summary.mentoring_sessions', 1));
+});
+
+test('Super Admin sees QCC project metrics alongside system overview', function () {
+    $admin = roleDashboardUser('Super Admin', 'dashboard.admin', 'projects.view', 'projects.viewAny');
+    roleDashboardProject(User::factory()->create(), 'Proyek QCC global');
+
+    $this->actingAs($admin)->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('adminOverview')
+            ->where('roleOverview.summary.active_projects', 1)
+            ->where('roleOverview.status_counts.4.count', 1));
 });

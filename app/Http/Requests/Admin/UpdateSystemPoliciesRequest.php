@@ -30,6 +30,8 @@ class UpdateSystemPoliciesRequest extends FormRequest
         return [
             'notifications_in_app' => ['required', 'boolean'],
             'notifications_email' => ['required', 'boolean'],
+            'notifications_reminder_early_days' => ['required', 'integer', 'between:1,30', 'gt:notifications_reminder_final_days'],
+            'notifications_reminder_final_days' => ['required', 'integer', 'between:1,30'],
             'attachments_allowed_types' => ['required', 'array', 'min:1'],
             'attachments_allowed_types.*' => [
                 'required',

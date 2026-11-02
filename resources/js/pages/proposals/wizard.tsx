@@ -1,16 +1,20 @@
 import { Link, router, useForm } from '@inertiajs/react';
 import {
     ArrowLeft,
-    ArrowRight,
-    Check,
+    CheckCircle2,
+    ChevronLeft,
+    ChevronRight,
     FileText,
     Save,
     Trash2,
+    UsersRound,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileUploader, type UploadItem } from '@/components/file-uploader';
 import { FormField } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
+import { RichTextarea } from '@/components/rich-textarea';
+import { WizardStepper } from '@/components/wizard-stepper';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,11 +47,12 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
+    candidates as proposalCandidates,
     create as proposalCreate,
     index as proposalsIndex,
+    submit as proposalSubmit,
     store as proposalStore,
     update as proposalUpdate,
 } from '@/routes/proposals';
@@ -71,7 +76,7 @@ type ExistingAttachment = {
     mime_type: string;
     size_bytes: number;
     scan_status: string;
-    preview_url: string;
+    preview_url: string | null;
 };
 type ProjectDraft = {
     id: number;
@@ -88,9 +93,14 @@ type ProjectDraft = {
     rca: string | null;
     improvement_plan: string | null;
     business_benefit: string | null;
+    supplementary_information: string | null;
     wizard_step: number;
     updated_at: string | null;
     attachments: ExistingAttachment[];
+    can_submit: boolean;
+    can_find_candidates: boolean;
+    team_confirmed: boolean;
+    team_status_message: string | null;
 };
 type Props = {
     project: ProjectDraft | null;
@@ -115,6 +125,7 @@ type DraftForm = {
     rca: string;
     improvement_plan: string;
     business_benefit: string;
+    supplementary_information: string;
     wizard_step: number;
     advance: boolean;
 };
@@ -122,15 +133,70 @@ type DraftField = Exclude<
     keyof DraftForm,
     'batch_id' | 'learning_goals' | 'wizard_step' | 'advance'
 >;
-type StepDefinition = { value: string; number: number; label: string };
+type StepDefinition = {
+    number: number;
+    label: string;
+    description: string;
+};
 
 const steps: StepDefinition[] = [
-    { value: '1', number: 1, label: 'Informasi Dasar' },
-    { value: '2', number: 2, label: 'Masalah & Baseline' },
-    { value: '3', number: 3, label: 'Target & Manfaat' },
-    { value: '4', number: 4, label: 'Kebutuhan Kompetensi' },
-    { value: '5', number: 5, label: 'Lampiran & Review' },
+    {
+        number: 1,
+        label: 'Informasi Dasar',
+        description:
+            'Tentukan judul, batch, dan tema perbaikan yang kamu ajukan.',
+    },
+    {
+        number: 2,
+        label: 'Masalah & Baseline',
+        description:
+            'Jelaskan latar belakang, masalahnya, kondisi saat ini, dan data awal sebagai pembanding.',
+    },
+    {
+        number: 3,
+        label: 'Target & Manfaat',
+        description:
+            'Tetapkan target dan ruang lingkup, analisis akar masalah, rencana perbaikan, dan manfaatnya.',
+    },
+    {
+        number: 4,
+        label: 'Kebutuhan Kompetensi',
+        description:
+            'Tulis tiga hal yang ingin dipelajari tim dan kompetensi yang dibutuhkan proyek ini.',
+    },
+    {
+        number: 5,
+        label: 'Lampiran & Review',
+        description:
+            'Unggah lampiran pendukung, lalu periksa ringkasan sebelum proposal diajukan.',
+    },
 ];
+
+/** Same height for every control, so fields in one row line up. */
+const controlClassName = 'h-11';
+const selectTriggerClassName = 'h-11 w-full data-[size=default]:h-11';
+
+const savedAtFormat = new Intl.DateTimeFormat('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+});
+
+function SectionTitle({
+    title,
+    description,
+}: {
+    title: string;
+    description?: string;
+}): React.ReactNode {
+    return (
+        <div className="grid gap-0.5 border-b pb-3">
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+            {description && (
+                <p className="text-xs text-muted-foreground">{description}</p>
+            )}
+        </div>
+    );
+}
 
 function initialData(project: ProjectDraft | null, step: number): DraftForm {
     return {
@@ -150,6 +216,7 @@ function initialData(project: ProjectDraft | null, step: number): DraftForm {
         rca: project?.rca ?? '',
         improvement_plan: project?.improvement_plan ?? '',
         business_benefit: project?.business_benefit ?? '',
+        supplementary_information: project?.supplementary_information ?? '',
         wizard_step: project?.wizard_step ?? step,
         advance: false,
     };
@@ -169,22 +236,19 @@ export default function ProposalWizard({
     requirements = [],
     levelOptions = [],
 }: Props) {
-    const [activeStep, setActiveStep] = useState(step);
     const [requirementsDirty, setRequirementsDirty] = useState(false);
     const [pendingFiles, setPendingFiles] = useState<UploadItem[]>([]);
+    const [activeStep, setActiveStep] = useState(project?.wizard_step ?? step);
+    const draftSaveInFlight = useRef(false);
     const form = useForm<DraftForm>(initialData(project, step));
     const uploadForm = useForm<{ files: File[] }>({ files: [] });
     const isEditing = project !== null;
-    const canContinue = isEditing
-        ? project.wizard_step >= activeStep
-        : activeStep === 1;
 
     useEffect(() => {
         if (project) {
             form.setData(initialData(project, project.wizard_step));
-            setActiveStep(project.wizard_step);
         }
-        // Update form after a new draft is created or a persisted step advances.
+        // Refresh form after a new draft is created or a persisted draft changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [project?.id, project?.wizard_step]);
 
@@ -199,11 +263,19 @@ export default function ProposalWizard({
     )?.[1];
     const uploadItems = pendingFiles.map((item) => ({
         ...item,
-        status: uploadForm.processing ? ('uploading' as const) : item.status,
+        status: uploadForm.processing
+            ? ('uploading' as const)
+            : uploadError
+              ? ('error' as const)
+              : item.status,
+        error: typeof uploadError === 'string' ? uploadError : item.error,
         progress: uploadForm.progress?.percentage ?? item.progress,
     }));
 
-    function saveDraft(advance: boolean): void {
+    function saveDraft(advance = false): void {
+        if (draftSaveInFlight.current || form.processing) return;
+
+        draftSaveInFlight.current = true;
         form.transform((data) => ({
             ...data,
             wizard_step: activeStep,
@@ -213,8 +285,13 @@ export default function ProposalWizard({
         const options = {
             preserveScroll: true,
             onSuccess: () => {
-                if (advance)
+                form.setDefaults();
+                if (advance) {
                     setActiveStep((current) => Math.min(current + 1, 5));
+                }
+            },
+            onFinish: () => {
+                draftSaveInFlight.current = false;
             },
         };
 
@@ -234,16 +311,28 @@ export default function ProposalWizard({
                 status: 'queued' as const,
             })),
         ]);
+
+        uploadFiles([...selectedFiles, ...files]);
     }
 
-    function uploadFiles(): void {
-        if (!project || selectedFiles.length === 0) return;
+    function uploadFiles(filesToUpload: File[] = selectedFiles): void {
+        if (!project || filesToUpload.length === 0 || uploadForm.processing) {
+            return;
+        }
 
-        uploadForm.transform(() => ({ files: selectedFiles }));
+        uploadForm.clearErrors();
+        uploadForm.transform(() => ({ files: filesToUpload }));
         uploadForm.post(storeAttachments.url(project.id), {
             forceFormData: true,
             preserveScroll: true,
-            onSuccess: () => setPendingFiles([]),
+            onSuccess: () => {
+                setPendingFiles((current) =>
+                    current.filter(
+                        (item) => !filesToUpload.includes(item.file),
+                    ),
+                );
+                uploadForm.reset();
+            },
         });
     }
 
@@ -261,6 +350,21 @@ export default function ProposalWizard({
         );
     }
 
+    const hasTitle = form.data.title.trim() !== '';
+    const canSaveDraft = isEditing || hasTitle;
+    const savedAt = project?.updated_at
+        ? savedAtFormat.format(new Date(project.updated_at))
+        : null;
+    const footerHint = form.processing
+        ? 'Menyimpan...'
+        : !hasTitle
+          ? 'Isi judul proposal dulu untuk bisa menyimpan.'
+          : requirementsDirty
+            ? 'Simpan perubahan kompetensi sebelum menyimpan draft.'
+            : savedAt
+              ? `Draft terakhir disimpan ${savedAt}.`
+              : 'Draft belum disimpan.';
+
     function setField(field: DraftField, value: string): void {
         form.setData(field, value);
     }
@@ -269,13 +373,14 @@ export default function ProposalWizard({
         return form.errors[field] as string | undefined;
     }
 
-    function renderStepFields(): React.ReactNode {
-        if (activeStep === 1) {
+    function renderStepFields(stepNumber: number): React.ReactNode {
+        if (stepNumber === 1) {
             return (
                 <div className="grid gap-6 sm:grid-cols-2">
                     <FormField
                         id="proposal-title"
                         label="Judul Proposal"
+                        hint="Singkat dan menggambarkan hasil yang dituju."
                         required
                         error={fieldError('title')}
                     >
@@ -286,12 +391,13 @@ export default function ProposalWizard({
                             }
                             placeholder="Contoh: Mengurangi waktu tunggu proses produksi"
                             maxLength={255}
-                            className="h-10"
+                            className={controlClassName}
                         />
                     </FormField>
                     <FormField
                         id="proposal-batch"
                         label="Batch QCC"
+                        hint="Hanya batch yang sedang aktif yang bisa dipilih."
                         required
                         error={fieldError('batch_id')}
                     >
@@ -307,7 +413,7 @@ export default function ProposalWizard({
                         >
                             <SelectTrigger
                                 id="proposal-batch"
-                                className="h-10 w-full"
+                                className={selectTriggerClassName}
                                 aria-invalid={Boolean(fieldError('batch_id'))}
                             >
                                 <SelectValue placeholder="Pilih batch QCC" />
@@ -330,6 +436,7 @@ export default function ProposalWizard({
                         <FormField
                             id="proposal-theme"
                             label="Tema Improvement"
+                            hint="Rangkum perbaikan dalam satu atau dua kalimat."
                             required
                             error={fieldError('theme')}
                         >
@@ -340,7 +447,7 @@ export default function ProposalWizard({
                                 }
                                 placeholder="Tuliskan tema perbaikan yang diajukan"
                                 maxLength={5000}
-                                className="min-h-24"
+                                className="min-h-32"
                             />
                         </FormField>
                     </div>
@@ -348,20 +455,19 @@ export default function ProposalWizard({
             );
         }
 
-        if (activeStep === 2) {
+        if (stepNumber === 2) {
             return (
                 <div className="grid gap-6">
                     <FormField
                         id="proposal-background"
                         label="Latar Belakang"
+                        hint="Apa yang terjadi, dan mengapa perlu diperbaiki sekarang?"
                         required
                         error={fieldError('background')}
                     >
-                        <Textarea
+                        <RichTextarea
                             value={form.data.background}
-                            onChange={(event) =>
-                                setField('background', event.target.value)
-                            }
+                            onChange={(value) => setField('background', value)}
                             placeholder="Jelaskan kondisi yang mendorong improvement"
                             className="min-h-28"
                         />
@@ -369,16 +475,14 @@ export default function ProposalWizard({
                     <FormField
                         id="proposal-problem"
                         label="Pernyataan Masalah"
+                        hint="Satu masalah utama yang spesifik dan bisa diukur."
                         required
                         error={fieldError('problem_statement')}
                     >
-                        <Textarea
+                        <RichTextarea
                             value={form.data.problem_statement}
-                            onChange={(event) =>
-                                setField(
-                                    'problem_statement',
-                                    event.target.value,
-                                )
+                            onChange={(value) =>
+                                setField('problem_statement', value)
                             }
                             placeholder="Tuliskan masalah yang ingin diselesaikan secara spesifik"
                             className="min-h-28"
@@ -388,16 +492,14 @@ export default function ProposalWizard({
                         <FormField
                             id="proposal-situation"
                             label="Situasi Saat Ini"
+                            hint="Proses dan kondisi yang berjalan sekarang."
                             required
                             error={fieldError('current_situation')}
                         >
-                            <Textarea
+                            <RichTextarea
                                 value={form.data.current_situation}
-                                onChange={(event) =>
-                                    setField(
-                                        'current_situation',
-                                        event.target.value,
-                                    )
+                                onChange={(value) =>
+                                    setField('current_situation', value)
                                 }
                                 placeholder="Jelaskan proses dan kondisi saat ini"
                                 className="min-h-28"
@@ -406,6 +508,7 @@ export default function ProposalWizard({
                         <FormField
                             id="proposal-baseline"
                             label="Baseline"
+                            hint="Sertakan angka dan periode pengukurannya."
                             required
                             error={fieldError('baseline')}
                         >
@@ -423,13 +526,18 @@ export default function ProposalWizard({
             );
         }
 
-        if (activeStep === 3) {
+        if (stepNumber === 3) {
             return (
                 <div className="grid gap-6">
+                    <SectionTitle
+                        title="Sasaran proyek"
+                        description="Apa yang ingin dicapai dan sejauh mana cakupannya."
+                    />
                     <div className="grid gap-6 lg:grid-cols-2">
                         <FormField
                             id="proposal-target"
                             label="Target Improvement"
+                            hint="Angka yang ingin dicapai dan cara mengukurnya."
                             required
                             error={fieldError('target')}
                         >
@@ -445,6 +553,7 @@ export default function ProposalWizard({
                         <FormField
                             id="proposal-scope"
                             label="Ruang Lingkup"
+                            hint="Proses, area, dan periode yang termasuk."
                             required
                             error={fieldError('scope')}
                         >
@@ -458,17 +567,20 @@ export default function ProposalWizard({
                             />
                         </FormField>
                     </div>
+                    <SectionTitle
+                        title="Analisis dan rencana"
+                        description="Dari penyebab masalah sampai tindakan dan manfaatnya."
+                    />
                     <FormField
                         id="proposal-rca"
                         label="Root Cause Analysis (RCA)"
+                        hint="Penyebab utama yang dibuktikan dengan data, bukan dugaan."
                         required
                         error={fieldError('rca')}
                     >
-                        <Textarea
+                        <RichTextarea
                             value={form.data.rca}
-                            onChange={(event) =>
-                                setField('rca', event.target.value)
-                            }
+                            onChange={(value) => setField('rca', value)}
                             placeholder="Tuliskan analisis akar penyebab masalah"
                             className="min-h-28"
                         />
@@ -476,13 +588,14 @@ export default function ProposalWizard({
                     <FormField
                         id="proposal-improvement"
                         label="Rencana Perbaikan"
+                        hint="Tindakan konkret, penanggung jawab, dan jadwalnya."
                         required
                         error={fieldError('improvement_plan')}
                     >
-                        <Textarea
+                        <RichTextarea
                             value={form.data.improvement_plan}
-                            onChange={(event) =>
-                                setField('improvement_plan', event.target.value)
+                            onChange={(value) =>
+                                setField('improvement_plan', value)
                             }
                             placeholder="Jelaskan tindakan perbaikan yang direncanakan"
                             className="min-h-28"
@@ -491,13 +604,14 @@ export default function ProposalWizard({
                     <FormField
                         id="proposal-benefit"
                         label="Manfaat Bisnis"
+                        hint="Dampak bagi proses, pelanggan, atau perusahaan."
                         required
                         error={fieldError('business_benefit')}
                     >
-                        <Textarea
+                        <RichTextarea
                             value={form.data.business_benefit}
-                            onChange={(event) =>
-                                setField('business_benefit', event.target.value)
+                            onChange={(value) =>
+                                setField('business_benefit', value)
                             }
                             placeholder="Jelaskan manfaat yang diharapkan bagi organisasi"
                             className="min-h-28"
@@ -507,9 +621,13 @@ export default function ProposalWizard({
             );
         }
 
-        if (activeStep === 4) {
+        if (stepNumber === 4) {
             return (
                 <div className="grid gap-6">
+                    <SectionTitle
+                        title="Hal yang ingin dipelajari"
+                        description="Wajib diisi tiga. Ini dipakai untuk menilai kecocokan tim."
+                    />
                     {form.data.learning_goals.map((goal, index) => (
                         <FormField
                             key={index}
@@ -535,7 +653,7 @@ export default function ProposalWizard({
                                 }
                                 placeholder={`Contoh: ${['Analisis data proses', 'Penerapan metode improvement', 'Standardisasi hasil perbaikan'][index]}`}
                                 maxLength={255}
-                                className="h-10"
+                                className={controlClassName}
                             />
                         </FormField>
                     ))}
@@ -579,9 +697,29 @@ export default function ProposalWizard({
                     </Empty>
                 ) : (
                     <>
+                        <SectionTitle
+                            title="Informasi dan data pelengkap"
+                            description="Ringkasan ini dapat digunakan AI Team Matching. Lampiran dan tautan tidak dibaca otomatis."
+                        />
+                        <FormField
+                            id="proposal-supplementary-information"
+                            label="Ringkasan data pendukung"
+                            hint="Masukkan informasi yang boleh dipakai untuk rekomendasi tim. Jangan masukkan data pribadi yang tidak diperlukan."
+                            error={fieldError('supplementary_information')}
+                        >
+                            <RichTextarea
+                                value={form.data.supplementary_information}
+                                onChange={(value) =>
+                                    setField('supplementary_information', value)
+                                }
+                                placeholder="Tambahkan fakta, data, atau konteks proyek yang belum tercakup pada bagian sebelumnya"
+                                className="min-h-28"
+                            />
+                        </FormField>
                         <FormField
                             id="proposal-attachments"
                             label="Lampiran Proposal"
+                            hint="Lampiran langsung diunggah setelah dipilih. PDF dan gambar dapat dipratinjau setelah tersimpan."
                         >
                             <FileUploader
                                 id="proposal-attachments"
@@ -594,6 +732,7 @@ export default function ProposalWizard({
                                         ),
                                     )
                                 }
+                                onRetry={() => uploadFiles()}
                                 accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx"
                                 maxFiles={10 - existingAttachments.length}
                                 maxFileSizeBytes={50 * 1024 * 1024}
@@ -608,25 +747,6 @@ export default function ProposalWizard({
                                 }
                             />
                         </FormField>
-                        {selectedFiles.length > 0 && (
-                            <div className="flex justify-end">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={uploadFiles}
-                                    disabled={uploadForm.processing}
-                                >
-                                    {uploadForm.processing ? (
-                                        <Spinner />
-                                    ) : (
-                                        <Save data-icon="inline-start" />
-                                    )}
-                                    {uploadForm.processing
-                                        ? 'Mengunggah...'
-                                        : 'Simpan Lampiran'}
-                                </Button>
-                            </div>
-                        )}
                         {existingAttachments.length > 0 && (
                             <div className="grid gap-3">
                                 <h3 className="text-sm font-medium">
@@ -731,7 +851,7 @@ export default function ProposalWizard({
                 title={
                     project ? 'Lanjutkan Draft Proposal' : 'Buat Proposal QCC'
                 }
-                description="Isi proposal bertahap. Draft tersimpan untuk dilanjutkan kapan saja."
+                description="Isi bagian proposal, simpan sebagai draft, lalu ajukan setelah tim dikonfirmasi."
                 actions={[
                     <Button
                         key="drafts"
@@ -762,68 +882,84 @@ export default function ProposalWizard({
                     </CardContent>
                 </Card>
             ) : (
-                <Tabs
-                    value={String(activeStep)}
-                    onValueChange={(value) =>
-                        value && setActiveStep(Number(value))
-                    }
-                    className="gap-5"
-                >
-                    <TabsList
-                        aria-label="Tahapan proposal"
-                        className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-3 lg:grid-cols-5"
-                    >
-                        {steps.map((item) => (
-                            <TabsTrigger
-                                key={item.value}
-                                value={item.value}
-                                disabled={
-                                    item.number > (project?.wizard_step ?? 1)
-                                }
-                                className="min-h-10 justify-start gap-2 px-3 text-left data-active:bg-background"
-                            >
-                                <span className="flex size-6 shrink-0 items-center justify-center rounded-full border text-xs">
-                                    {item.number <
-                                    (project?.wizard_step ?? 1) ? (
-                                        <Check aria-hidden="true" />
-                                    ) : (
-                                        item.number
-                                    )}
-                                </span>
-                                <span className="truncate">{item.label}</span>
-                            </TabsTrigger>
-                        ))}
-                    </TabsList>
-
-                    <TabsContent value={String(activeStep)}>
-                        <Card>
-                            <CardHeader className="border-b">
-                                <div className="flex items-center justify-between gap-4">
-                                    <div className="grid gap-1">
-                                        <CardTitle>
-                                            {steps[activeStep - 1]?.label}
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Tahap {activeStep} dari{' '}
-                                            {steps.length}
-                                        </CardDescription>
-                                    </div>
-                                    <Badge variant="outline">Draft</Badge>
+                <div className="grid gap-5">
+                    <Card className="overflow-hidden border-border/80 shadow-sm">
+                        <CardHeader className="gap-2 border-b bg-muted/25 px-5 py-5 sm:px-7">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="grid gap-1.5">
+                                    <CardTitle className="text-xl sm:text-2xl">
+                                        Informasi proposal
+                                    </CardTitle>
+                                    <CardDescription className="max-w-2xl">
+                                        Lengkapi bagian yang tersedia. Draft
+                                        dapat disimpan sebelum semua bagian
+                                        selesai.
+                                    </CardDescription>
                                 </div>
-                            </CardHeader>
-                            <CardContent className="grid gap-6 pt-6">
-                                {stepError && (
-                                    <p
-                                        role="alert"
-                                        className="text-sm text-destructive"
-                                    >
-                                        {stepError}
-                                    </p>
+                                <Badge
+                                    variant={
+                                        isEditing ? 'warning' : 'secondary'
+                                    }
+                                    className="shrink-0"
+                                >
+                                    {isEditing ? 'Draft' : 'Belum disimpan'}
+                                </Badge>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="grid gap-7 px-5 py-6 sm:px-7 sm:py-8">
+                            {stepError && (
+                                <p
+                                    role="alert"
+                                    className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+                                >
+                                    {stepError}
+                                </p>
+                            )}
+                            <WizardStepper
+                                steps={steps.map(({ number, label }) => ({
+                                    number,
+                                    label,
+                                }))}
+                                current={activeStep}
+                                reached={Math.max(
+                                    project?.wizard_step ?? 1,
+                                    activeStep,
                                 )}
-                                {renderStepFields()}
-                            </CardContent>
-                            <CardFooter className="flex flex-col-reverse justify-between gap-3 border-t sm:flex-row">
-                                <div className="flex w-full gap-2 sm:w-auto">
+                                onSelect={setActiveStep}
+                                label="Tahapan proposal"
+                            />
+                            <div className="grid gap-5 border-b pb-7">
+                                <div className="grid gap-1">
+                                    <p className="text-xs font-medium text-primary">
+                                        Langkah {activeStep} dari {steps.length}
+                                    </p>
+                                    <h2 className="text-base font-semibold text-foreground">
+                                        {steps[activeStep - 1].label}
+                                    </h2>
+                                    <p className="text-sm text-muted-foreground">
+                                        {steps[activeStep - 1].description}
+                                    </p>
+                                </div>
+                                {renderStepFields(activeStep)}
+                            </div>
+                        </CardContent>
+                        <CardFooter className="sticky bottom-0 z-20 flex flex-col gap-3 border-t bg-background/95 px-5 py-4 shadow-[0_-8px_20px_-18px_var(--foreground)] backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-7">
+                            <p
+                                className="text-xs text-muted-foreground"
+                                aria-live="polite"
+                            >
+                                {footerHint}
+                            </p>
+                            {project?.team_status_message && (
+                                <p
+                                    className="w-full text-xs text-muted-foreground sm:max-w-md"
+                                    role="status"
+                                >
+                                    {project.team_status_message}
+                                </p>
+                            )}
+                            <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex gap-2">
                                     <Button
                                         type="button"
                                         variant="outline"
@@ -837,17 +973,56 @@ export default function ProposalWizard({
                                             )
                                         }
                                     >
-                                        <ArrowLeft data-icon="inline-start" />{' '}
-                                        Kembali
+                                        <ChevronLeft data-icon="inline-start" />
+                                        Sebelumnya
                                     </Button>
+                                    {activeStep < steps.length && (
+                                        <Button
+                                            type="button"
+                                            className="h-10 px-4"
+                                            disabled={
+                                                !canSaveDraft ||
+                                                form.processing ||
+                                                requirementsDirty
+                                            }
+                                            onClick={() => saveDraft(true)}
+                                        >
+                                            Lanjut
+                                            <ChevronRight data-icon="inline-end" />
+                                        </Button>
+                                    )}
+                                </div>
+                                {project?.can_find_candidates &&
+                                    !project.team_confirmed && (
+                                        <Button
+                                            type="button"
+                                            className="h-10 px-4 text-white hover:bg-warning/90"
+                                            style={{
+                                                backgroundColor:
+                                                    'var(--warning)',
+                                            }}
+                                            render={
+                                                <Link
+                                                    href={proposalCandidates.url(
+                                                        project.id,
+                                                    )}
+                                                />
+                                            }
+                                            nativeButton={false}
+                                        >
+                                            <UsersRound data-icon="inline-start" />
+                                            Atur Tim
+                                        </Button>
+                                    )}
+                                <div className="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row">
                                     <Button
                                         type="button"
-                                        variant="outline"
+                                        variant="default"
                                         className="h-10 px-4"
                                         disabled={
+                                            !canSaveDraft ||
                                             form.processing ||
-                                            (!isEditing &&
-                                                !form.data.title.trim())
+                                            requirementsDirty
                                         }
                                         onClick={() => saveDraft(false)}
                                     >
@@ -858,31 +1033,36 @@ export default function ProposalWizard({
                                         )}
                                         Simpan Draft
                                     </Button>
+                                    {project?.can_submit && (
+                                        <Button
+                                            type="button"
+                                            className="h-10 px-5"
+                                            disabled={
+                                                activeStep !== steps.length ||
+                                                !project.team_confirmed ||
+                                                form.processing ||
+                                                form.isDirty ||
+                                                requirementsDirty
+                                            }
+                                            onClick={() =>
+                                                router.post(
+                                                    proposalSubmit.url(
+                                                        project.id,
+                                                    ),
+                                                    {},
+                                                    { preserveScroll: true },
+                                                )
+                                            }
+                                        >
+                                            <CheckCircle2 data-icon="inline-start" />
+                                            Ajukan
+                                        </Button>
+                                    )}
                                 </div>
-                                {activeStep < steps.length && (
-                                    <Button
-                                        type="button"
-                                        className="h-10 w-full px-4 sm:w-auto"
-                                        disabled={
-                                            !canContinue ||
-                                            form.processing ||
-                                            !form.data.title.trim() ||
-                                            (activeStep === 4 &&
-                                                requirementsDirty)
-                                        }
-                                        onClick={() => saveDraft(true)}
-                                    >
-                                        {form.processing ? <Spinner /> : null}
-                                        Simpan & Lanjut
-                                        {!form.processing && (
-                                            <ArrowRight data-icon="inline-end" />
-                                        )}
-                                    </Button>
-                                )}
-                            </CardFooter>
-                        </Card>
-                    </TabsContent>
-                </Tabs>
+                            </div>
+                        </CardFooter>
+                    </Card>
+                </div>
             )}
         </div>
     );

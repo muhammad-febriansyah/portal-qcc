@@ -1,4 +1,12 @@
-import { CheckCircle2, RotateCcw, TriangleAlert, Users, X } from 'lucide-react';
+import {
+    CheckCircle2,
+    Crown,
+    RotateCcw,
+    TriangleAlert,
+    UserRound,
+    Users,
+    X,
+} from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
     AlertDialog,
@@ -50,6 +58,9 @@ const roleItems = [
     { value: 'MEMBER', label: 'Anggota' },
 ];
 
+const errorAlertClass =
+    'border-destructive/25 bg-destructive/10 text-destructive [&_[data-slot=alert-description]]:text-destructive/90';
+
 /**
  * The team being put together: pick state, rule check, competency gaps and the
  * confirm step. Nothing here becomes a team until Konfirmasi is accepted.
@@ -68,6 +79,67 @@ export function TeamPanel({
     onConfirm,
 }: Props) {
     const canConfirm = problems.length === 0 && !processing;
+    const leader = picks.find((pick) => pick.role === 'LEADER') ?? picks[0];
+    const members = picks.filter((pick) => pick.user_id !== leader?.user_id);
+
+    function renderMember(pick: TeamPick, isLeader: boolean) {
+        const person = people.get(pick.user_id);
+        const isProjectLeader = isLeader && pick.role === 'LEADER';
+
+        return (
+            <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border/80 bg-background p-2.5 shadow-sm shadow-black/[0.02]">
+                <span
+                    className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${isProjectLeader ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
+                    aria-hidden="true"
+                >
+                    {isProjectLeader ? (
+                        <Crown className="size-4" />
+                    ) : (
+                        <UserRound className="size-4" />
+                    )}
+                </span>
+                <div className="grid min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium">
+                        {person?.name ?? `#${pick.user_id}`}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                        {person?.organization || 'Organisasi belum tersedia'}
+                    </p>
+                </div>
+                <Select
+                    value={pick.role}
+                    onValueChange={(value) =>
+                        value &&
+                        onRoleChange(pick.user_id, value as TeamRole)
+                    }
+                    items={roleItems}
+                >
+                    <SelectTrigger
+                        aria-label={`Peran ${person?.name ?? ''}`}
+                        className="h-8 w-25 px-2 text-xs"
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {roleItems.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Keluarkan ${person?.name ?? ''} dari susunan`}
+                    onClick={() => onRemove(pick.user_id)}
+                >
+                    <X aria-hidden="true" />
+                </Button>
+            </div>
+        );
+    }
 
     return (
         <Card className="gap-0 py-0">
@@ -101,73 +173,51 @@ export function TeamPanel({
                 </Badge>
 
                 {picks.length === 0 ? (
-                    <p className="rounded-lg border border-dashed p-4 text-center text-[13px] text-muted-foreground">
+                    <p className="rounded-xl border border-dashed border-primary/25 bg-primary/[0.035] p-4 text-center text-[13px] text-muted-foreground">
                         Belum ada anggota. Pilih dari rekomendasi atau daftar
                         kandidat.
                     </p>
                 ) : (
-                    <ul className="grid gap-2">
-                        {picks.map((pick) => {
-                            const person = people.get(pick.user_id);
-
-                            return (
-                                <li
-                                    key={pick.user_id}
-                                    className="flex items-center gap-2 rounded-lg border p-2.5"
-                                >
-                                    <div className="grid min-w-0 flex-1">
-                                        <p className="truncate text-[13px] font-medium">
-                                            {person?.name ?? `#${pick.user_id}`}
-                                        </p>
-                                        <p className="truncate text-xs text-muted-foreground">
-                                            {person?.organization}
-                                        </p>
-                                    </div>
-                                    <Select
-                                        value={pick.role}
-                                        onValueChange={(value) =>
-                                            value &&
-                                            onRoleChange(
-                                                pick.user_id,
-                                                value as TeamRole,
-                                            )
-                                        }
-                                        items={roleItems}
-                                    >
-                                        <SelectTrigger
-                                            aria-label={`Peran ${person?.name ?? ''}`}
-                                            className="w-28"
+                    <div className="grid gap-2">
+                        <div className="flex items-center gap-2 px-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                            <Crown
+                                className="size-3.5 text-primary"
+                                aria-hidden="true"
+                            />
+                            {leader?.role === 'LEADER'
+                                ? 'Leader proyek'
+                                : 'Tetapkan leader'}
+                        </div>
+                        {leader && (
+                            <div className="rounded-2xl border border-primary/20 bg-primary/[0.04] p-2">
+                                {renderMember(leader, true)}
+                            </div>
+                        )}
+                        {members.length > 0 && (
+                            <div className="relative ml-4 border-l border-dashed border-primary/30 pl-4 pt-1">
+                                <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                                    Anggota tim
+                                </p>
+                                <ul className="grid gap-2">
+                                    {members.map((pick) => (
+                                        <li
+                                            key={pick.user_id}
+                                            className="relative before:absolute before:top-1/2 before:-left-4 before:w-4 before:border-t before:border-dashed before:border-primary/30"
                                         >
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {roleItems.map((item) => (
-                                                <SelectItem
-                                                    key={item.value}
-                                                    value={item.value}
-                                                >
-                                                    {item.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label={`Keluarkan ${person?.name ?? ''} dari susunan`}
-                                        onClick={() => onRemove(pick.user_id)}
-                                    >
-                                        <X aria-hidden="true" />
-                                    </Button>
-                                </li>
-                            );
-                        })}
-                    </ul>
+                                            {renderMember(pick, false)}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
                 )}
 
                 {problems.length > 0 ? (
-                    <Alert variant="destructive">
+                    <Alert
+                        variant="destructive"
+                        className={errorAlertClass}
+                    >
                         <TriangleAlert aria-hidden="true" />
                         <AlertTitle>Belum bisa dikonfirmasi</AlertTitle>
                         <AlertDescription>
@@ -214,7 +264,11 @@ export function TeamPanel({
                 )}
 
                 {serverErrors.length > 0 && (
-                    <Alert variant="destructive" role="alert">
+                    <Alert
+                        variant="destructive"
+                        role="alert"
+                        className={errorAlertClass}
+                    >
                         <TriangleAlert aria-hidden="true" />
                         <AlertTitle>Tim gagal dikonfirmasi</AlertTitle>
                         <AlertDescription>

@@ -22,25 +22,36 @@ class OpenAiTeamMatchingClient implements TeamMatchingClient
         $credentials = $this->connection->credentials();
 
         try {
-            $response = Http::withToken($credentials['key'])
+            $httpRequest = Http::withToken($credentials['key'])
                 ->acceptJson()
-                ->timeout((int) config('scoring.openai.timeout'))
-                ->post(rtrim((string) config('scoring.openai.base_url'), '/').'/responses', [
-                    'model' => $credentials['model'],
-                    'store' => false,
-                    'input' => [
-                        ['role' => 'system', 'content' => $request['system']],
-                        ['role' => 'user', 'content' => json_encode($request['input'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)],
+                ->connectTimeout(5)
+                ->timeout(max(5, min(60, (int) config('team_matching.request_timeout_seconds', 45))));
+
+            $body = [
+                'model' => $credentials['model'],
+                'store' => false,
+                'input' => [
+                    ['role' => 'system', 'content' => $request['system']],
+                    ['role' => 'user', 'content' => json_encode($request['input'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)],
+                ],
+                'text' => [
+                    'format' => [
+                        'type' => 'json_schema',
+                        'name' => 'team_suggestion',
+                        'strict' => true,
+                        'schema' => $request['schema'],
                     ],
-                    'text' => [
-                        'format' => [
-                            'type' => 'json_schema',
-                            'name' => 'team_suggestion',
-                            'strict' => true,
-                            'schema' => $request['schema'],
-                        ],
-                    ],
-                ]);
+                ],
+            ];
+
+            if ($this->supportsReasoningEffort($credentials['model'])) {
+                $body['reasoning'] = ['effort' => 'low'];
+            }
+
+            $response = $httpRequest->post(
+                rtrim((string) config('scoring.openai.base_url'), '/').'/responses',
+                $body,
+            );
         } catch (ConnectionException) {
             throw new AiUnavailable('Layanan AI tidak merespons tepat waktu.', true, 'ai_timeout');
         }
@@ -58,6 +69,12 @@ class OpenAiTeamMatchingClient implements TeamMatchingClient
             'usage' => (array) $response->json('usage', []),
             'model' => (string) ($response->json('model') ?? $credentials['model']),
         ];
+    }
+
+    private function supportsReasoningEffort(string $model): bool
+    {
+        return preg_match('/^(?:gpt-5(?:[.-]|$)|o[134](?:-|$))/', $model) === 1
+            && ! str_starts_with($model, 'gpt-5-pro');
     }
 
     /**

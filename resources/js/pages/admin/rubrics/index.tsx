@@ -683,7 +683,7 @@ export default function RubricsIndex({
                         <DialogFooter className="border-t pt-4">
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="destructive"
                                 onClick={() => setIsDialogOpen(false)}
                                 disabled={form.processing}
                             >

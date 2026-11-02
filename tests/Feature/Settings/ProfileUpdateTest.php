@@ -32,6 +32,8 @@ test('profile information can be updated', function () {
             'email' => 'test@example.com',
             'position' => 'Staff Operasional',
             'work_location' => 'Jakarta',
+            'work_contact' => '0215550101',
+            'personal_contact' => '081234567890',
             'organization_id' => $organization->id,
             'availability_status' => 'AVAILABLE',
         ]);
@@ -46,9 +48,40 @@ test('profile information can be updated', function () {
     expect($user->email)->toBe('test@example.com');
     expect($user->position)->toBe('Staff Operasional');
     expect($user->work_location)->toBe('Jakarta');
+    expect($user->work_contact)->toBe('0215550101');
+    expect($user->personal_contact)->toBe('081234567890');
     expect($user->organization_id)->toBe($organization->id);
     expect($user->availability_status)->toBe('AVAILABLE');
     expect($user->email_verified_at)->toBeNull();
+
+    $this->actingAs($user)
+        ->get(route('profile.edit'))
+        ->assertInertia(fn ($page) => $page
+            ->where('profile.work_contact', '0215550101')
+            ->where('profile.personal_contact', '081234567890'));
+});
+
+test('work and personal contacts are required and existing contacts stay unchanged after invalid input', function () {
+    $user = User::factory()->create([
+        'work_contact' => '02111112222',
+        'personal_contact' => '08111112222',
+    ]);
+    $organization = Organization::factory()->create(['is_active' => true]);
+
+    $this->actingAs($user)
+        ->from(route('profile.edit'))
+        ->patch(route('profile.update'), [
+            'name' => $user->name,
+            'email' => $user->email,
+            'position' => 'Staff Operasional',
+            'work_location' => 'Jakarta',
+            'organization_id' => $organization->id,
+            'availability_status' => 'AVAILABLE',
+        ])
+        ->assertSessionHasErrors(['work_contact', 'personal_contact']);
+
+    expect($user->fresh()->work_contact)->toBe('02111112222')
+        ->and($user->fresh()->personal_contact)->toBe('08111112222');
 });
 
 test('email verification status is unchanged when the email address is unchanged', function () {
@@ -62,6 +95,8 @@ test('email verification status is unchanged when the email address is unchanged
             'email' => $user->email,
             'position' => 'Staff Operasional',
             'work_location' => 'Jakarta',
+            'work_contact' => '0215550102',
+            'personal_contact' => '081234567891',
             'organization_id' => $organization->id,
             'availability_status' => 'UNAVAILABLE',
         ]);
@@ -86,6 +121,8 @@ test('unsupported availability statuses are rejected', function () {
             'email' => $user->email,
             'position' => $user->position ?? 'Staff Operasional',
             'work_location' => $user->work_location ?? 'Jakarta',
+            'work_contact' => $user->work_contact ?? '0215550103',
+            'personal_contact' => $user->personal_contact ?? '081234567892',
             'organization_id' => $organization->id,
             'availability_status' => 'MAYBE',
         ]);
@@ -107,6 +144,8 @@ test('inactive organizations cannot be selected in a profile', function () {
             'email' => $user->email,
             'position' => 'Staff Operasional',
             'work_location' => 'Jakarta',
+            'work_contact' => '0215550104',
+            'personal_contact' => '081234567893',
             'organization_id' => $organization->id,
             'availability_status' => 'AVAILABLE',
         ]);

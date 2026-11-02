@@ -59,6 +59,17 @@ class MemberCompetency extends Model
         return $this->belongsTo(Competency::class);
     }
 
+    /**
+     * The verified level only while the verification stands. A rejected or changed
+     * verification keeps its old number in the database but must not count anywhere.
+     */
+    public function activeVerifiedLevel(): ?int
+    {
+        return $this->verification_status === self::STATUS_VERIFIED && $this->verified_level !== null
+            ? (int) $this->verified_level
+            : null;
+    }
+
     public function auditEventPrefix(): string
     {
         return 'member_competency';

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ApprovedTeamController;
 use App\Http\Controllers\BiweeklyReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DataExportController;
@@ -50,6 +51,9 @@ Route::middleware(['auth', 'verified', 'profile.complete'])->group(function () {
     Route::get('proposals/{project}/candidates', [ProposalController::class, 'candidates'])->name('proposals.candidates');
     Route::post('proposals/{project}/matching', [ProposalController::class, 'startMatching'])->whereNumber('project')->name('proposals.matching.start');
     Route::post('proposals/{project}/team', [ProposalController::class, 'confirmTeam'])->whereNumber('project')->name('proposals.team.confirm');
+    Route::post('proposals/{project}/team/members', [ApprovedTeamController::class, 'store'])->whereNumber('project')->name('proposals.team.members.store');
+    Route::delete('proposals/{project}/team/members/{member}', [ApprovedTeamController::class, 'destroy'])->whereNumber(['project', 'member'])->name('proposals.team.members.destroy');
+    Route::post('proposals/{project}/team/leader', [ApprovedTeamController::class, 'changeLeader'])->whereNumber('project')->name('proposals.team.leader.update');
     Route::post('proposals/{project}/submit', [ProposalController::class, 'submit'])->whereNumber('project')->name('proposals.submit');
     Route::post('proposals/{project}/review', [ProposalController::class, 'startReview'])->whereNumber('project')->name('proposals.review.start');
     Route::post('proposals/{project}/review/decision', [ProposalController::class, 'decide'])->whereNumber('project')->name('proposals.review.decide');

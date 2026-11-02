@@ -31,6 +31,8 @@ class ProfileController extends Controller
                 'sim_id' => $user?->sim_id,
                 'position' => $user?->position,
                 'work_location' => $user?->work_location,
+                'work_contact' => $user?->work_contact,
+                'personal_contact' => $user?->personal_contact,
                 'organization_id' => $user?->organization_id,
                 'organization_name' => $user?->organization()->value('name'),
                 'availability_status' => $user?->availability_status,

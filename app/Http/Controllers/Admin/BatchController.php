@@ -100,10 +100,11 @@ class BatchController extends Controller
     {
         Gate::authorize('delete', $batch);
 
-        if (DB::table('projects')->where('batch_id', $batch->id)->exists()) {
+        if (DB::table('projects')->where('batch_id', $batch->id)->exists()
+            || DB::table('qcc_batch_schedules')->where('batch_id', $batch->id)->exists()) {
             Inertia::flash('toast', [
                 'type' => 'warning',
-                'message' => 'Batch sudah dipakai proyek dan tidak dapat dihapus. Ubah statusnya menjadi Ditutup.',
+                'message' => 'Batch sudah dipakai proyek atau memiliki jadwal dan tidak dapat dihapus. Ubah statusnya menjadi Ditutup.',
             ]);
 
             return back();

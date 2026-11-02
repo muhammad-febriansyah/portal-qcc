@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
@@ -31,6 +32,8 @@ function profilePayload(string $email, string $name = 'Sari Wulandari'): array
         'email' => $email,
         'position' => 'Staf Operasional',
         'work_location' => 'Jakarta',
+        'work_contact' => '0215550101',
+        'personal_contact' => '081234567890',
         'organization_id' => Organization::factory()->create(['is_active' => true])->id,
         'availability_status' => 'AVAILABLE',
     ];
@@ -129,6 +132,24 @@ test('the signed link verifies the account and opens the portal', function () {
 
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
     Event::assertDispatched(Verified::class);
+});
+
+test('email verification is recorded once in the audit log', function () {
+    $user = User::factory()->unverified()->create(['name' => 'Sari Wulandari']);
+
+    $this->actingAs($user)
+        ->get(verificationLink($user))
+        ->assertRedirect(route('dashboard', absolute: false).'?verified=1');
+
+    $entries = AuditLog::query()
+        ->where('event', 'user.email_verified')
+        ->where('subject_id', $user->id)
+        ->get();
+
+    expect($entries)->toHaveCount(1)
+        ->and($entries->first()->subject_type)->toBe($user->getMorphClass())
+        ->and($entries->first()->subject_label)->toBe($user->name)
+        ->and(AuditLog::query()->where('event', 'user.updated')->where('subject_id', $user->id)->exists())->toBeFalse();
 });
 
 test('a link with a wrong hash does not verify the account', function () {

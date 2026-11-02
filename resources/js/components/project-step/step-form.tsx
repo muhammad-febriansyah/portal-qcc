@@ -33,6 +33,15 @@ export type EditableStep = {
     can_submit: boolean;
 };
 
+function CharacterCount({ value, max }: { value: string; max: number }) {
+    return (
+        <p className="text-right text-xs text-muted-foreground">
+            {value.length.toLocaleString('id-ID')} /{' '}
+            {max.toLocaleString('id-ID')} karakter
+        </p>
+    );
+}
+
 /**
  * The step form of the team: save a draft any time, submit when the activity and
  * the plan are filled in. The version travels with the form, so a stale page
@@ -86,44 +95,62 @@ export function StepForm({
                 id="activity_description"
                 label="Deskripsi aktivitas"
                 required
+                hint="Catat kegiatan yang dilakukan, pihak yang terlibat, dan hasil pengamatan."
                 error={form.errors.activity_description}
+                footer={
+                    <CharacterCount
+                        value={form.data.activity_description}
+                        max={20000}
+                    />
+                }
             >
                 <Textarea
                     value={form.data.activity_description}
+                    maxLength={20000}
                     onChange={(event) =>
                         form.setData('activity_description', event.target.value)
                     }
-                    placeholder="Jelaskan aktivitas pada step ini"
-                    className="min-h-24"
+                    placeholder="Contoh: Tim mengumpulkan data proses selama minggu pertama dan menemukan..."
+                    className="min-h-28"
                 />
             </FormField>
             <FormField
                 id="plan_text"
                 label="Rencana"
                 required
+                hint="Tuliskan langkah berikutnya, penanggung jawab, dan target waktunya."
                 error={form.errors.plan_text}
+                footer={
+                    <CharacterCount value={form.data.plan_text} max={20000} />
+                }
             >
                 <Textarea
                     value={form.data.plan_text}
+                    maxLength={20000}
                     onChange={(event) =>
                         form.setData('plan_text', event.target.value)
                     }
-                    placeholder="Apa yang direncanakan?"
-                    className="min-h-24"
+                    placeholder="Contoh: Validasi data bersama tim, lalu dokumentasikan hasil sebelum..."
+                    className="min-h-28"
                 />
             </FormField>
             <FormField
                 id="actual_text"
                 label="Aktual / hasil"
+                hint="Bandingkan hasil aktual dengan rencana; sertakan data atau kendala bila ada."
                 error={form.errors.actual_text}
+                footer={
+                    <CharacterCount value={form.data.actual_text} max={20000} />
+                }
             >
                 <Textarea
                     value={form.data.actual_text}
+                    maxLength={20000}
                     onChange={(event) =>
                         form.setData('actual_text', event.target.value)
                     }
-                    placeholder="Tuliskan realisasi dan hasil"
-                    className="min-h-24"
+                    placeholder="Contoh: Data menunjukkan waktu proses turun dari... menjadi..."
+                    className="min-h-28"
                 />
             </FormField>
             <div className="grid gap-5 sm:grid-cols-2">
@@ -169,14 +196,19 @@ export function StepForm({
             <FormField
                 id="submitter_note"
                 label="Catatan pengaju"
+                hint="Opsional: tambahkan konteks yang perlu diketahui reviewer."
                 error={form.errors.submitter_note}
+                footer={
+                    <CharacterCount value={form.data.submitter_note} max={5000} />
+                }
             >
                 <Textarea
                     value={form.data.submitter_note}
+                    maxLength={5000}
                     onChange={(event) =>
                         form.setData('submitter_note', event.target.value)
                     }
-                    placeholder="Tambahkan catatan untuk reviewer"
+                    placeholder="Tambahkan catatan singkat untuk reviewer"
                     className="min-h-20"
                 />
             </FormField>
@@ -184,7 +216,7 @@ export function StepForm({
             <div className="flex flex-wrap justify-end gap-2">
                 <Button
                     type="submit"
-                    variant="outline"
+                    variant="default"
                     className="h-10 px-4"
                     disabled={form.processing}
                 >

@@ -8,6 +8,10 @@ use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
+beforeEach(function (): void {
+    config()->set('qcc_features.chapter_ten_scoring', true);
+});
+
 function rubricManager(bool $canPublish = true): User
 {
     $admin = User::factory()->create();

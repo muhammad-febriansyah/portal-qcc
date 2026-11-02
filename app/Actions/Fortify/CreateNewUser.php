@@ -4,9 +4,11 @@ namespace App\Actions\Fortify;
 
 use App\Concerns\PasswordValidationRules;
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 use Spatie\Permission\Models\Role;
 
@@ -34,16 +36,34 @@ class CreateNewUser implements CreatesNewUsers
             'email.unique' => 'Email sudah terdaftar.',
         ])->validate();
 
-        return DB::transaction(function () use ($validated): User {
-            $user = User::create([
-                ...$validated,
-                'is_active' => true,
-                'needs_profile_setup' => true,
+        try {
+            return DB::transaction(function () use ($validated): User {
+                $user = new User([
+                    ...$validated,
+                    'is_active' => true,
+                    'needs_profile_setup' => true,
+                ]);
+                $user->saveQuietly();
+
+                $user->syncRoles([Role::findOrCreate('SIMer / Member', 'web')]);
+
+                return $user;
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            // Two people can pass the check above at the same moment. The unique index in the
+            // database has the last word, and the person who lost gets the same message as a duplicate.
+            // Only the message of the database driver names the index; the full message also lists every column of the insert.
+            $driverMessage = (string) ($exception->errorInfo[2] ?? $exception->getPrevious()?->getMessage() ?? '');
+            // The index is named "users.users_sim_id_unique" on MySQL and "users.sim_id" on SQLite.
+            $field = preg_match('/users[._](sim_id|email)/', $driverMessage, $match) === 1 ? $match[1] : null;
+
+            if ($field === null) {
+                throw $exception;
+            }
+
+            throw ValidationException::withMessages([
+                $field => $field === 'sim_id' ? 'SIM ID sudah terdaftar.' : 'Email sudah terdaftar.',
             ]);
-
-            $user->syncRoles([Role::findOrCreate('SIMer / Member', 'web')]);
-
-            return $user;
-        });
+        }
     }
 }

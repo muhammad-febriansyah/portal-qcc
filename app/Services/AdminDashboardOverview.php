@@ -8,7 +8,6 @@ use App\Models\AuditLog;
 use App\Models\CompetencyGroup;
 use App\Models\Organization;
 use App\Models\QccBatch;
-use App\Models\RubricSet;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -181,9 +180,31 @@ class AdminDashboardOverview
         $items = [
             ['key' => 'no_organization', 'label' => 'Peserta belum punya LOB / Divisi', 'count' => $this->participants()->whereNull('users.organization_id')->count()],
             ['key' => 'no_sim_id', 'label' => 'Peserta belum punya SIM ID', 'count' => $this->participants()->whereNull('users.sim_id')->count()],
+            ['key' => 'incomplete_contacts', 'label' => 'Peserta belum melengkapi kontak kerja / pribadi', 'count' => $this->participants()->where(function (Builder $query): void {
+                $query->whereNull('users.work_contact')->orWhere('users.work_contact', '')
+                    ->orWhereNull('users.personal_contact')->orWhere('users.personal_contact', '');
+            })->count()],
             ['key' => 'no_competency', 'label' => 'Peserta belum mengisi kompetensi', 'count' => $participantCount - $filledCount],
-            ['key' => 'unpublished_rubric', 'label' => 'Rubrik penilaian belum dipublikasikan', 'count' => RubricSet::query()->whereDoesntHave('versions', fn (Builder $versions): Builder => $versions->where('publication_status', 'published'))->count()],
         ];
+
+        if (Schema::hasTable('qcc_batch_schedules')) {
+            $items[] = [
+                'key' => 'batch_schedules_incomplete',
+                'label' => 'Jadwal bi-weekly / mentoring batch belum lengkap',
+                'count' => DB::table('qcc_batches')
+                    ->where('status', BatchStatus::Active->value)
+                    ->where(function ($query): void {
+                        foreach (['BIWEEKLY', 'MENTORING'] as $scheduleType) {
+                            $query->orWhereNotExists(fn ($scheduleQuery) => $scheduleQuery
+                                ->selectRaw('1')
+                                ->from('qcc_batch_schedules')
+                                ->whereColumn('qcc_batch_schedules.batch_id', 'qcc_batches.id')
+                                ->where('qcc_batch_schedules.schedule_type', $scheduleType));
+                        }
+                    })
+                    ->count(),
+            ];
+        }
 
         if (Schema::hasTable('system_settings')) {
             $settings = DB::table('system_settings')->whereIn('key', ['ai_api_key', 'ai_model'])->pluck('value', 'key');

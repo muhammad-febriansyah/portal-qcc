@@ -39,6 +39,7 @@ import { dashboard } from '@/routes';
 import { show as showSteps } from '@/routes/projects/steps';
 import { candidates, create, edit, index, show } from '@/routes/proposals';
 import { proposals as exportProposals } from '@/routes/exports';
+import { index as teamFormationIndex } from '@/routes/team-formation';
 
 type Draft = {
     id: number;
@@ -80,6 +81,7 @@ type ProposalQuery = Partial<ProposalFilters> & { page?: number };
 type Props = {
     drafts: Draft[];
     can_create: boolean;
+    can_manage_teams: boolean;
     proposals: {
         data: ProposalRow[];
         current_page: number;
@@ -178,9 +180,7 @@ function DraftList({ drafts }: { drafts: Draft[] }) {
                                     {draft.batch ?? '—'}
                                 </p>
                             </div>
-                            <Badge variant="outline">
-                                Langkah {draft.wizard_step} dari 5
-                            </Badge>
+                            <Badge variant="outline">Draft tersimpan</Badge>
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -201,6 +201,7 @@ function DraftList({ drafts }: { drafts: Draft[] }) {
 export default function ProposalsIndex({
     drafts,
     can_create: canCreate,
+    can_manage_teams: canManageTeams,
     proposals,
     filters,
     statusOptions,
@@ -418,6 +419,21 @@ export default function ProposalsIndex({
                             <CsvExportButton
                                 href={exportProposals.url({ query: filters })}
                             />
+                            {canManageTeams ? (
+                                <Button
+                                    className="h-10 bg-orange-500 px-4 text-sm text-white hover:bg-orange-600"
+                                    render={
+                                        <Link href={teamFormationIndex()} />
+                                    }
+                                    nativeButton={false}
+                                >
+                                    <UsersRound
+                                        data-icon="inline-start"
+                                        aria-hidden="true"
+                                    />
+                                    Atur susunan tim
+                                </Button>
+                            ) : null}
                             {canCreate ? (
                                 <Button
                                     className="h-10 px-4 text-sm"

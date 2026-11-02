@@ -677,7 +677,7 @@ export default function UsersIndex({
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="destructive"
                                 onClick={closeResetPassword}
                                 disabled={resetForm.processing}
                             >
@@ -707,7 +707,7 @@ export default function UsersIndex({
                     <DialogFooter>
                         <Button
                             type="button"
-                            variant="outline"
+                            variant="destructive"
                             disabled={bulkProcessing}
                             onClick={() => setBulkDeleteOpen(false)}
                         >

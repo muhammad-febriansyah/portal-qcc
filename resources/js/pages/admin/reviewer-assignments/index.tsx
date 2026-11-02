@@ -11,7 +11,12 @@ import { FormField } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import {
+    Card,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import {
     Combobox,
     ComboboxContent,
@@ -194,11 +199,11 @@ export default function ReviewerAssignmentsIndex({
                 accessorKey: 'project',
                 header: 'Proyek',
                 cell: ({ row }) => (
-                    <div className="min-w-48">
-                        <p className="font-medium text-foreground">
+                    <div className="min-w-44 max-w-64">
+                        <p className="line-clamp-2 font-medium text-foreground">
                             {row.original.project}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
                             {row.original.project_code}
                             {row.original.batch
                                 ? ` · ${row.original.batch}`
@@ -212,22 +217,35 @@ export default function ReviewerAssignmentsIndex({
                 accessorKey: 'reviewer',
                 header: 'Reviewer',
                 cell: ({ row }) => (
-                    <div>
-                        <p className="font-medium text-foreground">
+                    <div className="min-w-40 max-w-56">
+                        <p className="truncate font-medium text-foreground">
                             {row.original.reviewer}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
                             {row.original.reviewer_email ?? 'Akun tidak aktif'}
                         </p>
                     </div>
                 ),
             },
-            { id: 'scope_label', accessorKey: 'scope_label', header: 'Scope' },
+            {
+                id: 'scope_label',
+                accessorKey: 'scope_label',
+                header: 'Scope',
+                cell: ({ row }) => (
+                    <Badge variant="outline" className="whitespace-nowrap">
+                        {row.original.scope_label}
+                    </Badge>
+                ),
+            },
             {
                 id: 'expires_at',
                 accessorKey: 'expires_at',
                 header: 'Berlaku sampai',
-                cell: ({ row }) => formatDate(row.original.expires_at),
+                cell: ({ row }) => (
+                    <span className="text-muted-foreground">
+                        {formatDate(row.original.expires_at)}
+                    </span>
+                ),
             },
             {
                 id: 'status',
@@ -279,81 +297,100 @@ export default function ReviewerAssignmentsIndex({
     return (
         <>
             <Head title="Penugasan Reviewer" />
-            <PageHeader
-                breadcrumbs={[
-                    { title: 'Dashboard', href: dashboard() },
-                    { title: 'Penugasan Reviewer', href: index() },
-                ]}
-                title="Penugasan Reviewer"
-                description="Tentukan reviewer untuk proyek dan scope tertentu. Permission akun tetap menjadi syarat review."
-                actions={
-                    <Button onClick={openDialog}>
-                        <Plus aria-hidden="true" />
-                        Tugaskan Reviewer
-                    </Button>
-                }
-            />
-
-            <Card className="overflow-hidden p-0">
-                <DataTable
-                    columns={columns}
-                    data={assignments.data}
-                    page={assignments.current_page}
-                    pageSize={assignments.per_page}
-                    total={assignments.total}
-                    onPageChange={changePage}
-                    search={searchValue}
-                    onSearchChange={setSearchValue}
-                    searchPlaceholder="Cari proyek atau reviewer..."
-                    filters={
-                        <Select
-                            value={filters.status}
-                            onValueChange={(status) =>
-                                status &&
-                                router.get(
-                                    index.url({
-                                        query: { ...filters, status, page: 1 },
-                                    }),
-                                    {},
-                                    {
-                                        preserveState: true,
-                                        preserveScroll: true,
-                                        only: ['assignments', 'filters'],
-                                    },
-                                )
-                            }
-                            items={[
-                                { value: 'ACTIVE', label: 'Penugasan aktif' },
-                                {
-                                    value: 'REVOKED',
-                                    label: 'Dicabut / kedaluwarsa',
-                                },
-                                { value: 'all', label: 'Semua status' },
-                            ]}
-                        >
-                            <SelectTrigger className="w-full sm:w-52">
-                                <SelectValue placeholder="Semua status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="ACTIVE">
-                                    Penugasan aktif
-                                </SelectItem>
-                                <SelectItem value="REVOKED">
-                                    Dicabut / kedaluwarsa
-                                </SelectItem>
-                                <SelectItem value="all">
-                                    Semua status
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
+            <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                <PageHeader
+                    breadcrumbs={[
+                        { title: 'Dashboard', href: dashboard() },
+                        { title: 'Penugasan Reviewer', href: index() },
+                    ]}
+                    title="Penugasan Reviewer"
+                    description="Tentukan reviewer untuk proyek dan scope tertentu. Permission akun tetap menjadi syarat review."
+                    actions={
+                        <Button onClick={openDialog} className="w-full sm:w-auto">
+                            <Plus aria-hidden="true" />
+                            Tugaskan Reviewer
+                        </Button>
                     }
-                    emptyTitle="Belum ada penugasan reviewer"
-                    emptyDescription="Tugaskan reviewer untuk menentukan siapa yang dapat memproses review proyek."
                 />
-            </Card>
+
+                <Card className="gap-0 overflow-hidden p-0 shadow-sm">
+                    <CardHeader className="border-b bg-muted/20 px-5 py-4 md:px-6">
+                        <CardTitle className="text-base">
+                            Daftar penugasan
+                        </CardTitle>
+                        <CardDescription className="max-w-2xl">
+                            Cari reviewer atau proyek, lalu filter berdasarkan
+                            status penugasan.
+                        </CardDescription>
+                    </CardHeader>
+                    <DataTable
+                        columns={columns}
+                        data={assignments.data}
+                        page={assignments.current_page}
+                        pageSize={assignments.per_page}
+                        total={assignments.total}
+                        onPageChange={changePage}
+                        search={searchValue}
+                        onSearchChange={setSearchValue}
+                        searchPlaceholder="Cari proyek atau reviewer..."
+                        filters={
+                            <Select
+                                value={filters.status}
+                                onValueChange={(status) =>
+                                    status &&
+                                    router.get(
+                                        index.url({
+                                            query: {
+                                                ...filters,
+                                                status,
+                                                page: 1,
+                                            },
+                                        }),
+                                        {},
+                                        {
+                                            preserveState: true,
+                                            preserveScroll: true,
+                                            only: ['assignments', 'filters'],
+                                        },
+                                    )
+                                }
+                                items={[
+                                    {
+                                        value: 'ACTIVE',
+                                        label: 'Penugasan aktif',
+                                    },
+                                    {
+                                        value: 'REVOKED',
+                                        label: 'Dicabut / kedaluwarsa',
+                                    },
+                                    { value: 'all', label: 'Semua status' },
+                                ]}
+                            >
+                                <SelectTrigger className="w-full sm:w-52">
+                                    <SelectValue placeholder="Semua status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="ACTIVE">
+                                        Penugasan aktif
+                                    </SelectItem>
+                                    <SelectItem value="REVOKED">
+                                        Dicabut / kedaluwarsa
+                                    </SelectItem>
+                                    <SelectItem value="all">
+                                        Semua status
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        }
+                        emptyTitle="Belum ada penugasan reviewer"
+                        emptyDescription="Tugaskan reviewer untuk menentukan siapa yang dapat memproses review proyek."
+                        embedded
+                    />
+                </Card>
+            </div>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent className="sm:max-w-2xl">
+                <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
                     <DialogHeader>
                         <DialogTitle>Tugaskan Reviewer</DialogTitle>
                         <DialogDescription>
@@ -531,7 +568,7 @@ export default function ReviewerAssignmentsIndex({
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="destructive"
                                 onClick={() => setDialogOpen(false)}
                                 disabled={form.processing}
                             >

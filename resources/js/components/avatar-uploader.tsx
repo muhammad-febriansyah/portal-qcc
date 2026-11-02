@@ -157,7 +157,7 @@ export function AvatarUploader({ name, avatarUrl }: Props) {
                     <div className="flex justify-center gap-2">
                         <Button
                             type="button"
-                            variant="outline"
+                            variant="destructive"
                             className="h-10 px-4 text-sm"
                             onClick={cancelSelection}
                             disabled={form.processing}

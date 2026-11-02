@@ -1,24 +1,18 @@
-import { Head, Link } from '@inertiajs/react';
-import { ArrowRight, FileText, Search, UsersRound } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { ArrowRight, FileText } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { DataTable } from '@/components/data-table';
+import type { DataTableColumnDef } from '@/components/data-table';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
     Card,
-    CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import {
-    Empty,
-    EmptyContent,
-    EmptyDescription,
-    EmptyHeader,
-    EmptyMedia,
-    EmptyTitle,
-} from '@/components/ui/empty';
-import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import {
     index as proposalIndex,
@@ -38,17 +32,12 @@ type ProposalRow = {
     updated_at: string | null;
 };
 
-type PageLink = { url: string | null; label: string; active: boolean };
-
 type Props = {
     proposals: {
         data: ProposalRow[];
         current_page: number;
-        from: number | null;
-        to: number | null;
+        per_page: number;
         total: number;
-        last_page: number;
-        links: PageLink[];
     };
     filters: { search: string };
     can_create_proposal: boolean;
@@ -70,6 +59,136 @@ export default function TeamFormationIndex({
     filters,
     can_create_proposal,
 }: Props) {
+    const [search, setSearch] = useState(filters.search);
+
+    function visit(
+        query: { search?: string; page?: number },
+        resetPage = true,
+    ): void {
+        const nextQuery = {
+            search: query.search ?? filters.search,
+            page: resetPage ? 1 : (query.page ?? proposals.current_page),
+        };
+
+        router.get(
+            teamFormationIndex.url({ query: nextQuery }),
+            {},
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                only: ['proposals', 'filters'],
+            },
+        );
+    }
+
+    useEffect(() => {
+        setSearch(filters.search);
+    }, [filters.search]);
+
+    useEffect(() => {
+        if (search === filters.search) {
+            return;
+        }
+
+        const timeout = window.setTimeout(() => visit({ search }), 350);
+
+        return () => window.clearTimeout(timeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [search]);
+
+    const columns = useMemo<DataTableColumnDef<ProposalRow>[]>(
+        () => [
+            {
+                id: 'code',
+                accessorKey: 'code',
+                header: 'Kode',
+                cell: ({ row }) => (
+                    <span className="font-medium whitespace-nowrap text-foreground">
+                        {row.original.code}
+                    </span>
+                ),
+            },
+            {
+                id: 'title',
+                accessorKey: 'title',
+                header: 'Judul Proposal',
+                cell: ({ row }) => (
+                    <div className="grid gap-1">
+                        <span className="line-clamp-2 max-w-md font-medium">
+                            {row.original.title}
+                        </span>
+                        <Badge variant="secondary" className="w-fit">
+                            Draf
+                        </Badge>
+                    </div>
+                ),
+            },
+            {
+                id: 'batch',
+                accessorKey: 'batch',
+                header: 'Batch',
+                cell: ({ row }) => row.original.batch ?? 'Tanpa batch',
+            },
+            {
+                id: 'proposer',
+                accessorKey: 'proposer',
+                header: 'Pengaju',
+                cell: ({ row }) => (
+                    <div className="grid gap-0.5">
+                        <span>{row.original.proposer ?? '—'}</span>
+                        {row.original.organization && (
+                            <span className="text-xs text-muted-foreground">
+                                {row.original.organization}
+                            </span>
+                        )}
+                    </div>
+                ),
+            },
+            {
+                id: 'members_count',
+                accessorKey: 'members_count',
+                header: 'Anggota',
+                cell: ({ row }) => `${row.original.members_count} dipilih`,
+            },
+            {
+                id: 'requirements_count',
+                accessorKey: 'requirements_count',
+                header: 'Kompetensi',
+                cell: ({ row }) =>
+                    `${row.original.requirements_count} dibutuhkan`,
+            },
+            {
+                id: 'updated_at',
+                accessorKey: 'updated_at',
+                header: 'Diperbarui',
+                cell: ({ row }) => (
+                    <span className="whitespace-nowrap text-muted-foreground">
+                        {formatUpdatedAt(row.original.updated_at)}
+                    </span>
+                ),
+            },
+            {
+                id: 'actions',
+                header: 'Aksi',
+                cell: ({ row }) => (
+                    <Link
+                        href={proposalCandidates.url(row.original.id)}
+                        className={cn(
+                            buttonVariants({ size: 'sm' }),
+                            'whitespace-nowrap text-white hover:bg-warning/90',
+                        )}
+                        style={{ backgroundColor: 'var(--warning)' }}
+                    >
+                        Atur susunan tim
+                        <ArrowRight data-icon="inline-end" aria-hidden="true" />
+                    </Link>
+                ),
+            },
+        ],
+        [],
+    );
+
     return (
         <>
             <Head title="Pembentukan Tim" />
@@ -107,167 +226,29 @@ export default function TeamFormationIndex({
                             {proposals.total} proposal draf dapat ditangani
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="border-b p-4">
-                        <form
-                            action={teamFormationIndex.url()}
-                            method="get"
-                            className="flex w-full max-w-xl items-center gap-2"
-                        >
-                            <div className="relative min-w-0 flex-1">
-                                <Search
-                                    aria-hidden="true"
-                                    className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                                />
-                                <Input
-                                    aria-label="Cari proposal"
-                                    name="search"
-                                    defaultValue={filters.search}
-                                    placeholder="Cari kode, judul, atau pengaju..."
-                                    className="h-9 pl-9"
-                                />
-                            </div>
-                            <Button type="submit" variant="outline" size="sm">
-                                Cari
-                            </Button>
-                        </form>
-                    </CardContent>
-
-                    {proposals.data.length === 0 ? (
-                        <Empty className="min-h-64 border-0">
-                            <EmptyHeader>
-                                <EmptyMedia variant="icon">
-                                    <UsersRound aria-hidden="true" />
-                                </EmptyMedia>
-                                <EmptyTitle>
-                                    {filters.search
-                                        ? 'Proposal tidak ditemukan'
-                                        : 'Belum ada proposal draf'}
-                                </EmptyTitle>
-                                <EmptyDescription>
-                                    {filters.search
-                                        ? 'Coba kata kunci lain atau hapus pencarian.'
-                                        : 'Proposal draf yang dapat Anda tangani akan muncul di sini.'}
-                                </EmptyDescription>
-                            </EmptyHeader>
-                            {!filters.search && (
-                                <EmptyContent>
-                                    <Button
-                                        variant="outline"
-                                        render={<Link href={proposalIndex()} />}
-                                        nativeButton={false}
-                                    >
-                                        Buka Proposal QCC
-                                        <ArrowRight data-icon="inline-end" />
-                                    </Button>
-                                </EmptyContent>
-                            )}
-                        </Empty>
-                    ) : (
-                        <ul className="divide-y divide-border/60">
-                            {proposals.data.map((proposal) => (
-                                <li
-                                    key={proposal.id}
-                                    className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-                                >
-                                    <div className="flex min-w-0 items-start gap-3">
-                                        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                            <UsersRound
-                                                aria-hidden="true"
-                                                className="size-5"
-                                            />
-                                        </span>
-                                        <div className="grid min-w-0 gap-1">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <p className="truncate text-sm font-semibold">
-                                                    {proposal.title}
-                                                </p>
-                                                <Badge variant="secondary">
-                                                    Draf
-                                                </Badge>
-                                            </div>
-                                            <p className="text-xs text-muted-foreground">
-                                                {proposal.code}
-                                                {' · '}
-                                                {proposal.batch ??
-                                                    'Tanpa batch'}
-                                                {' · Pengaju: '}
-                                                {proposal.proposer ?? '—'}
-                                                {proposal.organization
-                                                    ? ` · ${proposal.organization}`
-                                                    : ''}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {proposal.members_count} anggota
-                                                dipilih
-                                                {' · '}
-                                                {
-                                                    proposal.requirements_count
-                                                }{' '}
-                                                kompetensi dibutuhkan
-                                                {' · Diperbarui '}
-                                                {formatUpdatedAt(
-                                                    proposal.updated_at,
-                                                )}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="shrink-0"
-                                        render={
-                                            <Link
-                                                href={proposalCandidates(
-                                                    proposal.id,
-                                                )}
-                                            />
-                                        }
-                                        nativeButton={false}
-                                    >
-                                        Atur susunan tim
-                                        <ArrowRight data-icon="inline-end" />
-                                    </Button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-
-                    {proposals.last_page > 1 && (
-                        <CardContent className="flex flex-col gap-3 border-t px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-sm text-muted-foreground">
-                                Menampilkan {proposals.from}–{proposals.to} dari{' '}
-                                {proposals.total} proposal
-                            </p>
-                            <nav
-                                aria-label="Navigasi halaman Pembentukan Tim"
-                                className="flex flex-wrap gap-2"
-                            >
-                                {proposals.links.map((link, index) => (
-                                    <Button
-                                        key={`${link.label}-${index}`}
-                                        variant={
-                                            link.active ? 'default' : 'outline'
-                                        }
-                                        size="sm"
-                                        disabled={!link.url}
-                                        render={
-                                            link.url ? (
-                                                <Link
-                                                    href={link.url}
-                                                    preserveScroll
-                                                />
-                                            ) : undefined
-                                        }
-                                        nativeButton={!link.url}
-                                    >
-                                        {link.label
-                                            .replace(/&laquo;|&raquo;/g, '')
-                                            .trim()}
-                                    </Button>
-                                ))}
-                            </nav>
-                        </CardContent>
-                    )}
+                    <DataTable
+                        embedded
+                        columns={columns}
+                        data={proposals.data}
+                        rowId={(row) => String(row.id)}
+                        page={proposals.current_page}
+                        pageSize={proposals.per_page}
+                        total={proposals.total}
+                        onPageChange={(page) => visit({ page }, false)}
+                        search={search}
+                        onSearchChange={setSearch}
+                        searchPlaceholder="Cari kode, judul, atau pengaju..."
+                        emptyTitle={
+                            filters.search
+                                ? 'Proposal tidak ditemukan'
+                                : 'Belum ada proposal draf'
+                        }
+                        emptyDescription={
+                            filters.search
+                                ? 'Coba kata kunci lain atau hapus pencarian.'
+                                : 'Proposal draf yang dapat Anda tangani akan muncul di sini.'
+                        }
+                    />
                 </Card>
             </div>
         </>

@@ -1,7 +1,6 @@
 import { Form, Head, usePage } from '@inertiajs/react';
 import { Building2, Fingerprint, Mail, UserRoundCheck } from 'lucide-react';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
-import { AvatarUploader } from '@/components/avatar-uploader';
 import { ChangePasswordForm } from '@/components/change-password-form';
 import { FormField } from '@/components/form-field';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -28,6 +27,8 @@ type PageProps = {
         sim_id: string | null;
         position: string | null;
         work_location: string | null;
+        work_contact: string | null;
+        personal_contact: string | null;
         organization_id: number | null;
         organization_name: string | null;
         availability_status: 'AVAILABLE' | 'UNAVAILABLE' | null;
@@ -59,33 +60,76 @@ function SummaryRow({
     );
 }
 
+const availabilityOptions = [
+    { value: 'AVAILABLE', label: 'Tersedia untuk proyek QCC' },
+    { value: 'UNAVAILABLE', label: 'Belum tersedia untuk proyek QCC' },
+];
+
 export default function Profile() {
     const { auth, profile, profileComplete, organizations, passwordRules } =
         usePage<PageProps>().props;
+
+    const organizationOptions = organizations.map((organization) => ({
+        value: organization.id.toString(),
+        label: organization.name,
+    }));
+
+    const missingFields = [
+        profile.organization_id === null ? 'LOB / Divisi' : null,
+        !profile.position ? 'Jabatan' : null,
+        !profile.work_location ? 'Lokasi kerja' : null,
+        !profile.work_contact ? 'Kontak kerja' : null,
+        !profile.personal_contact ? 'Kontak pribadi' : null,
+        profile.availability_status === null ? 'Ketersediaan' : null,
+    ].filter((field): field is string => field !== null);
 
     return (
         <>
             <Head title="Profil Saya" />
 
-            {!profileComplete && (
-                <Alert className="mb-6">
-                    <UserRoundCheck aria-hidden="true" />
-                    <AlertTitle>Lengkapi profil untuk mulai</AlertTitle>
-                    <AlertDescription>
-                        Isi LOB / Divisi, jabatan, lokasi kerja, dan
-                        ketersediaan. Menu lain terbuka setelah profil lengkap.
-                    </AlertDescription>
+            {!profileComplete && missingFields.length > 0 && (
+                <Alert
+                    variant="warning"
+                    className="mb-6 rounded-xl px-4 py-4 shadow-sm"
+                >
+                    <div className="flex items-start gap-4">
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#ffe1bd] text-warning">
+                            <UserRoundCheck
+                                className="size-5"
+                                aria-hidden="true"
+                            />
+                        </span>
+                        <div className="grid gap-2">
+                            <div>
+                                <AlertTitle className="text-base font-semibold">
+                                    Lengkapi profil untuk mulai
+                                </AlertTitle>
+                                <AlertDescription>
+                                    Menu lain terbuka setelah profil lengkap.
+                                    Data ini dipakai untuk menyusun tim QCC.
+                                </AlertDescription>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-medium text-foreground/70">
+                                    Yang belum diisi:
+                                </span>
+                                {missingFields.map((field) => (
+                                    <span
+                                        key={field}
+                                        className="rounded-full border border-[#f3b879] bg-white/80 px-2.5 py-0.5 text-xs font-semibold text-[#9a4a05]"
+                                    >
+                                        {field}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
                 </Alert>
             )}
 
             <div className="grid gap-6 lg:grid-cols-3">
                 <Card className="h-fit gap-6 py-6 lg:col-span-1">
                     <CardContent className="grid gap-6">
-                        <AvatarUploader
-                            name={auth.user.name}
-                            avatarUrl={auth.user.avatar ?? null}
-                        />
-
                         <div className="grid gap-2 text-center">
                             <p className="text-lg font-semibold">
                                 {auth.user.name}
@@ -171,6 +215,37 @@ export default function Profile() {
 
                                         <div className="grid gap-6 sm:grid-cols-2">
                                             <FormField
+                                                id="work_contact"
+                                                label="Kontak Kerja"
+                                                required
+                                                error={errors.work_contact}
+                                            >
+                                                <Input
+                                                    defaultValue={profile.work_contact ?? ''}
+                                                    name="work_contact"
+                                                    autoComplete="tel"
+                                                    placeholder="Nomor telepon kerja"
+                                                    required
+                                                />
+                                            </FormField>
+                                            <FormField
+                                                id="personal_contact"
+                                                label="Kontak Pribadi"
+                                                required
+                                                error={errors.personal_contact}
+                                            >
+                                                <Input
+                                                    defaultValue={profile.personal_contact ?? ''}
+                                                    name="personal_contact"
+                                                    autoComplete="tel"
+                                                    placeholder="Nomor telepon pribadi"
+                                                    required
+                                                />
+                                            </FormField>
+                                        </div>
+
+                                        <div className="grid gap-6 sm:grid-cols-2">
+                                            <FormField
                                                 id="position"
                                                 label="Jabatan"
                                                 required
@@ -212,6 +287,7 @@ export default function Profile() {
                                         >
                                             <Select
                                                 name="availability_status"
+                                                items={availabilityOptions}
                                                 defaultValue={
                                                     profile.availability_status ??
                                                     undefined
@@ -307,6 +383,7 @@ export default function Profile() {
                                             >
                                                 <Select
                                                     name="organization_id"
+                                                    items={organizationOptions}
                                                     defaultValue={
                                                         profile.organization_id?.toString() ??
                                                         undefined

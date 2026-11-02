@@ -312,7 +312,7 @@ test('a member profile lists every competency of that person', function () {
             ->where('selectedMember.name', 'Budi Santoso')
             ->has('selectedMember.competencies', 2)
             ->where('selectedMember.competencies.0.code', 'C001')
-            ->where('selectedMember.competencies.0.verified_level_label', 'Proficient')
+            ->where('selectedMember.competencies.0.verified_level_label', 'Proficient (Mahir)')
             ->where('selectedMember.competencies.1.verified_level', null));
 });
 

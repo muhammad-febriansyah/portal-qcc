@@ -4,6 +4,7 @@ import { id as indonesianLocale } from 'date-fns/locale';
 import {
     ArrowLeft,
     Download,
+    Eye,
     FileText,
     PencilLine,
     Paperclip,
@@ -17,6 +18,7 @@ import { PageHeader } from '@/components/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Card,
     CardContent,
@@ -46,7 +48,7 @@ type ProposalAttachment = {
     mime_type: string;
     size_bytes: number;
     scan_status: string;
-    preview_url: string;
+    preview_url: string | null;
 };
 
 type Proposal = {
@@ -55,6 +57,7 @@ type Proposal = {
     title: string;
     batch: string | null;
     proposer: string | null;
+    pic: string | null;
     organization: string | null;
     status: string;
     status_label: string;
@@ -69,6 +72,7 @@ type Proposal = {
     rca: string | null;
     improvement_plan: string | null;
     business_benefit: string | null;
+    supplementary_information: string | null;
     updated_at: string | null;
     attachments: ProposalAttachment[];
     can_edit_draft: boolean;
@@ -108,11 +112,11 @@ function DetailField({
     value: string | null | undefined;
 }) {
     return (
-        <div className="min-w-0 space-y-1">
-            <dt className="text-xs font-medium text-muted-foreground">
+        <div className="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-4">
+            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">
                 {label}
             </dt>
-            <dd className="text-sm whitespace-pre-wrap text-foreground">
+            <dd className="mt-2 text-sm leading-6 break-words whitespace-pre-wrap text-foreground">
                 {value?.trim() ? value : '—'}
             </dd>
         </div>
@@ -127,6 +131,8 @@ function fileSize(bytes: number): string {
 
 export default function ProposalShow({ proposal }: Props) {
     const [decisionOpen, setDecisionOpen] = useState(false);
+    const [previewAttachment, setPreviewAttachment] =
+        useState<ProposalAttachment | null>(null);
     const decisionForm = useForm<{ decision: string; reason: string }>({
         decision: 'APPROVE',
         reason: '',
@@ -182,7 +188,9 @@ export default function ProposalShow({ proposal }: Props) {
                                     nativeButton={false}
                                 >
                                     <UsersRound data-icon="inline-start" />
-                                    Cari kandidat tim
+                                    {proposal.status === 'APPROVED'
+                                        ? 'Kelola tim'
+                                        : 'Cari kandidat tim'}
                                 </Button>
                             )}
                             {proposal.can_submit && (
@@ -276,245 +284,378 @@ export default function ProposalShow({ proposal }: Props) {
                             </ul>
                         </div>
                     )}
-                    <Card>
-                        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
-                            <div className="space-y-1">
-                                <CardTitle className="text-base">
-                                    Informasi proposal
-                                </CardTitle>
-                                <CardDescription>
-                                    Terakhir diperbarui{' '}
-                                    {proposal.updated_at
-                                        ? format(
-                                              parseISO(proposal.updated_at),
-                                              'd MMMM yyyy, HH:mm',
-                                              { locale: indonesianLocale },
-                                          )
-                                        : '—'}
-                                </CardDescription>
-                            </div>
-                            <Badge
-                                variant={
-                                    statusVariants[proposal.status] ??
-                                    'secondary'
-                                }
-                            >
-                                {proposal.status_label}
-                            </Badge>
-                        </CardHeader>
-                        <CardContent>
-                            <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-                                <DetailField
-                                    label="Pengaju"
-                                    value={proposal.proposer}
-                                />
-                                <DetailField
-                                    label="LOB / Divisi"
-                                    value={proposal.organization}
-                                />
-                                <DetailField
-                                    label="Tema Improvement"
-                                    value={proposal.theme}
-                                />
-                            </dl>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base">
-                                Masalah & baseline
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
-                                <DetailField
-                                    label="Latar belakang"
-                                    value={proposal.background}
-                                />
-                                <DetailField
-                                    label="Pernyataan masalah"
-                                    value={proposal.problem_statement}
-                                />
-                                <DetailField
-                                    label="Kondisi saat ini"
-                                    value={proposal.current_situation}
-                                />
-                                <DetailField
-                                    label="Baseline"
-                                    value={proposal.baseline}
-                                />
-                            </dl>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base">
-                                Target & manfaat
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
-                                <DetailField
-                                    label="Target"
-                                    value={proposal.target}
-                                />
-                                <DetailField
-                                    label="Ruang lingkup"
-                                    value={proposal.scope}
-                                />
-                                <DetailField
-                                    label="Root cause analysis"
-                                    value={proposal.rca}
-                                />
-                                <DetailField
-                                    label="Rencana improvement"
-                                    value={proposal.improvement_plan}
-                                />
-                                <DetailField
-                                    label="Manfaat bisnis"
-                                    value={proposal.business_benefit}
-                                />
-                                <div className="space-y-1">
-                                    <dt className="text-xs font-medium text-muted-foreground">
-                                        Tujuan pembelajaran
-                                    </dt>
-                                    <dd>
-                                        {proposal.learning_goals.length > 0 ? (
-                                            <ul className="list-inside list-disc space-y-1 text-sm">
-                                                {proposal.learning_goals.map(
-                                                    (goal, position) => (
-                                                        <li key={position}>
-                                                            {goal}
-                                                        </li>
-                                                    ),
-                                                )}
-                                            </ul>
-                                        ) : (
-                                            <span className="text-sm text-foreground">
-                                                —
-                                            </span>
-                                        )}
-                                    </dd>
-                                </div>
-                            </dl>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-base">
-                                <Paperclip
-                                    className="size-4 text-muted-foreground"
+                    <Tabs defaultValue="summary" className="gap-5">
+                        <TabsList
+                            aria-label="Bagian detail proposal"
+                            className="w-full max-w-full flex-wrap justify-start sm:w-fit"
+                        >
+                            <TabsTrigger value="summary">
+                                <FileText
                                     aria-hidden="true"
+                                    data-icon="inline-start"
                                 />
-                                Lampiran ({proposal.attachments.length})
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {proposal.attachments.length > 0 ? (
-                                <ul className="divide-y divide-border/60">
-                                    {proposal.attachments.map((attachment) => (
-                                        <li
-                                            key={attachment.id}
-                                            className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center"
-                                        >
-                                            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                                <FileText
-                                                    className="size-4"
-                                                    aria-hidden="true"
-                                                />
-                                            </span>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-sm font-medium break-all">
-                                                    {attachment.name}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {attachment.mime_type} ·{' '}
-                                                    {fileSize(
-                                                        attachment.size_bytes,
-                                                    )}
-                                                </p>
-                                            </div>
-                                            {attachment.scan_status ===
-                                                'PENDING_SCAN' && (
-                                                <Badge variant="warning">
-                                                    Menunggu pemindaian
-                                                </Badge>
-                                            )}
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                render={
-                                                    <a
-                                                        href={
-                                                            attachment.preview_url
-                                                        }
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                    />
-                                                }
-                                                nativeButton={false}
-                                            >
-                                                <Download data-icon="inline-start" />
-                                                Buka
-                                            </Button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p className="text-sm text-muted-foreground">
-                                    Belum ada lampiran.
-                                </p>
-                            )}
-                        </CardContent>
-                    </Card>
+                                Ringkasan & masalah
+                            </TabsTrigger>
+                            <TabsTrigger value="plan">
+                                <ClipboardCheck
+                                    aria-hidden="true"
+                                    data-icon="inline-start"
+                                />
+                                Rencana & manfaat
+                            </TabsTrigger>
+                            <TabsTrigger value="documents">
+                                <Paperclip
+                                    aria-hidden="true"
+                                    data-icon="inline-start"
+                                />
+                                Lampiran & riwayat
+                                <Badge variant="secondary" className="ml-1">
+                                    {proposal.attachments.length +
+                                        proposal.review_history.length}
+                                </Badge>
+                            </TabsTrigger>
+                        </TabsList>
 
-                    {proposal.review_history.length > 0 && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-base">
-                                    Riwayat pengajuan & review
-                                </CardTitle>
-                                <CardDescription>
-                                    Catatan keputusan tersimpan sebagai riwayat
-                                    proposal.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <ol className="space-y-4">
-                                    {proposal.review_history.map((item) => (
-                                        <li
-                                            key={item.id}
-                                            className="relative border-l border-border pl-4 last:border-transparent"
-                                        >
-                                            <p className="text-sm font-medium">
-                                                {decisionLabels[
-                                                    item.decision
-                                                ] ?? item.decision}
-                                            </p>
-                                            <p className="mt-1 text-xs text-muted-foreground">
-                                                {item.actor ?? 'Pengguna'} ·{' '}
-                                                {format(
-                                                    parseISO(item.decided_at),
-                                                    'd MMMM yyyy, HH:mm',
-                                                    {
-                                                        locale: indonesianLocale,
-                                                    },
+                        <TabsContent value="summary" className="space-y-5">
+                            <Card>
+                                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <CardTitle className="text-base">
+                                            Ringkasan proposal
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Informasi pengajuan · Terakhir
+                                            diperbarui{' '}
+                                            {proposal.updated_at
+                                                ? format(
+                                                      parseISO(
+                                                          proposal.updated_at,
+                                                      ),
+                                                      'd MMMM yyyy, HH:mm',
+                                                      {
+                                                          locale: indonesianLocale,
+                                                      },
+                                                  )
+                                                : '—'}
+                                        </CardDescription>
+                                    </div>
+                                    <Badge
+                                        variant={
+                                            statusVariants[proposal.status] ??
+                                            'secondary'
+                                        }
+                                    >
+                                        {proposal.status_label}
+                                    </Badge>
+                                </CardHeader>
+                                <CardContent>
+                                    <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                        <DetailField
+                                            label="Pengaju"
+                                            value={proposal.proposer}
+                                        />
+                                        <DetailField
+                                            label="PIC proposal"
+                                            value={proposal.pic}
+                                        />
+                                        <DetailField
+                                            label="LOB / Divisi"
+                                            value={proposal.organization}
+                                        />
+                                        <DetailField
+                                            label="Tema Improvement"
+                                            value={proposal.theme}
+                                        />
+                                    </dl>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base">
+                                        Masalah & baseline
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Konteks masalah dan data awal yang
+                                        menjadi dasar perbaikan.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <dl className="grid gap-3 sm:grid-cols-2">
+                                        <DetailField
+                                            label="Latar belakang"
+                                            value={proposal.background}
+                                        />
+                                        <DetailField
+                                            label="Pernyataan masalah"
+                                            value={proposal.problem_statement}
+                                        />
+                                        <DetailField
+                                            label="Kondisi saat ini"
+                                            value={proposal.current_situation}
+                                        />
+                                        <DetailField
+                                            label="Baseline"
+                                            value={proposal.baseline}
+                                        />
+                                    </dl>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                        <TabsContent value="plan" className="space-y-5">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base">
+                                        Target & manfaat
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Sasaran, ruang lingkup, rencana, dan
+                                        hasil yang diharapkan.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <dl className="grid gap-3 sm:grid-cols-2">
+                                        <DetailField
+                                            label="Target"
+                                            value={proposal.target}
+                                        />
+                                        <DetailField
+                                            label="Ruang lingkup"
+                                            value={proposal.scope}
+                                        />
+                                        <DetailField
+                                            label="Root cause analysis"
+                                            value={proposal.rca}
+                                        />
+                                        <DetailField
+                                            label="Rencana improvement"
+                                            value={proposal.improvement_plan}
+                                        />
+                                        <DetailField
+                                            label="Manfaat bisnis"
+                                            value={proposal.business_benefit}
+                                        />
+                                        <div className="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-4">
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">
+                                                Tujuan pembelajaran
+                                            </dt>
+                                            <dd className="mt-2">
+                                                {proposal.learning_goals
+                                                    .length > 0 ? (
+                                                    <ul className="space-y-2 text-sm leading-6">
+                                                        {proposal.learning_goals.map(
+                                                            (
+                                                                goal,
+                                                                position,
+                                                            ) => (
+                                                                <li
+                                                                    key={
+                                                                        position
+                                                                    }
+                                                                    className="flex gap-2"
+                                                                >
+                                                                    <span className="font-semibold text-primary">
+                                                                        {position +
+                                                                            1}
+                                                                        .
+                                                                    </span>
+                                                                    {goal}
+                                                                </li>
+                                                            ),
+                                                        )}
+                                                    </ul>
+                                                ) : (
+                                                    <span className="text-sm text-foreground">
+                                                        —
+                                                    </span>
                                                 )}
-                                            </p>
-                                            {item.reason && (
-                                                <p className="mt-2 text-sm whitespace-pre-wrap">
-                                                    {item.reason}
-                                                </p>
+                                            </dd>
+                                        </div>
+                                    </dl>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base">
+                                        Informasi pelengkap
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Catatan atau konteks tambahan untuk
+                                        memahami proposal.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <DetailField
+                                        label="Informasi tambahan"
+                                        value={
+                                            proposal.supplementary_information
+                                        }
+                                    />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                        <TabsContent value="documents" className="space-y-5">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <Paperclip
+                                            className="size-4 text-muted-foreground"
+                                            aria-hidden="true"
+                                        />
+                                        Lampiran ({proposal.attachments.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {proposal.attachments.length > 0 ? (
+                                        <ul className="grid gap-3">
+                                            {proposal.attachments.map(
+                                                (attachment) => (
+                                                    <li
+                                                        key={attachment.id}
+                                                        className="flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center"
+                                                    >
+                                                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                                            <FileText
+                                                                className="size-4"
+                                                                aria-hidden="true"
+                                                            />
+                                                        </span>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-sm font-medium break-words">
+                                                                {
+                                                                    attachment.name
+                                                                }
+                                                            </p>
+                                                            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                                                {
+                                                                    attachment.mime_type
+                                                                }{' '}
+                                                                ·{' '}
+                                                                {fileSize(
+                                                                    attachment.size_bytes,
+                                                                )}
+                                                            </p>
+                                                        </div>
+                                                        {attachment.scan_status !==
+                                                            'PASSED' && (
+                                                            <Badge variant="warning">
+                                                                {attachment.scan_status ===
+                                                                'PENDING_SCAN'
+                                                                    ? 'Menunggu pemeriksaan format'
+                                                                    : 'Format belum lolos pemeriksaan'}
+                                                            </Badge>
+                                                        )}
+                                                        {attachment.preview_url &&
+                                                            (attachment.mime_type ===
+                                                                'application/pdf' ||
+                                                                attachment.mime_type.startsWith(
+                                                                    'image/',
+                                                                )) && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() =>
+                                                                        setPreviewAttachment(
+                                                                            attachment,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Eye data-icon="inline-start" />
+                                                                    Pratinjau
+                                                                </Button>
+                                                            )}
+                                                        {attachment.preview_url &&
+                                                            attachment.mime_type !==
+                                                                'application/pdf' &&
+                                                            !attachment.mime_type.startsWith(
+                                                                'image/',
+                                                            ) && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    render={
+                                                                        <a
+                                                                            href={
+                                                                                attachment.preview_url
+                                                                            }
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                        />
+                                                                    }
+                                                                    nativeButton={
+                                                                        false
+                                                                    }
+                                                                >
+                                                                    <Download data-icon="inline-start" />
+                                                                    Buka file
+                                                                </Button>
+                                                            )}
+                                                    </li>
+                                                ),
                                             )}
-                                        </li>
-                                    ))}
-                                </ol>
-                            </CardContent>
-                        </Card>
-                    )}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">
+                                            Belum ada lampiran.
+                                        </p>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {proposal.review_history.length > 0 && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-base">
+                                            Riwayat pengajuan & review
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Catatan keputusan tersimpan sebagai
+                                            riwayat proposal.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <ol className="space-y-4">
+                                            {proposal.review_history.map(
+                                                (item) => (
+                                                    <li
+                                                        key={item.id}
+                                                        className="relative border-l border-border pl-4 last:border-transparent"
+                                                    >
+                                                        <p className="text-sm font-medium">
+                                                            {decisionLabels[
+                                                                item.decision
+                                                            ] ?? item.decision}
+                                                        </p>
+                                                        <p className="mt-1 text-xs text-muted-foreground">
+                                                            {item.actor ??
+                                                                'Pengguna'}{' '}
+                                                            ·{' '}
+                                                            {format(
+                                                                parseISO(
+                                                                    item.decided_at,
+                                                                ),
+                                                                'd MMMM yyyy, HH:mm',
+                                                                {
+                                                                    locale: indonesianLocale,
+                                                                },
+                                                            )}
+                                                        </p>
+                                                        {item.reason && (
+                                                            <p className="mt-2 text-sm whitespace-pre-wrap">
+                                                                {item.reason}
+                                                            </p>
+                                                        )}
+                                                    </li>
+                                                ),
+                                            )}
+                                        </ol>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </TabsContent>
+                    </Tabs>
 
                     <div className="flex flex-wrap gap-2">
                         <Button
@@ -600,7 +741,7 @@ export default function ProposalShow({ proposal }: Props) {
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="destructive"
                                 onClick={() => setDecisionOpen(false)}
                             >
                                 Batal
@@ -615,6 +756,41 @@ export default function ProposalShow({ proposal }: Props) {
                             </Button>
                         </DialogFooter>
                     </form>
+                </DialogContent>
+            </Dialog>
+            <Dialog
+                open={previewAttachment !== null}
+                onOpenChange={(open) => {
+                    if (!open) setPreviewAttachment(null);
+                }}
+            >
+                <DialogContent className="grid h-[min(88vh,900px)] w-[calc(100vw-2rem)] max-w-6xl grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden p-4 sm:max-w-6xl sm:p-6">
+                    <DialogHeader className="pr-8">
+                        <DialogTitle className="break-all">
+                            {previewAttachment?.name ?? 'Pratinjau lampiran'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {previewAttachment
+                                ? `${previewAttachment.mime_type} · ${fileSize(previewAttachment.size_bytes)}`
+                                : 'Pratinjau file proposal.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {previewAttachment?.preview_url &&
+                        (previewAttachment.mime_type === 'application/pdf' ? (
+                            <iframe
+                                title={`Pratinjau ${previewAttachment.name}`}
+                                src={previewAttachment.preview_url}
+                                className="h-full min-h-0 w-full rounded-lg border bg-muted/20"
+                            />
+                        ) : (
+                            <div className="flex min-h-0 items-center justify-center overflow-auto rounded-lg border bg-muted/20 p-3">
+                                <img
+                                    src={previewAttachment.preview_url}
+                                    alt={previewAttachment.name}
+                                    className="max-h-full max-w-full object-contain"
+                                />
+                            </div>
+                        ))}
                 </DialogContent>
             </Dialog>
         </>

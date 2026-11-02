@@ -68,7 +68,13 @@ function activeMembers(Project $project): array
 /** @param list<array{0:int,1:string}> $team */
 function teamPayload(TeamMatchingRun $run, array $team): array
 {
-    return ['run_id' => $run->id, 'members' => array_map(fn ($pick) => ['user_id' => $pick[0], 'role_in_project' => $pick[1]], $team)];
+    $leader = collect($team)->first(fn (array $pick): bool => $pick[1] === 'LEADER') ?? $team[0];
+
+    return [
+        'run_id' => $run->id,
+        'pic_id' => $leader[0],
+        'members' => array_map(fn ($pick) => ['user_id' => $pick[0], 'role_in_project' => $pick[1]], $team),
+    ];
 }
 
 beforeEach(function () {
@@ -91,15 +97,35 @@ it('confirms the AI suggestion as the active team and records who did it', funct
     $log = AuditLog::query()->where('event', 'team_matching.confirmed')->first();
 
     expect(activeMembers($this->project))->toBe([[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']])
+        ->and($this->project->fresh()->pic_id)->toBe($this->a->id)
         ->and($run->confirmed_by)->toBe($this->reviewer->id)->and($run->confirmed_at)->not->toBeNull()
         ->and($log->actor_id)->toBe($this->reviewer->id)
         ->and($log->after_json['changed_from_ai'])->toBeFalse()
+        ->and($log->after_json['pic_id'])->toBe($this->a->id)
         ->and($this->a->fresh()->getRoleNames()->all())->toBe(['SIMer / Member']);
+});
+
+it('uses confirmed project roles for access while preserving account roles', function () {
+    $this->project->forceFill(['proposer_id' => $this->a->id])->save();
+
+    $this->actingAs($this->reviewer)
+        ->post($this->url, teamPayload($this->run, [[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']]))
+        ->assertSessionHasNoErrors();
+    $this->a->givePermissionTo(Permission::findOrCreate('projects.update', 'web'));
+
+    $this->actingAs($this->a)
+        ->get(route('proposals.edit', $this->project))
+        ->assertOk();
+
+    expect($this->a->fresh()->getRoleNames()->all())->toBe(['SIMer / Member'])
+        ->and(DB::table('project_members')->where('project_id', $this->project->id)->where('user_id', $this->a->id)->value('role_in_project'))->toBe('LEADER')
+        ->and($this->a->notifications()->where('data->decision', 'TEAM_COMPOSITION_CONFIRMED')->count())->toBe(1);
 });
 
 it('lets Owner QCC form a team manually without an AI run', function () {
     $this->actingAs($this->reviewer)->post($this->url, [
         'manual' => true,
+        'pic_id' => $this->a->id,
         'members' => [
             ['user_id' => $this->a->id, 'role_in_project' => 'LEADER'],
             ['user_id' => $this->b->id, 'role_in_project' => 'MEMBER'],
@@ -113,6 +139,38 @@ it('lets Owner QCC form a team manually without an AI run', function () {
         ->and($run->confirmed_at)->not->toBeNull()
         ->and($audit->after_json['source'])->toBe('MANUAL')
         ->and($audit->after_json['changed_from_ai'])->toBeFalse();
+});
+
+it('keeps the AI suggestion usable when a manual team is refused', function () {
+    $this->actingAs($this->reviewer)->post($this->url, [
+        'manual' => true,
+        'pic_id' => $this->a->id,
+        'members' => [
+            ['user_id' => $this->a->id, 'role_in_project' => 'LEADER'],
+            ['user_id' => $this->b->id, 'role_in_project' => 'LEADER'],
+        ],
+    ])->assertSessionHasErrors('members');
+
+    expect(TeamMatchingRun::query()->where('model', 'manual')->count())->toBe(0)
+        ->and(TeamMatchingRun::query()->where('project_id', $this->project->id)->latest('id')->value('id'))->toBe($this->run->id);
+
+    $this->actingAs($this->reviewer)
+        ->post($this->url, teamPayload($this->run, [[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']]))
+        ->assertSessionHasNoErrors();
+
+    expect(activeMembers($this->project))->toHaveCount(2);
+});
+
+it('requires the proposal PIC to be one of the selected team members', function () {
+    $this->actingAs($this->reviewer)->post($this->url, [
+        ...teamPayload($this->run, [[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']]),
+        'pic_id' => $this->c->id,
+    ])->assertSessionHasErrors('pic_id');
+
+    expect(activeMembers($this->project))->toBe([])
+        ->and($this->project->fresh()->pic_id)->toBeNull()
+        ->and($this->run->fresh()->confirmed_at)->toBeNull()
+        ->and(AuditLog::query()->where('event', 'team_matching.confirmed')->count())->toBe(0);
 });
 
 it('confirms a team the person changed by hand and says so in the audit log', function () {
@@ -226,6 +284,17 @@ it('refuses a run that a newer one has replaced', function () {
         ->assertSessionHasNoErrors();
 
     expect(activeMembers($this->project))->toHaveCount(2);
+});
+
+it('requires a fresh matching when proposal input changes after the shortlist', function () {
+    $this->project->forceFill(['supplementary_information' => 'Informasi baru'])->save();
+
+    $this->actingAs($this->reviewer)
+        ->post($this->url, teamPayload($this->run, [[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']]))
+        ->assertSessionHasErrors(['team' => 'Informasi proposal atau kebutuhan kompetensi berubah. Perbarui rekomendasi dan konfirmasi tim kembali.']);
+
+    expect(activeMembers($this->project))->toBe([])
+        ->and($this->run->fresh()->confirmed_at)->toBeNull();
 });
 
 it('replaces an earlier team when a later run is confirmed and keeps one leader', function () {

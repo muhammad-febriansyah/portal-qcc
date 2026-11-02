@@ -51,6 +51,8 @@ class SystemSettingsController extends Controller
                 'notifications' => [
                     'inApp' => filter_var($settings->get('notifications_in_app', '1'), FILTER_VALIDATE_BOOLEAN),
                     'email' => filter_var($settings->get('notifications_email', '0'), FILTER_VALIDATE_BOOLEAN),
+                    'reminderEarlyDays' => (int) $settings->get('notifications_reminder_early_days', '3'),
+                    'reminderFinalDays' => (int) $settings->get('notifications_reminder_final_days', '1'),
                 ],
                 'attachments' => [
                     'storageDisk' => $settings->get('attachments_storage_disk', config('filesystems.default', 'local')),
@@ -71,11 +73,6 @@ class SystemSettingsController extends Controller
                     'model' => $aiModel,
                     'modelOptions' => $aiModelOptions,
                     'hasApiKey' => filled($settingsApiKey) || filled(config('scoring.openai.key')),
-                ],
-                'sso' => [
-                    'title' => 'Single sign-on',
-                    'decision' => 'DEC-20',
-                    'description' => 'Pilihan SSO perusahaan atau login lokal belum ditetapkan.',
                 ],
             ],
             'canManage' => $request->user()->can('system-settings.manage'),
@@ -117,6 +114,8 @@ class SystemSettingsController extends Controller
         $values = [
             'notifications_in_app' => (string) (int) $validated['notifications_in_app'],
             'notifications_email' => (string) (int) $validated['notifications_email'],
+            'notifications_reminder_early_days' => (string) $validated['notifications_reminder_early_days'],
+            'notifications_reminder_final_days' => (string) $validated['notifications_reminder_final_days'],
             'attachments_storage_disk' => $validated['attachments_storage_disk'],
             'attachments_allowed_types' => json_encode(array_values(array_unique($validated['attachments_allowed_types'])), JSON_THROW_ON_ERROR),
             'attachments_max_size_mb' => (string) $validated['attachments_max_size_mb'],

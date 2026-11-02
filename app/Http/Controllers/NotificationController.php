@@ -47,14 +47,7 @@ class NotificationController extends Controller
         $item = $request->user()->notifications()->findOrFail($notification);
         $item->markAsRead();
 
-        $target = $item->data['url'] ?? null;
-
-        if (! is_string($target) || ! str_starts_with($target, '/') || str_starts_with($target, '//')) {
-            $projectId = $item->data['project_id'] ?? null;
-            $target = is_numeric($projectId)
-                ? route('proposals.show', (int) $projectId)
-                : route('dashboard');
-        }
+        $target = $this->safeTarget($item->data['url'] ?? null, $item->data['project_id'] ?? null);
 
         return redirect()->to($target);
     }
@@ -92,5 +85,34 @@ class NotificationController extends Controller
             'project_code' => is_numeric($projectId) ? sprintf('PRP-%04d', (int) $projectId) : null,
             ...$description,
         ];
+    }
+
+    private function safeTarget(mixed $target, mixed $projectId): string
+    {
+        if (is_string($target) && str_starts_with($target, '/') && ! str_starts_with($target, '//')) {
+            return $target;
+        }
+
+        $parsedTarget = is_string($target) ? parse_url($target) : false;
+        $applicationUrl = parse_url((string) config('app.url'));
+        $scheme = is_array($parsedTarget) ? strtolower($parsedTarget['scheme'] ?? '') : '';
+        $targetHost = is_array($parsedTarget) ? strtolower($parsedTarget['host'] ?? '') : '';
+        $applicationHost = is_array($applicationUrl) ? strtolower($applicationUrl['host'] ?? '') : '';
+
+        if (in_array($scheme, ['http', 'https'], true)
+            && $targetHost !== ''
+            && $targetHost === $applicationHost) {
+            $path = $parsedTarget['path'] ?? '/';
+
+            if (str_starts_with($path, '/') && ! str_starts_with($path, '//')) {
+                return $path
+                    .(isset($parsedTarget['query']) ? '?'.$parsedTarget['query'] : '')
+                    .(isset($parsedTarget['fragment']) ? '#'.$parsedTarget['fragment'] : '');
+            }
+        }
+
+        return is_numeric($projectId)
+            ? route('proposals.show', (int) $projectId)
+            : route('dashboard');
     }
 }

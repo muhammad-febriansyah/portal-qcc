@@ -265,7 +265,7 @@ export default function ScoringShow({ run }: { run: Run }) {
                                                 'Ringkasan belum tersedia.'}
                                         </p>
                                         {run.result.cautions.length > 0 && (
-                                            <div className="rounded-lg border border-amber-300/60 bg-amber-50/70 p-4 text-sm dark:bg-amber-950/20">
+                                            <div className="rounded-lg border border-amber-300/60 bg-amber-50/70 p-4 text-sm">
                                                 <p className="mb-2 flex items-center gap-2 font-medium">
                                                     <AlertTriangle
                                                         className="size-4"
@@ -594,7 +594,7 @@ export default function ScoringShow({ run }: { run: Run }) {
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="destructive"
                                 onClick={() => setIsApprovalOpen(false)}
                             >
                                 Batal
@@ -644,7 +644,7 @@ export default function ScoringShow({ run }: { run: Run }) {
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="destructive"
                                 onClick={() => setIsRevisionOpen(false)}
                             >
                                 Batal
@@ -696,7 +696,7 @@ function Score({ label, value }: { label: string; value: string | null }) {
 
 function InfoList({ title, items }: { title: string; items: string[] }) {
     return (
-        <div className="rounded-md border border-amber-300/50 bg-amber-50/60 p-3 dark:bg-amber-950/20">
+        <div className="rounded-md border border-amber-300/50 bg-amber-50/60 p-3">
             <p className="mb-2 flex items-center gap-2 font-medium">
                 <AlertTriangle className="size-4" aria-hidden="true" />
                 {title}

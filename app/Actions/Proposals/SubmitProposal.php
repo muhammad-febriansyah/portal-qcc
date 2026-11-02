@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\ProposalWorkflowNotification;
 use App\Services\AuditService;
 use App\Services\ProjectNotifier;
+use App\Services\Teams\Matching\TeamMatchingInputFingerprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -20,6 +21,7 @@ class SubmitProposal
         private readonly TeamRuleValidator $teamRules,
         private readonly AuditService $audit,
         private readonly ProjectNotifier $notifier,
+        private readonly TeamMatchingInputFingerprint $fingerprint,
     ) {}
 
     public function handle(Project $project, User $actor): void
@@ -65,19 +67,29 @@ class SubmitProposal
             $confirmed = TeamMatchingRun::query()
                 ->where('project_id', $project->id)
                 ->whereNotNull('confirmed_at')
-                ->exists();
+                ->latest('id')
+                ->first();
 
-            if (! $confirmed) {
+            if ($confirmed === null) {
                 throw ValidationException::withMessages(['team' => 'Konfirmasi tim proposal terlebih dahulu.']);
             }
 
-            $members = DB::table('project_members')
+            if (! $this->fingerprint->matches($project, $confirmed->candidate_snapshot_json['input_fingerprint'] ?? null)) {
+                throw ValidationException::withMessages(['team' => 'Informasi proposal atau kebutuhan kompetensi berubah setelah tim dikonfirmasi. Perbarui rekomendasi dan konfirmasi tim kembali sebelum mengajukan.']);
+            }
+
+            $activeMembers = DB::table('project_members')
                 ->join('users', 'users.id', '=', 'project_members.user_id')
                 ->where('project_members.project_id', $project->id)
                 ->where('project_members.status', 'ACTIVE')
                 ->whereNull('project_members.left_at')
-                ->where('users.is_active', true)
-                ->get(['project_members.user_id', 'users.organization_id', 'project_members.role_in_project'])
+                ->get(['project_members.user_id', 'users.organization_id', 'users.is_active', 'project_members.role_in_project']);
+
+            if ($activeMembers->contains(fn (object $member): bool => ! $member->is_active)) {
+                throw ValidationException::withMessages(['team' => 'Ada anggota tim yang sudah nonaktif. Konfirmasi ulang tim sebelum mengajukan.']);
+            }
+
+            $members = $activeMembers
                 ->map(fn (object $member): array => [
                     'user_id' => (int) $member->user_id,
                     'organization_id' => $member->organization_id === null ? null : (int) $member->organization_id,

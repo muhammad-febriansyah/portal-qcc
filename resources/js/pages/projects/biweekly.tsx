@@ -476,12 +476,12 @@ function ReportForm({
                 )}
             </fieldset>
             <DialogFooter>
-                <Button type="button" variant="outline" onClick={onClose}>
+                <Button type="button" variant="destructive" onClick={onClose}>
                     Batal
                 </Button>
                 <Button
                     type="submit"
-                    variant="outline"
+                    variant="default"
                     disabled={form.processing}
                 >
                     {form.processing && <Spinner data-icon="inline-start" />}

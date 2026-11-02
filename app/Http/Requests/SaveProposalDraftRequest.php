@@ -42,6 +42,7 @@ class SaveProposalDraftRequest extends FormRequest
             'rca' => ['nullable', 'string', 'max:20000'],
             'improvement_plan' => ['nullable', 'string', 'max:20000'],
             'business_benefit' => ['nullable', 'string', 'max:20000'],
+            'supplementary_information' => ['nullable', 'string', 'max:20000'],
             'wizard_step' => ['required', 'integer', 'between:1,5'],
             'advance' => ['required', 'boolean'],
         ];
@@ -105,6 +106,7 @@ class SaveProposalDraftRequest extends FormRequest
             'rca' => 'analisis akar masalah',
             'improvement_plan' => 'rencana perbaikan',
             'business_benefit' => 'manfaat bisnis',
+            'supplementary_information' => 'informasi dan data pelengkap',
         ];
     }
 
@@ -112,7 +114,7 @@ class SaveProposalDraftRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'required' => ':Attribute wajib diisi sebelum lanjut.',
+            'required' => ':Attribute wajib diisi sebelum draft disimpan.',
             'exists' => 'Pilihan :attribute tidak valid atau sudah tidak aktif.',
             'max' => ':Attribute maksimal :max karakter.',
             'learning_goals.size' => 'Isi tepat 3 hal yang ingin dipelajari.',

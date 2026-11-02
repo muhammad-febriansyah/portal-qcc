@@ -21,6 +21,8 @@ use App\Models\User;
 use App\Services\Ai\AiConnection;
 use App\Services\ProposalListingQuery;
 use App\Services\Teams\CandidateShortlist;
+use App\Services\Teams\Matching\TeamMatchingInputFingerprint;
+use App\Services\Teams\PicOpenItems;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -81,6 +83,7 @@ class ProposalController extends Controller
         return Inertia::render('proposals/index', [
             'drafts' => $drafts,
             'can_create' => $user->can('projects.create'),
+            'can_manage_teams' => $user->can('projects.viewAny') || $user->hasRole('Team Leader'),
             'proposals' => $proposals->through(fn (Project $project): array => [
                 'id' => $project->id,
                 'code' => sprintf('PRP-%04d', $project->id),
@@ -112,34 +115,41 @@ class ProposalController extends Controller
         ]);
     }
 
-    public function candidates(Request $request, Project $project, CandidateShortlist $shortlist, AiConnection $ai): Response
+    public function candidates(Request $request, Project $project, CandidateShortlist $shortlist, AiConnection $ai, TeamMatchingInputFingerprint $fingerprint, PicOpenItems $picItems): Response
     {
         Gate::authorize('findCandidates', $project);
 
         $result = $shortlist->for($project);
+        $manualSearch = trim((string) ($request->validate(['manual_search' => ['nullable', 'string', 'max:255']])['manual_search'] ?? ''));
+        $manualResult = $manualSearch === '' ? ['candidates' => []] : $shortlist->search($project, $manualSearch, 100);
 
         return Inertia::render('proposals/candidates', [
             'proposal' => [
                 'id' => $project->id,
                 'code' => sprintf('PRP-%04d', $project->id),
                 'title' => $project->title,
+                'pic_id' => $project->pic_id,
             ],
             'requirements' => $result['requirements'],
             'candidates' => $result['candidates'],
+            'manual_candidates' => $manualResult['candidates'],
+            'manual_search' => $manualSearch,
             'limit' => CandidateShortlist::DEFAULT_LIMIT,
             'ai' => [
                 'ready' => $ai->isReady(),
                 'message' => AiConnection::MESSAGE_NOT_READY,
                 'can_manage' => $request->user()->can('system-settings.manage'),
             ],
-            'matching' => $this->latestMatching($project),
-            'team' => $this->currentTeam($project, array_column($result['requirements'], 'competency_id')),
+            'matching' => $this->latestMatching($project, $fingerprint),
+            'team' => $this->currentTeam($project, array_column($result['requirements'], 'competency_id'), $picItems),
             'can_edit_team' => in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)
+                && $request->user()->can('findCandidates', $project),
+            'can_manage_approved_team' => $project->proposal_status === ProposalStatus::Approved
                 && $request->user()->can('findCandidates', $project),
         ]);
     }
 
-    public function show(Request $request, Project $project): Response
+    public function show(Request $request, Project $project, TeamMatchingInputFingerprint $fingerprint): Response
     {
         Gate::authorize('view', $project);
 
@@ -147,13 +157,17 @@ class ProposalController extends Controller
             'batch:id,name',
             'proposer:id,name,organization_id',
             'proposer.organization:id,name',
+            'pic:id,name',
             'attachments:id,project_id,original_name,mime_type,size_bytes,scan_status,created_at',
             'reviewDecisions.actor:id,name',
         ]);
-        $teamConfirmed = TeamMatchingRun::query()
+        $confirmedRun = TeamMatchingRun::query()
             ->where('project_id', $project->id)
             ->whereNotNull('confirmed_at')
-            ->exists();
+            ->latest('id')
+            ->first();
+        $teamConfirmed = $confirmedRun !== null
+            && $fingerprint->matches($project, $confirmedRun->candidate_snapshot_json['input_fingerprint'] ?? null);
 
         return Inertia::render('proposals/show', [
             'proposal' => [
@@ -162,6 +176,7 @@ class ProposalController extends Controller
                 'title' => $project->title,
                 'batch' => $project->batch?->name,
                 'proposer' => $project->proposer?->name,
+                'pic' => $project->pic?->name,
                 'organization' => $project->proposer?->organization?->name,
                 'status' => $project->proposal_status->value,
                 'status_label' => $project->proposal_status->label(),
@@ -176,6 +191,7 @@ class ProposalController extends Controller
                 'rca' => $project->rca,
                 'improvement_plan' => $project->improvement_plan,
                 'business_benefit' => $project->business_benefit,
+                'supplementary_information' => $project->supplementary_information,
                 'updated_at' => $project->updated_at?->toIso8601String(),
                 'attachments' => $project->attachments->map(fn (ProjectAttachment $attachment): array => [
                     'id' => $attachment->id,
@@ -183,7 +199,9 @@ class ProposalController extends Controller
                     'mime_type' => $attachment->mime_type,
                     'size_bytes' => $attachment->size_bytes,
                     'scan_status' => $attachment->scan_status,
-                    'preview_url' => route('proposals.attachments.preview', [$project, $attachment]),
+                    'preview_url' => $attachment->scan_status === 'PASSED'
+                        ? route('proposals.attachments.preview', [$project, $attachment])
+                        : null,
                 ])->all(),
                 'review_history' => $project->reviewDecisions->map(fn (ReviewDecision $decision): array => [
                     'id' => $decision->id,
@@ -233,14 +251,12 @@ class ProposalController extends Controller
                 abort(403);
             }
 
-            $candidates = $shortlist->for($project);
-
-            if ($candidates['candidates'] === []) {
-                return back()->withErrors(['team' => 'Belum ada kandidat yang memenuhi syarat untuk disusun secara manual.']);
-            }
+            $candidates = $shortlist->forUsers($project, array_map('intval', array_column($request->validated('members'), 'user_id')));
 
             $snapshot = $shortlist->snapshot($project, $candidates);
-            $run = DB::transaction(function () use ($project, $request, $snapshot): TeamMatchingRun {
+
+            // A refused team must not leave a manual run behind that hides the AI suggestion.
+            DB::transaction(function () use ($project, $request, $snapshot, $confirm): void {
                 $lockedProject = Project::query()->whereKey($project->id)->lockForUpdate()->firstOrFail();
 
                 if (! in_array($lockedProject->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)) {
@@ -268,13 +284,21 @@ class ProposalController extends Controller
                     'output_json' => ['recommended_members' => [], 'rule_problems' => [], 'team_gaps' => [], 'cautions' => [], 'mitigations' => []],
                 ])->save();
 
-                return $run;
+                $confirm->handle($project, $run, $request->validated('members'), $request->integer('pic_id'), $request->user());
             });
-        } else {
-            $run = TeamMatchingRun::query()->findOrFail($request->integer('run_id'));
+
+            Inertia::flash('toast', ['type' => 'success', 'message' => 'Tim proposal berhasil dikonfirmasi.']);
+
+            return back();
         }
 
-        $confirm->handle($project, $run, $request->validated('members'), $request->user());
+        $confirm->handle(
+            $project,
+            TeamMatchingRun::query()->findOrFail($request->integer('run_id')),
+            $request->validated('members'),
+            $request->integer('pic_id'),
+            $request->user(),
+        );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Tim proposal berhasil dikonfirmasi.']);
 
@@ -315,7 +339,7 @@ class ProposalController extends Controller
      * @param  list<int>  $requiredCompetencyIds
      * @return list<array<string, mixed>>
      */
-    private function currentTeam(Project $project, array $requiredCompetencyIds = []): array
+    private function currentTeam(Project $project, array $requiredCompetencyIds, PicOpenItems $picItems): array
     {
         $members = $project->members()
             ->wherePivot('status', 'ACTIVE')->wherePivotNull('left_at')
@@ -330,16 +354,19 @@ class ProposalController extends Controller
             ->get()
             ->groupBy('user_id');
 
+        $openItems = $picItems->countsByPic($project);
+
         return array_values($members->map(fn (User $member): array => [
             'user_id' => $member->id,
             'name' => $member->name,
             'organization' => $member->organization?->name,
             'organization_id' => $member->organization_id,
             'role' => (string) $member->pivot->getAttribute('role_in_project'),
+            'open_items' => $openItems->get($member->id, ['risks' => 0, 'actions' => 0]),
             'competencies' => $held->get($member->id)?->map(fn (MemberCompetency $row): array => [
                 'competency_id' => $row->competency_id,
                 'self_level' => $row->self_level,
-                'verified_level' => $row->verified_level,
+                'verified_level' => $row->activeVerifiedLevel(),
             ])->values()->all() ?? [],
         ])->all());
     }
@@ -347,7 +374,7 @@ class ProposalController extends Controller
     /**
      * @return array<string, mixed>|null
      */
-    private function latestMatching(Project $project): ?array
+    private function latestMatching(Project $project, TeamMatchingInputFingerprint $fingerprint): ?array
     {
         $run = TeamMatchingRun::query()->where('project_id', $project->id)->latest('id')->first();
 
@@ -368,6 +395,7 @@ class ProposalController extends Controller
             'error_code' => $run->error_code,
             'created_at' => $run->created_at?->toIso8601String(),
             'confirmed_at' => $run->confirmed_at?->toIso8601String(),
+            'input_stale' => ! $fingerprint->matches($project, $run->candidate_snapshot_json['input_fingerprint'] ?? null),
             'members' => collect($output['recommended_members'] ?? [])->map(fn (array $member): array => [
                 'user_id' => $member['user_id'],
                 'name' => $names->get($member['user_id'])?->name,

@@ -33,7 +33,7 @@ class ReviewApprovalController extends Controller
                 ? Project::query()->visibleTo($user)->whereHas('mentorAssignments', fn ($assignment) => $assignment->where('mentor_id', $user->id)->where('status', 'ACTIVE'))->exists()
                 : ($user->can('projects.viewAny') || $hasAssignment('steps')));
         $canReviewProjects = $canReviewProposal || $canReviewSteps;
-        $canReviewScoring = ! $isMentor && $user->can('scoring.view')
+        $canReviewScoring = (bool) config('qcc_features.chapter_ten_scoring') && ! $isMentor && $user->can('scoring.view')
             && ($user->can('scoring.review') || $user->can('scoring.approve'))
             && ($user->can('projects.viewAny') || $hasAssignment('scoring'));
         $canReviewBiweekly = ($user->can('projects.review')

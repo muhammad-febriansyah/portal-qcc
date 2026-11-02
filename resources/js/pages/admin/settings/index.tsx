@@ -53,6 +53,8 @@ type PolicySettings = {
     notifications: {
         inApp: boolean;
         email: boolean;
+        reminderEarlyDays: number;
+        reminderFinalDays: number;
     };
     attachments: {
         storageDisk: string;
@@ -68,11 +70,6 @@ type PolicySettings = {
         modelOptions: ModelOption[];
         hasApiKey: boolean;
     };
-    sso: {
-        title: string;
-        decision: string;
-        description: string;
-    };
 };
 
 type ModelOption = {
@@ -83,6 +80,8 @@ type ModelOption = {
 type PolicyForm = {
     notifications_in_app: boolean;
     notifications_email: boolean;
+    notifications_reminder_early_days: number;
+    notifications_reminder_final_days: number;
     attachments_storage_disk: string;
     attachments_allowed_types: string[];
     attachments_max_size_mb: number;
@@ -128,6 +127,10 @@ export default function SystemSettingsIndex({
     const policyForm = useForm<PolicyForm>({
         notifications_in_app: policies.notifications.inApp,
         notifications_email: policies.notifications.email,
+        notifications_reminder_early_days:
+            policies.notifications.reminderEarlyDays,
+        notifications_reminder_final_days:
+            policies.notifications.reminderFinalDays,
         attachments_storage_disk: policies.attachments.storageDisk,
         attachments_allowed_types: policies.attachments.allowedTypes,
         attachments_max_size_mb: policies.attachments.maxSizeMb,
@@ -499,6 +502,62 @@ export default function SystemSettingsIndex({
                                             </Button>
                                         )}
                                     </div>
+                                    <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+                                        <FormField
+                                            id="reminder-early-days"
+                                            label="Pengingat awal (hari sebelum tenggat)"
+                                            error={
+                                                policyForm.errors
+                                                    .notifications_reminder_early_days
+                                            }
+                                        >
+                                            <Input
+                                                id="reminder-early-days"
+                                                type="number"
+                                                min={2}
+                                                max={30}
+                                                value={
+                                                    policyForm.data
+                                                        .notifications_reminder_early_days
+                                                }
+                                                onChange={(event) =>
+                                                    policyForm.setData(
+                                                        'notifications_reminder_early_days',
+                                                        Number(
+                                                            event.target.value,
+                                                        ),
+                                                    )
+                                                }
+                                            />
+                                        </FormField>
+                                        <FormField
+                                            id="reminder-final-days"
+                                            label="Pengingat akhir (hari sebelum tenggat)"
+                                            error={
+                                                policyForm.errors
+                                                    .notifications_reminder_final_days
+                                            }
+                                        >
+                                            <Input
+                                                id="reminder-final-days"
+                                                type="number"
+                                                min={1}
+                                                max={29}
+                                                value={
+                                                    policyForm.data
+                                                        .notifications_reminder_final_days
+                                                }
+                                                onChange={(event) =>
+                                                    policyForm.setData(
+                                                        'notifications_reminder_final_days',
+                                                        Number(
+                                                            event.target.value,
+                                                        ),
+                                                    )
+                                                }
+                                            />
+                                        </FormField>
+                                    </div>
                                 </CardContent>
                             </Card>
 
@@ -722,20 +781,21 @@ export default function SystemSettingsIndex({
                                     </div>
                                     <CardDescription>
                                         API key disimpan terenkripsi di server.
-                                        Permintaan scoring memakai store=false;
-                                        mengaktifkan AI mengirim evidence proyek
-                                        ke penyedia.
+                                        OpenAI dipakai untuk rekomendasi AI Team
+                                        Matching berdasarkan ringkasan proposal
+                                        yang disetujui pengguna.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="grid gap-6">
                                     <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
                                         <div>
                                             <p className="text-sm font-medium">
-                                                Aktifkan scoring AI
+                                                Aktifkan AI Team Matching
                                             </p>
                                             <p className="text-sm text-muted-foreground">
-                                                Nonaktifkan untuk mencegah
-                                                pengiriman data baru.
+                                                Ringkasan proposal dikirim ke
+                                                OpenAI saat pengguna meminta
+                                                rekomendasi tim.
                                             </p>
                                         </div>
                                         <Switch
@@ -917,7 +977,7 @@ export default function SystemSettingsIndex({
                         <DialogFooter>
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="destructive"
                                 disabled={testEmailForm.processing}
                                 onClick={() => setIsTestEmailDialogOpen(false)}
                             >

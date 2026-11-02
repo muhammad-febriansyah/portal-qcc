@@ -53,6 +53,7 @@ import { end } from '@/routes/projects/mentoring/assignments';
 type Assignment = {
     id: number;
     mentor: string | null;
+    author: string | null;
     status: string;
     assigned_at: string;
     ended_at: string | null;
@@ -61,6 +62,7 @@ type Report = {
     id: number;
     session_at: string;
     mentor: string | null;
+    author: string | null;
     topic: string;
     findings: string | null;
     suggestions: string | null;
@@ -86,6 +88,8 @@ type Report = {
     }[];
     can_edit: boolean;
     can_acknowledge: boolean;
+    author_type: 'MENTOR' | 'TEAM_LEADER';
+    project_mentor_id: number;
 };
 
 type Props = {
@@ -96,6 +100,7 @@ type Props = {
     mentor_options: { value: string; label: string }[];
     can_assign: boolean;
     can_write: boolean;
+    is_team_leader: boolean;
 };
 
 const variants: Record<string, BadgeVariant> = {
@@ -114,16 +119,30 @@ function SessionForm({
     projectId,
     editing,
     members,
+    assignments,
+    isTeamLeader,
     onClose,
 }: {
     projectId: number;
     editing: Report | null;
     members: Props['members'];
+    assignments: Assignment[];
+    isTeamLeader: boolean;
     onClose: () => void;
 }) {
+    const initialSessionAt = editing
+        ? format(parseISO(editing.session_at), "yyyy-MM-dd'T'HH:mm")
+        : '';
+    const [sessionDate, setSessionDate] = useState(
+        initialSessionAt.slice(0, 10),
+    );
+    const [sessionTime, setSessionTime] = useState(
+        initialSessionAt.slice(11, 16),
+    );
     const form = useForm({
-        session_at: editing
-            ? format(parseISO(editing.session_at), "yyyy-MM-dd'T'HH:mm")
+        session_at: initialSessionAt,
+        project_mentor_id: editing?.project_mentor_id
+            ? String(editing.project_mentor_id)
             : '',
         topic: editing?.topic ?? '',
         findings: editing?.findings ?? '',
@@ -175,20 +194,100 @@ function SessionForm({
                 </Alert>
             )}
             <div className="grid gap-6 sm:grid-cols-2">
+                {isTeamLeader && (
+                    <FormField
+                        id="project_mentor_id"
+                        label="Mentor ditugaskan"
+                        required
+                        error={form.errors.project_mentor_id}
+                    >
+                        <Select
+                            disabled={editing !== null}
+                            value={form.data.project_mentor_id}
+                            onValueChange={(value) =>
+                                form.setData('project_mentor_id', value ?? '')
+                            }
+                            items={assignments
+                                .filter((item) => item.status === 'ACTIVE')
+                                .map((item) => ({
+                                    value: String(item.id),
+                                    label: item.mentor ?? 'Mentor',
+                                }))}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Pilih mentor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {assignments
+                                    .filter((item) => item.status === 'ACTIVE')
+                                    .map((item) => (
+                                        <SelectItem
+                                            key={item.id}
+                                            value={String(item.id)}
+                                        >
+                                            {item.mentor ?? 'Mentor'}
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
+                    </FormField>
+                )}
                 <FormField
-                    id="session_at"
-                    label="Waktu sesi"
+                    id="session-date"
+                    label="Tanggal dan waktu sesi"
                     required
                     error={form.errors.session_at}
                 >
-                    <Input
-                        type="datetime-local"
-                        value={form.data.session_at}
-                        onChange={(e) =>
-                            form.setData('session_at', e.target.value)
-                        }
-                        className="h-10"
-                    />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid gap-1.5">
+                            <span className="text-xs text-muted-foreground">
+                                Tanggal
+                            </span>
+                            <DatePicker
+                                id="session-date"
+                                value={sessionDate || null}
+                                onValueChange={(value) => {
+                                    const nextDate = value ?? '';
+                                    setSessionDate(nextDate);
+                                    form.setData(
+                                        'session_at',
+                                        nextDate && sessionTime
+                                            ? `${nextDate}T${sessionTime}`
+                                            : '',
+                                    );
+                                }}
+                                required
+                                aria-invalid={Boolean(form.errors.session_at)}
+                                className="h-10"
+                            />
+                        </div>
+                        <div className="grid gap-1.5">
+                            <label
+                                htmlFor="session-time"
+                                className="text-xs text-muted-foreground"
+                            >
+                                Jam
+                            </label>
+                            <Input
+                                id="session-time"
+                                type="time"
+                                value={sessionTime}
+                                onChange={(event) => {
+                                    const nextTime = event.target.value;
+                                    setSessionTime(nextTime);
+                                    form.setData(
+                                        'session_at',
+                                        sessionDate && nextTime
+                                            ? `${sessionDate}T${nextTime}`
+                                            : '',
+                                    );
+                                }}
+                                required
+                                aria-invalid={Boolean(form.errors.session_at)}
+                                className="h-10"
+                            />
+                        </div>
+                    </div>
                 </FormField>
                 <FormField
                     id="topic"
@@ -426,12 +525,12 @@ function SessionForm({
                 )}
             </fieldset>
             <DialogFooter>
-                <Button type="button" variant="outline" onClick={onClose}>
+                <Button type="button" variant="destructive" onClick={onClose}>
                     Batal
                 </Button>
                 <Button
                     type="submit"
-                    variant="outline"
+                    variant="default"
                     disabled={form.processing}
                 >
                     {form.processing && <Spinner data-icon="inline-start" />}
@@ -452,7 +551,7 @@ function SessionForm({
                         }
                     >
                         <Send data-icon="inline-start" aria-hidden="true" />
-                        Kirim ke Tim
+                        Kirim {isTeamLeader ? 'ke Mentor' : 'ke Tim'}
                     </Button>
                 )}
             </DialogFooter>
@@ -483,11 +582,20 @@ function AckForm({
             }}
         >
             <DialogHeader>
-                <DialogTitle>Tanggapi feedback: {report.topic}</DialogTitle>
+                <DialogTitle>
+                    {report.author_type === 'TEAM_LEADER'
+                        ? 'Feedback Mentor'
+                        : 'Tanggapan tim'}
+                    : {report.topic}
+                </DialogTitle>
             </DialogHeader>
             <FormField
                 id="team_response"
-                label="Tanggapan tim"
+                label={
+                    report.author_type === 'TEAM_LEADER'
+                        ? 'Feedback Mentor'
+                        : 'Tanggapan tim'
+                }
                 required
                 error={form.errors.team_response}
             >
@@ -496,12 +604,16 @@ function AckForm({
                     onChange={(e) =>
                         form.setData('team_response', e.target.value)
                     }
-                    placeholder="Apa yang akan dilakukan tim?"
+                    placeholder={
+                        report.author_type === 'TEAM_LEADER'
+                            ? 'Masukan Mentor untuk laporan tim'
+                            : 'Apa yang akan dilakukan tim?'
+                    }
                     className="min-h-28"
                 />
             </FormField>
             <DialogFooter>
-                <Button type="button" variant="outline" onClick={onClose}>
+                <Button type="button" variant="destructive" onClick={onClose}>
                     Batal
                 </Button>
                 <Button type="submit" disabled={form.processing}>
@@ -521,6 +633,7 @@ export default function ProjectMentoring({
     mentor_options: mentorOptions,
     can_assign: canAssign,
     can_write: canWrite,
+    is_team_leader: isTeamLeader,
 }: Props) {
     const [dialog, setDialog] = useState<{
         mode: 'session' | 'ack';
@@ -696,9 +809,10 @@ export default function ProjectMentoring({
                         )}
                         <p className="text-xs text-muted-foreground">
                             Mentor dapat meninjau, meminta revisi, dan
-                            menyetujui 8 Step pada proyek bimbingan aktif.
-                            Persetujuan proposal dan scoring tetap oleh reviewer
-                            QCC.
+                            menyetujui 8 Step pada proyek bimbingan aktif. Team
+                            Leader mengirim laporan mentoring; Mentor memberi
+                            feedback sesuai penugasan. Reviewer QCC tetap
+                            memutuskan proposal.
                         </p>
                     </CardContent>
                 </Card>
@@ -724,7 +838,10 @@ export default function ProjectMentoring({
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
                                                     {when(report.session_at)} ·{' '}
-                                                    {report.mentor}
+                                                    {report.author_type ===
+                                                    'TEAM_LEADER'
+                                                        ? `Dikirim ${report.author ?? 'Team Leader'} · Mentor ${report.mentor ?? '—'}`
+                                                        : `Mentor ${report.mentor ?? '—'}`}
                                                 </p>
                                             </div>
                                             <Badge
@@ -943,13 +1060,15 @@ export default function ProjectMentoring({
                 open={dialog !== null}
                 onOpenChange={(open) => !open && setDialog(null)}
             >
-                <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+                <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl">
                     {dialog?.mode === 'session' && (
                         <SessionForm
                             key={dialog.report?.id ?? 'new'}
                             projectId={project.id}
                             editing={dialog.report}
                             members={members}
+                            assignments={assignments}
+                            isTeamLeader={isTeamLeader}
                             onClose={() => setDialog(null)}
                         />
                     )}

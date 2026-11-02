@@ -261,7 +261,7 @@ export function ProjectRequirementsField({
             <div className="flex justify-end">
                 <Button
                     type="button"
-                    variant="outline"
+                    variant="default"
                     className="h-10 px-4"
                     disabled={form.processing || !isDirty}
                     onClick={save}
@@ -277,7 +277,7 @@ export function ProjectRequirementsField({
             {isDirty && (
                 <p
                     role="status"
-                    className="text-xs text-amber-700 dark:text-amber-300"
+                    className="text-xs text-amber-700"
                 >
                     Simpan kebutuhan kompetensi sebelum melanjutkan ke tahap
                     berikutnya.

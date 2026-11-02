@@ -9,6 +9,7 @@ use App\Models\QccBatch;
 use App\Models\ReviewDecision;
 use App\Models\TeamMatchingRun;
 use App\Models\User;
+use App\Services\Teams\CandidateShortlist;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
@@ -72,6 +73,7 @@ function preparedProposal(): array
         'requested_by' => $proposer->id,
         'status' => TeamMatchingStatus::Ready,
         'idempotency_key' => (string) str()->uuid(),
+        'candidate_snapshot_json' => app(CandidateShortlist::class)->snapshot($project, app(CandidateShortlist::class)->for($project)),
     ]);
     $matchingRun->forceFill(['confirmed_by' => $proposer->id, 'confirmed_at' => now()])->save();
 
@@ -122,6 +124,17 @@ test('proposal can be submitted revised resubmitted and approved with visible hi
             ->where('proposal.review_history.3.reason', 'Perjelas baseline pengukuran.'));
 });
 
+test('proposal submission requires team reconfirmation when matching inputs change', function () {
+    [$project, $proposer] = preparedProposal();
+    $project->forceFill(['supplementary_information' => 'Informasi pelengkap baru'])->save();
+
+    $this->actingAs($proposer)
+        ->post(route('proposals.submit', $project))
+        ->assertSessionHasErrors(['team' => 'Informasi proposal atau kebutuhan kompetensi berubah setelah tim dikonfirmasi. Perbarui rekomendasi dan konfirmasi tim kembali sebelum mengajukan.']);
+
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Draft);
+});
+
 test('proposal transitions reject missing review reasons and invalid state changes', function () {
     [$project, $proposer, $reviewer] = preparedProposal();
 
@@ -135,6 +148,36 @@ test('proposal transitions reject missing review reasons and invalid state chang
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::UnderReview)
         ->and(ReviewDecision::query()->where('project_id', $project->id)->count())->toBe(2);
+});
+
+test('a deactivated team member blocks submission instead of being dropped from the check', function () {
+    [$project, $proposer] = preparedProposal();
+    $inactive = User::factory()->create(['organization_id' => $proposer->organization_id, 'is_active' => false]);
+    DB::table('project_members')->insert([
+        'project_id' => $project->id,
+        'user_id' => $inactive->id,
+        'role_in_project' => 'MEMBER',
+        'status' => 'ACTIVE',
+        'joined_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $this->actingAs($proposer)
+        ->post(route('proposals.submit', $project))
+        ->assertSessionHasErrors('team');
+
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Draft);
+});
+
+test('an active team leader cannot change a proposal once it is submitted', function () {
+    [$project, $proposer] = preparedProposal();
+
+    expect($proposer->can('update', $project))->toBeTrue();
+
+    $project->forceFill(['proposal_status' => ProposalStatus::Submitted])->save();
+
+    expect($proposer->fresh()->can('update', $project->fresh()))->toBeFalse();
 });
 
 test('proposal submission blocks missing content and an unconfirmed team', function () {

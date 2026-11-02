@@ -22,6 +22,8 @@ class ProfileUpdateRequest extends FormRequest
             ...$this->profileRules($this->user()->id),
             'position' => ['required', 'string', 'max:255'],
             'work_location' => ['required', 'string', 'max:255'],
+            'work_contact' => ['required', 'string', 'max:255'],
+            'personal_contact' => ['required', 'string', 'max:255'],
             'organization_id' => [
                 'required',
                 'integer',

@@ -52,6 +52,12 @@ class MentoringReport extends Model
         return $this->belongsTo(ProjectMentor::class, 'project_mentor_id');
     }
 
+    /** @return BelongsTo<User, $this> */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
     /** @return HasMany<ActionItem, $this> */
     public function actions(): HasMany
     {

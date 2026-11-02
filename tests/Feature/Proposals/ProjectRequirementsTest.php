@@ -5,6 +5,7 @@ use App\Models\Competency;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -123,6 +124,25 @@ it('is closed to other people and to proposals that are no longer drafts', funct
 
     $submitted = Project::factory()->status(ProposalStatus::Submitted)->create(['proposer_id' => $this->editor->id]);
     $this->actingAs($this->editor)->put(route('proposals.requirements.update', $submitted), $payload)->assertForbidden();
+
+    expect(savedRequirements($this->project))->toBe([]);
+});
+
+it('rejects competency edits when proposal status changes after route binding', function () {
+    $url = route('proposals.requirements.update', $this->project);
+    $projectId = $this->project->id;
+    $switched = false;
+
+    Event::listen('eloquent.retrieved: '.Project::class, function (Project $bound) use ($projectId, &$switched): void {
+        if (! $switched && $bound->id === $projectId) {
+            $switched = true;
+            DB::table('projects')->where('id', $projectId)->update(['proposal_status' => ProposalStatus::Submitted->value]);
+        }
+    });
+
+    $this->actingAs($this->editor)->put($url, ['requirements' => [
+        ['competency_id' => $this->a->id, 'minimum_level' => 3],
+    ]])->assertNotFound();
 
     expect(savedRequirements($this->project))->toBe([]);
 });

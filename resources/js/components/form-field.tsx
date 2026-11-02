@@ -1,4 +1,4 @@
-import { cloneElement, type ReactElement } from 'react';
+import { cloneElement, type ReactElement, type ReactNode } from 'react';
 import InputError from '@/components/input-error';
 import { Label } from '@/components/ui/label';
 
@@ -15,6 +15,7 @@ type Props = {
     required?: boolean;
     hint?: string;
     error?: string;
+    footer?: ReactNode;
     children: ReactElement<FieldControlProps>;
 };
 
@@ -31,11 +32,13 @@ export function FormField({
     required = false,
     hint,
     error,
+    footer,
     children,
 }: Props) {
     const describedBy = [
         hint ? `${id}-hint` : null,
         error ? `${id}-error` : null,
+        footer ? `${id}-footer` : null,
     ]
         .filter(Boolean)
         .join(' ');
@@ -67,6 +70,7 @@ export function FormField({
                 className="text-sm text-destructive"
                 message={error ? (validationMessages[error] ?? error) : error}
             />
+            {footer && <div id={`${id}-footer`}>{footer}</div>}
         </div>
     );
 }

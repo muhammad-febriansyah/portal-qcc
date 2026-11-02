@@ -111,6 +111,16 @@ it('does not count people without a LOB towards the two LOB minimum', function (
     expect(qcc054TeamValidationErrors($members))->toContain('Anggota tim harus berasal dari minimal 2 LOB/Divisi.');
 });
 
+it('rejects a team member who has no LOB even when the rest span two LOBs', function () {
+    $members = [
+        ['user_id' => 1, 'organization_id' => 10, 'role_in_project' => 'LEADER'],
+        ['user_id' => 2, 'organization_id' => 20, 'role_in_project' => 'MEMBER'],
+        ['user_id' => 3, 'organization_id' => null, 'role_in_project' => 'MEMBER'],
+    ];
+
+    expect(qcc054TeamValidationErrors($members))->toContain('Setiap anggota tim harus memiliki LOB/Divisi.');
+});
+
 it('accepts a team of exactly two people from two LOBs', function () {
     $members = [
         ['user_id' => 1, 'organization_id' => 10, 'role_in_project' => 'LEADER'],

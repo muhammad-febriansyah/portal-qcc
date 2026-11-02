@@ -382,7 +382,7 @@ export default function ScoringIndex({
                             <DialogFooter>
                                 <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="destructive"
                                     onClick={() => setIsStartDialogOpen(false)}
                                 >
                                     Batal

@@ -96,6 +96,14 @@ it('needs the meeting, agenda, summary, plan, actual and an attendee before it c
     expect($report->fresh()->status)->toBe(ReportStatus::Draft);
 });
 
+it('reserves bi-weekly report creation and submission for the team leader', function () {
+    $this->actingAs($this->member)
+        ->post(route('projects.biweekly.store', $this->project), reportPayload($this->attendees))
+        ->assertForbidden();
+
+    expect(BiweeklyReport::query()->where('project_id', $this->project->id)->exists())->toBeFalse();
+});
+
 it('goes through submit, revision, resubmit and approval with audit and notices', function () {
     $mentor = bmMentor();
     ProjectMentor::query()->create(['project_id' => $this->project->id, 'mentor_id' => $mentor->id, 'assigned_by' => $this->owner->id, 'status' => 'ACTIVE', 'assigned_at' => now()]);
@@ -451,12 +459,39 @@ it('keeps mentoring scoped to the assigned mentor and does not add mentoring app
     $payload = ['session_at' => '2026-11-20T10:00', 'topic' => 'Topik', 'findings' => 'a', 'suggestions' => 'b'];
 
     $this->actingAs($unassigned)->post(route('projects.mentoring.store', $this->project), $payload)->assertForbidden();
-    $this->actingAs($this->leader)->post(route('projects.mentoring.store', $this->project), $payload)->assertForbidden();
+    $this->actingAs($this->leader)->post(route('projects.mentoring.store', $this->project), [...$payload, 'project_mentor_id' => ProjectMentor::query()->first()->id])->assertSessionHasNoErrors();
     $this->actingAs($this->owner)->post(route('projects.mentoring.store', $this->project), $payload)->assertForbidden();
     $this->actingAs($mentor)->post(route('projects.mentoring.store', $this->project), [...$payload, 'topic' => ''])->assertSessionHasErrors('topic');
 
     $report = MentoringReport::query()->create(['project_id' => $this->project->id, 'project_mentor_id' => ProjectMentor::query()->first()->id, 'session_at' => now(), 'topic' => 'x', 'status' => ReportStatus::Submitted, 'created_by' => $mentor->id]);
     $this->actingAs($mentor)->post(route('projects.mentoring.acknowledge', [$this->project, $report]), ['team_response' => 'ok'])->assertForbidden();
+});
+
+it('lets the assigned Mentor give feedback on a Team Leader mentoring report', function () {
+    $mentor = bmMentor();
+    $assignment = ProjectMentor::query()->create(['project_id' => $this->project->id, 'mentor_id' => $mentor->id, 'assigned_by' => $this->owner->id, 'status' => 'ACTIVE', 'assigned_at' => now()]);
+
+    $this->actingAs($this->leader)->post(route('projects.mentoring.store', $this->project), [
+        'project_mentor_id' => $assignment->id,
+        'session_at' => '2026-11-20T10:00',
+        'topic' => 'Laporan pendampingan',
+        'findings' => 'Tim menguji solusi',
+        'suggestions' => 'Perlu tambah sampel',
+    ])->assertSessionHasNoErrors();
+
+    $report = MentoringReport::query()->firstOrFail();
+    $this->actingAs($this->leader)->post(route('projects.mentoring.submit', [$this->project, $report]), [
+        'project_mentor_id' => $assignment->id,
+        'session_at' => '2026-11-20T10:00',
+        'topic' => 'Laporan pendampingan',
+        'findings' => 'Tim menguji solusi',
+        'suggestions' => 'Perlu tambah sampel',
+    ])->assertSessionHasNoErrors();
+
+    $this->actingAs($mentor)->post(route('projects.mentoring.acknowledge', [$this->project, $report]), ['team_response' => 'Gunakan tiga shift sebagai sampel'])->assertSessionHasNoErrors();
+
+    expect($report->fresh()->status)->toBe(ReportStatus::Acknowledged)
+        ->and($report->fresh()->team_response)->toBe('Gunakan tiga shift sebagai sampel');
 });
 
 it('lets Owner assign an active Mentor to a project and records the assignment', function () {

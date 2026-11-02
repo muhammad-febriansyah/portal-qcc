@@ -230,5 +230,17 @@ test('overview lists participants per organization and flags what needs attentio
     $keys = array_column($overview['attention'], 'key');
 
     expect(array_column($overview['members_by_organization'], 'label'))->toContain('Tanpa organisasi')
-        ->and($keys)->toContain('no_organization', 'no_sim_id', 'no_competency');
+        ->and($keys)->toContain('no_organization', 'no_sim_id', 'incomplete_contacts', 'no_competency');
+});
+
+test('overview flags active batches missing biweekly or mentoring schedules', function () {
+    dashboardAdmin();
+    QccBatch::factory()->active()->create();
+    Cache::forget(AdminDashboardOverview::CACHE_KEY);
+
+    $overview = app(AdminDashboardOverview::class)->get();
+    $attention = collect($overview['attention'])->firstWhere('key', 'batch_schedules_incomplete');
+
+    expect($attention)->not->toBeNull()
+        ->and($attention['count'])->toBeGreaterThanOrEqual(1);
 });

@@ -586,10 +586,10 @@ export default function ProjectSteps({
                                         />
                                     </section>
 
-                                    <div className="flex items-center justify-between gap-3 border-t pt-4">
+                                    <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                                         {previous ? (
                                             <Button
-                                                variant="outline"
+                                                className="h-auto min-h-10 max-w-full justify-start whitespace-normal sm:max-w-[48%]"
                                                 render={
                                                     <Link
                                                         href={show.url({
@@ -604,7 +604,7 @@ export default function ProjectSteps({
                                                     data-icon="inline-start"
                                                     aria-hidden="true"
                                                 />
-                                                <span className="max-w-40 truncate">
+                                                <span className="min-w-0 text-left break-words whitespace-normal">
                                                     {nameOf(previous)}
                                                 </span>
                                             </Button>
@@ -613,7 +613,7 @@ export default function ProjectSteps({
                                         )}
                                         {next ? (
                                             <Button
-                                                variant="outline"
+                                                className="h-auto min-h-10 max-w-full justify-end whitespace-normal sm:max-w-[48%]"
                                                 render={
                                                     <Link
                                                         href={show.url({
@@ -624,7 +624,7 @@ export default function ProjectSteps({
                                                 }
                                                 nativeButton={false}
                                             >
-                                                <span className="max-w-40 truncate">
+                                                <span className="min-w-0 text-right break-words whitespace-normal">
                                                     {nameOf(next)}
                                                 </span>
                                                 <ArrowRight

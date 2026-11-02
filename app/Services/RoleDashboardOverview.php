@@ -18,21 +18,51 @@ class RoleDashboardOverview
 {
     /**
      * @return array{
-     *     summary: array{pending_tasks: int, proposals: int, active_projects: int, average_progress: int|null, biweekly_on_time: int, biweekly_late: int, mentoring_sessions: int, mentoring_feedback_pending: int},
-     *     projects: list<array<string, mixed>>, tasks: list<array<string, mixed>>
+     *     summary: array{pending_tasks: int, proposals: int, active_projects: int, average_progress: int|null, biweekly_on_time: int, biweekly_late: int, biweekly_overdue: int, mentoring_sessions: int, mentoring_feedback_pending: int},
+     *     status_counts: list<array{status: string, label: string, count: int}>, projects: list<array<string, mixed>>, tasks: list<array<string, mixed>>
      * }
      */
-    public function get(User $user): array
+    public function get(User $user, ?int $batchId = null, ?int $periodDays = null): array
     {
-        $visibleProjects = fn (): Builder => Project::query()->visibleTo($user);
+        $today = today(config('app.timezone'));
+        $periodStart = $periodDays === null
+            ? null
+            : $today->copy()->subDays(max(1, $periodDays) - 1)->toDateString();
+        $accessibleProjects = fn (): Builder => Project::query()
+            ->visibleTo($user)
+            ->when($batchId !== null, fn (Builder $query): Builder => $query->where('batch_id', $batchId));
+        $visibleProjects = fn (): Builder => $accessibleProjects()
+            ->when($periodStart !== null, fn (Builder $query): Builder => $query
+                ->whereDate('projects.created_at', '>=', $periodStart)
+                ->whereDate('projects.created_at', '<=', $today->toDateString()));
         $activeProjects = fn (): Builder => $visibleProjects()->where('proposal_status', ProposalStatus::Approved->value);
-        $tasks = $this->pendingTasks($user, $visibleProjects);
+        $tasks = $this->pendingTasks($user, $accessibleProjects, $batchId);
         $averageProgress = ProjectStep::query()
             ->whereIn('project_id', $activeProjects()->select('projects.id'))
             ->avg('progress_pct');
-        $activeProjectIds = $activeProjects()->select('projects.id');
-        $submittedReports = BiweeklyReport::query()->whereIn('project_id', $activeProjectIds)->whereNotNull('submitted_at');
-        $mentoringReports = MentoringReport::query()->whereIn('project_id', $activeProjectIds);
+        $reportProjectIds = $accessibleProjects()
+            ->where('proposal_status', ProposalStatus::Approved->value)
+            ->select('projects.id');
+        $submittedReports = BiweeklyReport::query()->whereIn('project_id', $reportProjectIds)->whereNotNull('submitted_at');
+        if ($periodStart !== null) {
+            $submittedReports->whereDate('ends_on', '>=', $periodStart)->whereDate('ends_on', '<=', $today->toDateString());
+        }
+        $overdueReports = BiweeklyReport::query()
+            ->whereIn('project_id', $reportProjectIds)
+            ->whereNull('submitted_at')
+            ->whereDate('ends_on', '<', $today->toDateString())
+            ->whereIn('status', [ReportStatus::Draft->value, ReportStatus::RevisionRequired->value]);
+        if ($periodStart !== null) {
+            $overdueReports->whereDate('ends_on', '>=', $periodStart);
+        }
+        $mentoringReports = MentoringReport::query()
+            ->whereIn('project_id', $reportProjectIds)
+            ->when($periodStart !== null, fn (Builder $query): Builder => $query
+                ->whereDate('session_at', '>=', $periodStart)
+                ->whereDate('session_at', '<=', $today->toDateString()));
+        $projectCounts = $visibleProjects()->selectRaw('proposal_status, COUNT(*) as total')
+            ->groupBy('proposal_status')
+            ->pluck('total', 'proposal_status');
 
         $projects = array_values($visibleProjects()
             ->select(['id', 'title', 'proposal_status', 'updated_at'])
@@ -63,9 +93,15 @@ class RoleDashboardOverview
                 'average_progress' => $averageProgress === null ? null : (int) round((float) $averageProgress),
                 'biweekly_on_time' => (clone $submittedReports)->whereRaw('DATE(submitted_at) <= ends_on')->count(),
                 'biweekly_late' => (clone $submittedReports)->whereRaw('DATE(submitted_at) > ends_on')->count(),
+                'biweekly_overdue' => $overdueReports->count(),
                 'mentoring_sessions' => (clone $mentoringReports)->count(),
                 'mentoring_feedback_pending' => (clone $mentoringReports)->where('status', ReportStatus::Submitted->value)->whereNull('acknowledged_at')->count(),
             ],
+            'status_counts' => array_map(fn (ProposalStatus $status): array => [
+                'status' => $status->value,
+                'label' => $status->label(),
+                'count' => (int) ($projectCounts[$status->value] ?? 0),
+            ], ProposalStatus::cases()),
             'projects' => $projects,
             'tasks' => $tasks['items'],
         ];
@@ -75,7 +111,7 @@ class RoleDashboardOverview
      * @param  callable(): Builder<Project>  $visibleProjects
      * @return array{count: int, items: list<array<string, mixed>>}
      */
-    private function pendingTasks(User $user, callable $visibleProjects): array
+    private function pendingTasks(User $user, callable $visibleProjects, ?int $batchId = null): array
     {
         $items = [];
         $count = 0;
@@ -97,6 +133,7 @@ class RoleDashboardOverview
 
         if ($user->can('projects.viewAny') && $user->can('projects.review')) {
             $teamPendingProposals = Project::query()
+                ->when($batchId !== null, fn (Builder $query): Builder => $query->where('batch_id', $batchId))
                 ->where('proposal_status', ProposalStatus::Draft->value)
                 ->whereHas('proposer.roles', fn (Builder $roles): Builder => $roles->where('name', 'SIMer / Member'))
                 ->whereDoesntHave('proposer.roles', fn (Builder $roles): Builder => $roles->where('name', 'Team Leader'))

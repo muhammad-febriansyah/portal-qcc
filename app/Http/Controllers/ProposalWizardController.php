@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Proposals\InspectProposalAttachment;
 use App\Enums\BatchStatus;
 use App\Enums\CompetencyLevel;
 use App\Enums\ProposalStatus;
@@ -11,15 +12,20 @@ use App\Models\Competency;
 use App\Models\Project;
 use App\Models\ProjectAttachment;
 use App\Models\QccBatch;
+use App\Models\TeamMatchingRun;
+use App\Services\EvidenceFileInspector;
 use App\Services\ProjectNotifier;
+use App\Services\Teams\Matching\TeamMatchingInputFingerprint;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class ProposalWizardController extends Controller
 {
@@ -67,7 +73,7 @@ class ProposalWizardController extends Controller
         return to_route('proposals.edit', $project);
     }
 
-    public function edit(Project $project): Response
+    public function edit(Request $request, Project $project, TeamMatchingInputFingerprint $fingerprint): Response
     {
         Gate::authorize('update', $project);
         abort_unless(in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
@@ -76,6 +82,13 @@ class ProposalWizardController extends Controller
             'batch:id,name',
             'attachments' => fn ($query) => $query->latest('created_at'),
         ]);
+        $confirmedRun = TeamMatchingRun::query()
+            ->where('project_id', $project->id)
+            ->whereNotNull('confirmed_at')
+            ->latest('id')
+            ->first();
+        $teamConfirmed = $confirmedRun !== null
+            && $fingerprint->matches($project, $confirmedRun->candidate_snapshot_json['input_fingerprint'] ?? null);
 
         return Inertia::render('proposals/wizard', [
             'project' => [
@@ -93,15 +106,26 @@ class ProposalWizardController extends Controller
                 'rca' => $project->rca,
                 'improvement_plan' => $project->improvement_plan,
                 'business_benefit' => $project->business_benefit,
+                'supplementary_information' => $project->supplementary_information,
                 'wizard_step' => $project->wizard_step,
                 'updated_at' => $project->updated_at?->toIso8601String(),
+                'can_submit' => $request->user()?->can('submit', $project) ?? false,
+                'can_find_candidates' => $request->user()?->can('findCandidates', $project) ?? false,
+                'team_confirmed' => $teamConfirmed,
+                'team_status_message' => $request->user()->can('findCandidates', $project)
+                    ? null
+                    : ($teamConfirmed
+                        ? 'Tim sudah dikonfirmasi. Silakan lanjutkan pengajuan proposal.'
+                        : 'Proposal menunggu Owner QCC menyusun tim. Anda dapat mengajukan proposal setelah tim dikonfirmasi.'),
                 'attachments' => $project->attachments->map(fn (ProjectAttachment $attachment): array => [
                     'id' => $attachment->id,
                     'original_name' => $attachment->original_name,
                     'mime_type' => $attachment->mime_type,
                     'size_bytes' => $attachment->size_bytes,
                     'scan_status' => $attachment->scan_status,
-                    'preview_url' => route('proposals.attachments.preview', [$project, $attachment]),
+                    'preview_url' => $attachment->scan_status === 'PASSED'
+                        ? route('proposals.attachments.preview', [$project, $attachment])
+                        : null,
                 ]),
             ],
             'step' => $project->wizard_step,
@@ -118,24 +142,28 @@ class ProposalWizardController extends Controller
 
     public function update(SaveProposalDraftRequest $request, Project $project, ProjectNotifier $notifier): RedirectResponse
     {
-        abort_unless(in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
-
         $data = $this->draftAttributes($request->validated());
         $advance = (bool) $data['advance'];
         $step = (int) $data['wizard_step'];
         unset($data['advance'], $data['wizard_step']);
 
-        if ($step > $project->wizard_step) {
-            throw ValidationException::withMessages([
-                'wizard_step' => 'Selesaikan langkah sebelumnya sebelum melanjutkan.',
-            ]);
-        }
+        DB::transaction(function () use ($project, $data, $advance, $step): void {
+            $lockedProject = Project::query()->lockForUpdate()->findOrFail($project->id);
+            abort_unless(in_array($lockedProject->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
 
-        $project->forceFill([
-            ...$data,
-            'wizard_step' => max($project->wizard_step, $advance ? min($step + 1, 5) : $step),
-        ]);
-        $project->save();
+            if ($advance && $step > $lockedProject->wizard_step) {
+                throw ValidationException::withMessages([
+                    'wizard_step' => 'Selesaikan langkah sebelumnya sebelum melanjutkan.',
+                ]);
+            }
+
+            $lockedProject->forceFill([
+                ...$data,
+                'wizard_step' => $advance
+                    ? max($lockedProject->wizard_step, min($step + 1, 5))
+                    : $lockedProject->wizard_step,
+            ])->save();
+        });
 
         $notifier->notifyTeamCompositionPending($project, $request->user());
 
@@ -144,29 +172,49 @@ class ProposalWizardController extends Controller
         return to_route('proposals.edit', $project);
     }
 
-    public function storeAttachments(UploadProposalAttachmentsRequest $request, Project $project): RedirectResponse
+    public function storeAttachments(UploadProposalAttachmentsRequest $request, Project $project, EvidenceFileInspector $inspector): RedirectResponse
     {
-        abort_unless(in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
-
         foreach ($request->file('files', []) as $file) {
-            $path = $file->store('qcc/proposals/'.$project->id, 'local');
+            $inspection = $inspector->inspectUpload($file, strtolower($file->getClientOriginalExtension()));
 
-            if (! is_string($path)) {
-                throw ValidationException::withMessages(['files' => 'Lampiran gagal disimpan. Coba unggah kembali.']);
+            if (! $inspection['valid']) {
+                throw ValidationException::withMessages(['files' => $inspection['error'] ?? 'Format lampiran tidak valid.']);
             }
+        }
 
-            $originalName = basename(str_replace('\\', '/', $file->getClientOriginalName()));
+        $storedPaths = [];
 
-            ProjectAttachment::query()->create([
-                'project_id' => $project->id,
-                'uploaded_by' => $request->user()->id,
-                'disk' => 'local',
-                'path' => $path,
-                'original_name' => Str::limit($originalName, 255, ''),
-                'mime_type' => $file->getMimeType() ?? 'application/octet-stream',
-                'size_bytes' => $file->getSize(),
-                'scan_status' => 'PENDING_SCAN',
-            ]);
+        try {
+            DB::transaction(function () use ($request, $project, &$storedPaths): void {
+                $lockedProject = Project::query()->lockForUpdate()->findOrFail($project->id);
+                abort_unless(in_array($lockedProject->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
+
+                foreach ($request->file('files', []) as $file) {
+                    $path = $file->store('qcc/proposals/'.$lockedProject->id, 'local');
+
+                    if (! is_string($path)) {
+                        throw ValidationException::withMessages(['files' => 'Lampiran gagal disimpan. Coba unggah kembali.']);
+                    }
+
+                    $storedPaths[] = $path;
+                    $originalName = basename(str_replace('\\', '/', $file->getClientOriginalName()));
+
+                    ProjectAttachment::query()->create([
+                        'project_id' => $lockedProject->id,
+                        'uploaded_by' => $request->user()->id,
+                        'disk' => 'local',
+                        'path' => $path,
+                        'original_name' => Str::limit($originalName, 255, ''),
+                        'mime_type' => $file->getMimeType() ?? 'application/octet-stream',
+                        'size_bytes' => $file->getSize(),
+                        'scan_status' => 'PASSED',
+                    ]);
+                }
+            });
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($storedPaths);
+
+            throw $exception;
         }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Lampiran proposal berhasil diunggah.']);
@@ -177,21 +225,27 @@ class ProposalWizardController extends Controller
     public function destroyAttachment(Project $project, ProjectAttachment $attachment): RedirectResponse
     {
         Gate::authorize('update', $project);
-        abort_unless(in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
         abort_unless($attachment->project_id === $project->id, 404);
 
+        DB::transaction(function () use ($project, $attachment): void {
+            $lockedProject = Project::query()->lockForUpdate()->findOrFail($project->id);
+            abort_unless(in_array($lockedProject->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
+
+            $attachment->delete();
+        });
+
         Storage::disk($attachment->disk)->delete($attachment->path);
-        $attachment->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Lampiran berhasil dihapus.']);
 
         return to_route('proposals.edit', $project);
     }
 
-    public function previewAttachment(Project $project, ProjectAttachment $attachment): mixed
+    public function previewAttachment(Project $project, ProjectAttachment $attachment, InspectProposalAttachment $inspector): mixed
     {
         Gate::authorize('view', $project);
         abort_unless($attachment->project_id === $project->id, 404);
+        abort_unless($inspector->handle($attachment) === 'PASSED', 404);
 
         $disk = Storage::disk($attachment->disk);
         abort_unless($disk->exists($attachment->path), 404);

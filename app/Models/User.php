@@ -116,6 +116,8 @@ class User extends Authenticatable implements MustVerifyEmail
         return filled($this->organization_id)
             && filled($this->position)
             && filled($this->work_location)
+            && filled($this->work_contact)
+            && filled($this->personal_contact)
             && filled($this->availability_status);
     }
 
@@ -132,6 +134,14 @@ class User extends Authenticatable implements MustVerifyEmail
     public function auditEventPrefix(): string
     {
         return 'user';
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function auditIgnoredAttributes(): array
+    {
+        return ['email_verified_at'];
     }
 
     public function auditLabel(): string
