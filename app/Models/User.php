@@ -17,7 +17,10 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Spatie\Permission\Traits\HasRoles;
+use Throwable;
 
 /**
  * @property int $id
@@ -126,9 +129,21 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->needs_profile_setup && ! $this->hasCompleteProfile();
     }
 
+    /**
+     * Sent straight away, so sign-up does not depend on a queue worker running. If the mail
+     * server refuses the message now, it goes to the queue and is retried there.
+     */
     public function sendEmailVerificationNotification(): void
     {
-        $this->notify(new VerifyEmailNotification);
+        try {
+            Notification::sendNow($this, new VerifyEmailNotification);
+        } catch (Throwable $exception) {
+            Log::warning('Verification email failed to send now; queued for retry.', [
+                'exception' => $exception::class,
+            ]);
+
+            $this->notify(new VerifyEmailNotification);
+        }
     }
 
     public function auditEventPrefix(): string
