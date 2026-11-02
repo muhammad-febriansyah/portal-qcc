@@ -1,3 +1,4 @@
+import { errorAlertClass } from '@/lib/alert-styles';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ChevronLeft,
@@ -116,9 +117,7 @@ const mitigationTypeLabels: Record<Mitigation['type'], string> = {
 };
 
 const infoAlertClass =
-    'mb-6 border-blue-200 bg-blue-50 text-blue-950 [&_[data-slot=alert-description]]:text-blue-900/80';
-const errorAlertClass =
-    'border-destructive/25 bg-destructive/10 text-destructive [&_[data-slot=alert-description]]:text-destructive/90';
+    'mb-6 border-primary/20 bg-primary/10 text-primary [&_[data-slot=alert-description]]:text-primary/80';
 
 type CurrentTeamMember = {
     user_id: number;
@@ -261,8 +260,8 @@ function CandidateCard({
 
                 {suggestion && (
                     <>
-                        <p className="text-[13px]">{suggestion.match_reason}</p>
-                        <p className="text-[13px] text-muted-foreground">
+                        <p className="text-sm">{suggestion.match_reason}</p>
+                        <p className="text-sm text-muted-foreground">
                             Kontribusi: {suggestion.contribution}
                         </p>
                     </>
@@ -272,7 +271,7 @@ function CandidateCard({
                     {candidate.competencies.map((competency) => (
                         <li
                             key={competency.competency_id}
-                            className="flex items-center justify-between gap-3 text-[13px]"
+                            className="flex items-center justify-between gap-3 text-sm"
                         >
                             <span className="min-w-0 truncate">
                                 {byId[competency.competency_id]?.name}
@@ -325,7 +324,7 @@ function CandidateCard({
                         <Button
                             type="button"
                             size="sm"
-                            className="bg-orange-500 text-white hover:bg-orange-600 focus-visible:ring-orange-500"
+                            className="bg-warning text-white hover:bg-warning/90 focus-visible:ring-warning"
                             onClick={() => setDetailsOpen(true)}
                         >
                             <Eye data-icon="inline-start" aria-hidden="true" />
@@ -360,7 +359,7 @@ function CandidateCard({
                         <Button
                             type="button"
                             size="sm"
-                            className="bg-orange-500 text-white hover:bg-orange-600 focus-visible:ring-orange-500"
+                            className="bg-warning text-white hover:bg-warning/90 focus-visible:ring-warning"
                             onClick={() => setDetailsOpen(true)}
                         >
                             <Eye data-icon="inline-start" aria-hidden="true" />
@@ -493,7 +492,7 @@ function CandidateCard({
                     {missing.length > 0 && (
                         <Alert
                             variant="warning"
-                            className="border-amber-200 bg-amber-50 text-amber-950 [&_[data-slot=alert-description]]:text-amber-900/80"
+                            className="border-warning/30 bg-warning/10 text-amber-950 [&_[data-slot=alert-description]]:text-amber-900/80"
                         >
                             <TriangleAlert aria-hidden="true" />
                             <AlertTitle>Rekomendasi coaching</AlertTitle>
@@ -1114,7 +1113,7 @@ export default function ProposalCandidates({
                                 <h2 className="text-base font-semibold">
                                     Tambah Anggota
                                 </h2>
-                                <p className="text-[13px] text-muted-foreground">
+                                <p className="text-sm text-muted-foreground">
                                     Kandidat yang memenuhi kebutuhan kompetensi
                                     proyek dan belum menjadi anggota tim.
                                     {teamFull &&
@@ -1226,7 +1225,7 @@ export default function ProposalCandidates({
                             Kompetensi yang dibutuhkan
                         </p>
                         {requirements.length === 0 ? (
-                            <p className="text-[13px] text-muted-foreground">
+                            <p className="text-sm text-muted-foreground">
                                 Proyek ini belum punya kebutuhan kompetensi.
                                 Tambahkan dulu agar kandidat bisa dicari.
                             </p>
@@ -1331,7 +1330,7 @@ export default function ProposalCandidates({
                             </Button>
                             {isRunning && !isStalled && (
                                 <span
-                                    className="text-[13px] text-muted-foreground"
+                                    className="text-sm text-muted-foreground"
                                     role="status"
                                 >
                                     {matching?.status_label}. Halaman diperbarui
@@ -1375,7 +1374,7 @@ export default function ProposalCandidates({
                 >
                     <DialogContent className="max-w-lg gap-5 p-6 sm:max-w-lg">
                         <DialogHeader className="pr-8">
-                            <div className="flex size-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                            <div className="flex size-11 items-center justify-center rounded-xl bg-warning/15 text-amber-700">
                                 <TriangleAlert
                                     className="size-5"
                                     aria-hidden="true"
@@ -1511,7 +1510,7 @@ export default function ProposalCandidates({
                 {isReady && matching.input_stale && (
                     <Alert
                         variant="warning"
-                        className="mb-6 border-amber-200 bg-amber-50 text-amber-950 [&_[data-slot=alert-description]]:text-amber-900/80"
+                        className="mb-6 border-warning/30 bg-warning/10 text-amber-950 [&_[data-slot=alert-description]]:text-amber-900/80"
                     >
                         <TriangleAlert aria-hidden="true" />
                         <AlertTitle>Rekomendasi perlu diperbarui</AlertTitle>
@@ -1542,7 +1541,7 @@ export default function ProposalCandidates({
                                         className="flex items-center justify-between gap-3 rounded-lg border p-3"
                                     >
                                         <div className="grid min-w-0">
-                                            <p className="truncate text-[13px] font-medium">
+                                            <p className="truncate text-sm font-medium">
                                                 {member.name}
                                             </p>
                                             <p className="truncate text-xs text-muted-foreground">
@@ -1615,15 +1614,15 @@ export default function ProposalCandidates({
                 )}
 
                 {requirements.length > 0 && candidates.length === 0 && (
-                    <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
-                        <span className="flex size-11 items-center justify-center rounded-xl bg-amber-100 text-amber-800">
+                    <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-warning/30 bg-warning/10 px-6 py-8 text-center">
+                        <span className="flex size-11 items-center justify-center rounded-xl bg-warning/15 text-amber-800">
                             <Users className="size-5" aria-hidden="true" />
                         </span>
                         <div className="grid gap-1">
                             <p className="text-sm font-semibold text-amber-950">
                                 Belum ada kandidat yang cocok
                             </p>
-                            <p className="max-w-md text-[13px] text-amber-900/80">
+                            <p className="max-w-md text-sm text-amber-900/80">
                                 Kandidat dengan gap kompetensi bisa dicari dan
                                 dipertimbangkan lewat susun tim manual. Sistem
                                 tetap menampilkan gap serta saran coaching.
@@ -1693,7 +1692,7 @@ export default function ProposalCandidates({
                                     matching.cautions.length > 0 ||
                                     matching.mitigations.length > 0) && (
                                     <Card className="gap-0 py-0">
-                                        <CardContent className="grid gap-2 p-5 text-[13px]">
+                                        <CardContent className="grid gap-2 p-5 text-sm">
                                             {matching.team_gaps.length > 0 && (
                                                 <p>
                                                     <span className="font-medium">
@@ -1772,7 +1771,7 @@ export default function ProposalCandidates({
                                     <h2 className="text-base font-semibold">
                                         Semua Kandidat
                                     </h2>
-                                    <p className="text-[13px] text-muted-foreground">
+                                    <p className="text-sm text-muted-foreground">
                                         {candidates.length} kandidat teratas
                                         (maksimal {limit}), diurutkan dari yang
                                         paling sesuai.

@@ -61,7 +61,7 @@ export function WizardStepper({
                                             'bg-primary text-primary-foreground',
                                         isDone &&
                                             !isCurrent &&
-                                            'bg-emerald-100 text-emerald-700',
+                                            'bg-success/15 text-success',
                                         !isCurrent &&
                                             !isDone &&
                                             !isLocked &&
@@ -87,7 +87,7 @@ export function WizardStepper({
                                 <span className="hidden min-w-0 sm:grid sm:gap-0.5">
                                     <span
                                         className={cn(
-                                            'text-[11px] font-medium tracking-wide uppercase',
+                                            'text-xs font-medium tracking-wide uppercase',
                                             isCurrent
                                                 ? 'text-primary'
                                                 : 'text-muted-foreground',

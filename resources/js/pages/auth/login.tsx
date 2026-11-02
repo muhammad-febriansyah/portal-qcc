@@ -33,7 +33,7 @@ export default function Login({ status, canRegister = false }: Props) {
                 </p>
 
                 {status && (
-                    <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                    <div className="mt-5 rounded-xl border border-success/20 bg-success/10 px-4 py-3 text-sm font-medium text-success">
                         {status}
                     </div>
                 )}
@@ -145,7 +145,7 @@ export default function Login({ status, canRegister = false }: Props) {
                         className="size-7 shrink-0 text-[#1c63c0]"
                         strokeWidth={1.6}
                     />
-                    <p className="text-[13px] leading-5 text-[#646a7a]">
+                    <p className="text-sm leading-5 text-[#646a7a]">
                         Akses aman untuk monitoring, proposal, dan AI scoring
                     </p>
                 </div>

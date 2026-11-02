@@ -470,9 +470,7 @@ function ReportForm({
                     })}
                 </div>
                 {attendeeError && (
-                    <p className="text-[13px] text-destructive">
-                        {attendeeError}
-                    </p>
+                    <p className="text-sm text-destructive">{attendeeError}</p>
                 )}
             </fieldset>
             <DialogFooter>
@@ -559,7 +557,7 @@ function DetailDialog({
                 )}
                 {textFields.map(([field, label]) => (
                     <div key={field} className="grid gap-1">
-                        <p className="text-[13px] font-medium">{label}</p>
+                        <p className="text-sm font-medium">{label}</p>
                         <p className="rounded-lg border bg-muted/30 px-3 py-2 whitespace-pre-line">
                             {report[field] || (
                                 <span className="text-muted-foreground">
@@ -570,7 +568,7 @@ function DetailDialog({
                     </div>
                 ))}
                 <div className="grid gap-1">
-                    <p className="text-[13px] font-medium">Peserta</p>
+                    <p className="text-sm font-medium">Peserta</p>
                     <p>
                         {report.attendees.length
                             ? report.attendees.join(', ')
@@ -578,7 +576,7 @@ function DetailDialog({
                     </p>
                 </div>
                 <div className="grid gap-2">
-                    <p className="text-[13px] font-medium">Evidence</p>
+                    <p className="text-sm font-medium">Evidence</p>
                     {report.evidence.length > 0 ? (
                         <ul className="grid gap-2">
                             {report.evidence.map((item) => (
@@ -630,7 +628,7 @@ function DetailDialog({
                     )}
                 </div>
                 <div className="grid gap-2">
-                    <p className="text-[13px] font-medium">Corrective action</p>
+                    <p className="text-sm font-medium">Corrective action</p>
                     {report.actions.length ? (
                         <ul className="grid gap-2">
                             {report.actions.map((action) => (
@@ -791,7 +789,7 @@ export default function ProjectBiweekly({
                                                 {date(report.starts_on)} –{' '}
                                                 {date(report.ends_on)}
                                             </p>
-                                            <p className="truncate text-[13px] text-muted-foreground">
+                                            <p className="truncate text-sm text-muted-foreground">
                                                 {report.summary ||
                                                     'Ringkasan belum diisi'}
                                             </p>

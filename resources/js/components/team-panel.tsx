@@ -1,3 +1,4 @@
+import { errorAlertClass } from '@/lib/alert-styles';
 import {
     CheckCircle2,
     Crown,
@@ -59,9 +60,6 @@ const roleItems = [
     { value: 'MEMBER', label: 'Anggota' },
 ];
 
-const errorAlertClass =
-    'border-destructive/25 bg-destructive/10 text-destructive [&_[data-slot=alert-description]]:text-destructive/90';
-
 /**
  * The team being put together: pick state, rule check, competency gaps and the
  * confirm step. Nothing here becomes a team until Konfirmasi is accepted.
@@ -101,7 +99,7 @@ export function TeamPanel({
                     )}
                 </span>
                 <div className="grid min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium">
+                    <p className="truncate text-sm font-medium">
                         {person?.name ?? `#${pick.user_id}`}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
@@ -182,13 +180,13 @@ export function TeamPanel({
                 </Badge>
 
                 {picks.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-primary/25 bg-primary/[0.035] p-4 text-center text-[13px] text-muted-foreground">
+                    <p className="rounded-xl border border-dashed border-primary/25 bg-primary/[0.035] p-4 text-center text-sm text-muted-foreground">
                         Belum ada anggota. Pilih dari rekomendasi atau daftar
                         kandidat.
                     </p>
                 ) : (
                     <div className="grid gap-2">
-                        <div className="flex items-center gap-2 px-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                        <div className="flex items-center gap-2 px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                             <Crown
                                 className="size-3.5 text-primary"
                                 aria-hidden="true"
@@ -204,7 +202,7 @@ export function TeamPanel({
                         )}
                         {members.length > 0 && (
                             <div className="relative ml-4 border-l border-dashed border-primary/30 pt-1 pl-4">
-                                <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                                <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                                     Anggota tim
                                 </p>
                                 <ul className="grid gap-2">
@@ -235,7 +233,7 @@ export function TeamPanel({
                         </AlertDescription>
                     </Alert>
                 ) : (
-                    <p className="flex items-center gap-2 text-[13px] text-success">
+                    <p className="flex items-center gap-2 text-sm text-success">
                         <CheckCircle2 className="size-4" aria-hidden="true" />
                         Susunan memenuhi aturan tim.
                     </p>
@@ -243,7 +241,7 @@ export function TeamPanel({
 
                 {gaps.length > 0 ? (
                     <div className="grid gap-1.5">
-                        <p className="text-[13px] font-medium">
+                        <p className="text-sm font-medium">
                             Gap kompetensi tim
                         </p>
                         <div className="flex flex-wrap gap-1.5">
@@ -263,7 +261,7 @@ export function TeamPanel({
                     </div>
                 ) : (
                     picks.length > 0 && (
-                        <p className="text-[13px] text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                             Semua kompetensi yang dibutuhkan sudah tercakup.
                         </p>
                     )

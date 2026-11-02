@@ -10,7 +10,7 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import type { NavSection } from '@/types';
 
 const menuButtonClassName =
-    'h-10 gap-3 rounded-lg px-3 text-[13px] text-foreground/80 hover:text-foreground data-active:bg-primary data-active:font-medium data-active:text-primary-foreground data-active:shadow-[0_6px_16px_-4px_rgba(37,71,249,0.5)] data-active:hover:bg-primary data-active:hover:text-primary-foreground [&_svg]:text-muted-foreground data-active:[&_svg]:text-primary-foreground';
+    'h-10 gap-3 rounded-lg px-3 text-sm text-foreground/80 hover:text-foreground data-active:bg-primary data-active:font-medium data-active:text-primary-foreground data-active:shadow-[0_6px_16px_-4px_rgba(37,71,249,0.5)] data-active:hover:bg-primary data-active:hover:text-primary-foreground [&_svg]:text-muted-foreground data-active:[&_svg]:text-primary-foreground';
 
 export function NavMain({ sections }: { sections: NavSection[] }) {
     const { isCurrentUrl } = useCurrentUrl();
@@ -19,7 +19,7 @@ export function NavMain({ sections }: { sections: NavSection[] }) {
         <nav aria-label="Navigasi utama" className="flex flex-col gap-4">
             {sections.map((section) => (
                 <SidebarGroup className="px-3 py-0" key={section.title}>
-                    <SidebarGroupLabel className="h-7 px-2.5 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+                    <SidebarGroupLabel className="h-7 px-2.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
                         {section.title}
                     </SidebarGroupLabel>
                     <SidebarMenu className="gap-0.5">

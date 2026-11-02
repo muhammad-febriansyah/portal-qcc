@@ -114,7 +114,7 @@ export default function AuthShowcase({ title, children }: Props) {
                         </div>
 
                         <div className="relative z-10 max-w-[420px]">
-                            <span className="inline-flex rounded-lg bg-[#dfecfe] px-3 py-1.5 text-[13px] leading-5 font-medium text-[#1a4fc4]">
+                            <span className="inline-flex rounded-lg bg-[#dfecfe] px-3 py-1.5 text-sm leading-5 font-medium text-[#1a4fc4]">
                                 Satu Portal, Banyak Kemudahan
                             </span>
                             <h1 className="mt-5 text-[28px] leading-[1.25] font-bold tracking-[-0.02em] sm:text-[31px] sm:leading-[39px]">

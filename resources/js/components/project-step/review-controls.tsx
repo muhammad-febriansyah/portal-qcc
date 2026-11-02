@@ -74,13 +74,13 @@ export function ReviewControls({
         <div className="grid gap-3 rounded-lg border bg-muted/30 p-4">
             <p className="text-sm font-medium">Review step</p>
             {canStartReview && (
-                <p className="text-[13px] text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                     Mulai review dulu. Setelah itu kamu bisa menyetujui step
                     atau meminta revisi.
                 </p>
             )}
             {errors.step && (
-                <p className="text-[13px] text-destructive" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                     {errors.step}
                 </p>
             )}

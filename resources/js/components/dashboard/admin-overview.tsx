@@ -102,7 +102,7 @@ function StatCard({
         <Card className="gap-0 py-0">
             <CardContent className="grid gap-4 p-5">
                 <div className="flex items-start justify-between gap-3">
-                    <p className="text-[13px] font-medium text-muted-foreground">
+                    <p className="text-sm font-medium text-muted-foreground">
                         {label}
                     </p>
                     <span
@@ -303,7 +303,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                             <CardTitle className="text-base font-semibold">
                                 Aktivitas 30 Hari Terakhir
                             </CardTitle>
-                            <CardDescription className="text-[13px]">
+                            <CardDescription className="text-sm">
                                 Login, perubahan data, dan percobaan login yang
                                 gagal setiap hari.
                             </CardDescription>
@@ -365,7 +365,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                             <CardTitle className="text-base font-semibold">
                                 Level Kompetensi per Kelompok
                             </CardTitle>
-                            <CardDescription className="text-[13px]">
+                            <CardDescription className="text-sm">
                                 Level terverifikasi dipakai lebih dulu, jika
                                 belum ada dipakai penilaian diri.
                             </CardDescription>
@@ -398,7 +398,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                             <CardTitle className="text-base font-semibold">
                                 Peserta per LOB / Divisi
                             </CardTitle>
-                            <CardDescription className="text-[13px]">
+                            <CardDescription className="text-sm">
                                 Enam LOB terbesar, sisanya digabung.
                             </CardDescription>
                         </CardHeader>
@@ -432,7 +432,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                             <CardTitle className="text-base font-semibold">
                                 Perlu Perhatian
                             </CardTitle>
-                            <CardDescription className="text-[13px]">
+                            <CardDescription className="text-sm">
                                 Hal yang sebaiknya dibereskan admin.
                             </CardDescription>
                         </CardHeader>
@@ -459,7 +459,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                                                     href={
                                                         link ? link().url : '#'
                                                     }
-                                                    className="flex items-center gap-3 py-3 text-[13px] hover:text-primary"
+                                                    className="flex items-center gap-3 py-3 text-sm hover:text-primary"
                                                 >
                                                     <AlertTriangle
                                                         className="size-4 shrink-0 text-warning"
@@ -498,7 +498,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                                 <CardTitle className="text-base font-semibold">
                                     Aktivitas Terbaru
                                 </CardTitle>
-                                <CardDescription className="text-[13px]">
+                                <CardDescription className="text-sm">
                                     Yang baru saja terjadi di portal.
                                 </CardDescription>
                             </div>
@@ -520,7 +520,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                                                 aria-hidden="true"
                                             />
                                             <div className="grid min-w-0 gap-0.5">
-                                                <p className="text-[13px] leading-snug">
+                                                <p className="text-sm leading-snug">
                                                     {item.description}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">

@@ -1,3 +1,4 @@
+import { errorAlertClass } from '@/lib/alert-styles';
 import { Crown, TriangleAlert, UserRound, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -44,9 +45,6 @@ type PendingChange = {
     kind: 'remove' | 'leader';
     member: ApprovedTeamMember;
 };
-
-const errorAlertClass =
-    'border-destructive/25 bg-destructive/10 text-destructive [&_[data-slot=alert-description]]:text-destructive/90';
 
 function openItemTotal(member: ApprovedTeamMember): number {
     return member.open_items.risks + member.open_items.actions;
@@ -121,7 +119,7 @@ export function ApprovedTeamPanel({
                     )}
                 </span>
                 <div className="grid min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium">
+                    <p className="truncate text-sm font-medium">
                         {member.name}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
@@ -178,18 +176,18 @@ export function ApprovedTeamPanel({
                         </Badge>
                     </div>
 
-                    <p className="text-[13px] text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                         Proposal sudah disetujui. Perubahan anggota berlaku
                         langsung dan tercatat di audit log.
                     </p>
 
                     {team.length === 0 ? (
-                        <p className="rounded-xl border border-dashed border-primary/25 bg-primary/[0.035] p-4 text-center text-[13px] text-muted-foreground">
+                        <p className="rounded-xl border border-dashed border-primary/25 bg-primary/[0.035] p-4 text-center text-sm text-muted-foreground">
                             Belum ada anggota tim.
                         </p>
                     ) : (
                         <div className="grid gap-2">
-                            <div className="flex items-center gap-2 px-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                            <div className="flex items-center gap-2 px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                                 <Crown
                                     className="size-3.5 text-primary"
                                     aria-hidden="true"
@@ -203,7 +201,7 @@ export function ApprovedTeamPanel({
                             )}
                             {members.length > 0 && (
                                 <div className="relative ml-4 border-l border-dashed border-primary/30 pt-1 pl-4">
-                                    <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                                    <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                                         Anggota tim
                                     </p>
                                     <ul className="grid gap-2">

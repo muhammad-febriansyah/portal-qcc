@@ -275,10 +275,7 @@ export function ProjectRequirementsField({
                 </Button>
             </div>
             {isDirty && (
-                <p
-                    role="status"
-                    className="text-xs text-amber-700"
-                >
+                <p role="status" className="text-xs text-amber-700">
                     Simpan kebutuhan kompetensi sebelum melanjutkan ke tahap
                     berikutnya.
                 </p>

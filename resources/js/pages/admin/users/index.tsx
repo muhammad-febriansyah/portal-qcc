@@ -543,7 +543,7 @@ export default function UsersIndex({
                                     <Button
                                         type="button"
                                         size="sm"
-                                        className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                        className="bg-success text-white hover:bg-success/90"
                                         disabled={bulkProcessing}
                                         onClick={() =>
                                             updateSelectedStatus(true)

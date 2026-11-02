@@ -172,12 +172,42 @@ const projectTabs: {
     href: () => string;
     icon: typeof FolderKanban;
 }[] = [
-    { key: 'projects', label: 'Ringkasan', href: () => qccProjectsIndex.url(), icon: FolderKanban },
-    { key: 'steps', label: '8 Step', href: () => projectStepsDirectoryIndex.url(), icon: ListChecks },
-    { key: 'biweekly', label: 'Bi-weekly', href: () => projectBiweeklyDirectoryIndex.url(), icon: CalendarDays },
-    { key: 'mentoring', label: 'Mentoring', href: () => projectMentoringDirectoryIndex.url(), icon: MessageCircle },
-    { key: 'risks', label: 'Aksi & Risiko', href: () => projectRisksDirectoryIndex.url(), icon: ListTodo },
-    { key: 'evidence', label: 'Evidence', href: () => projectEvidenceDirectoryIndex.url(), icon: FileCheck2 },
+    {
+        key: 'projects',
+        label: 'Ringkasan',
+        href: () => qccProjectsIndex.url(),
+        icon: FolderKanban,
+    },
+    {
+        key: 'steps',
+        label: '8 Step',
+        href: () => projectStepsDirectoryIndex.url(),
+        icon: ListChecks,
+    },
+    {
+        key: 'biweekly',
+        label: 'Bi-weekly',
+        href: () => projectBiweeklyDirectoryIndex.url(),
+        icon: CalendarDays,
+    },
+    {
+        key: 'mentoring',
+        label: 'Mentoring',
+        href: () => projectMentoringDirectoryIndex.url(),
+        icon: MessageCircle,
+    },
+    {
+        key: 'risks',
+        label: 'Aksi & Risiko',
+        href: () => projectRisksDirectoryIndex.url(),
+        icon: ListTodo,
+    },
+    {
+        key: 'evidence',
+        label: 'Evidence',
+        href: () => projectEvidenceDirectoryIndex.url(),
+        icon: FileCheck2,
+    },
 ];
 
 export default function ProjectDirectory({
@@ -196,29 +226,32 @@ export default function ProjectDirectory({
         evidence: null,
     }[view];
 
-    const projectHref = useCallback((projectId: number): string => {
-        if (view === 'steps') {
-            return projectStepsShow.url({ project: projectId });
-        }
+    const projectHref = useCallback(
+        (projectId: number): string => {
+            if (view === 'steps') {
+                return projectStepsShow.url({ project: projectId });
+            }
 
-        if (view === 'evidence') {
-            return projectEvidenceIndex.url({ project: projectId });
-        }
+            if (view === 'evidence') {
+                return projectEvidenceIndex.url({ project: projectId });
+            }
 
-        if (view === 'biweekly') {
-            return projectBiweeklyIndex.url({ project: projectId });
-        }
+            if (view === 'biweekly') {
+                return projectBiweeklyIndex.url({ project: projectId });
+            }
 
-        if (view === 'mentoring') {
-            return projectMentoringIndex.url({ project: projectId });
-        }
+            if (view === 'mentoring') {
+                return projectMentoringIndex.url({ project: projectId });
+            }
 
-        if (view === 'risks') {
-            return projectRisksIndex.url({ project: projectId });
-        }
+            if (view === 'risks') {
+                return projectRisksIndex.url({ project: projectId });
+            }
 
-        return proposalShow.url(projectId);
-    }, [view]);
+            return proposalShow.url(projectId);
+        },
+        [view],
+    );
 
     const currentTabHref =
         projectTabs.find((tab) => tab.key === view)?.href() ??
@@ -234,9 +267,7 @@ export default function ProjectDirectory({
             {
                 search: next.search ?? filters.search,
                 per_page: next.per_page ?? projects.per_page,
-                page: resetPage
-                    ? 1
-                    : (next.page ?? projects.current_page),
+                page: resetPage ? 1 : (next.page ?? projects.current_page),
             },
             {
                 preserveState: true,
@@ -363,7 +394,10 @@ export default function ProjectDirectory({
                             (tab) => tab.key === value,
                         );
 
-                        if (selectedTab && availableTabs.includes(selectedTab.key)) {
+                        if (
+                            selectedTab &&
+                            availableTabs.includes(selectedTab.key)
+                        ) {
                             router.visit(selectedTab.href());
                         }
                     }}
@@ -373,20 +407,17 @@ export default function ProjectDirectory({
                         aria-label="Bagian proyek QCC"
                         className="w-full max-w-full flex-nowrap justify-start overflow-x-auto"
                     >
-                    {projectTabs
-                        .filter((tab) => availableTabs.includes(tab.key))
-                        .map((tab) => (
-                            <TabsTrigger
-                                key={tab.key}
-                                value={tab.key}
-                            >
-                                <tab.icon
-                                    aria-hidden="true"
-                                    data-icon="inline-start"
-                                />
-                                {tab.label}
-                            </TabsTrigger>
-                        ))}
+                        {projectTabs
+                            .filter((tab) => availableTabs.includes(tab.key))
+                            .map((tab) => (
+                                <TabsTrigger key={tab.key} value={tab.key}>
+                                    <tab.icon
+                                        aria-hidden="true"
+                                        data-icon="inline-start"
+                                    />
+                                    {tab.label}
+                                </TabsTrigger>
+                            ))}
                     </TabsList>
                 </Tabs>
 
@@ -409,9 +440,7 @@ export default function ProjectDirectory({
                             pageSize={projects.per_page}
                             total={projects.total}
                             onPageChange={(page) => visit({ page }, false)}
-                            onPageSizeChange={(per_page) =>
-                                visit({ per_page })
-                            }
+                            onPageSizeChange={(per_page) => visit({ per_page })}
                             search={search}
                             onSearchChange={setSearch}
                             searchPlaceholder="Cari kode, proyek, batch, atau pengaju..."

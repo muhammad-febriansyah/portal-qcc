@@ -105,12 +105,12 @@ const summaryCards: {
 function StatusBadge({ status, label }: { status: string; label: string }) {
     const color =
         status === 'APPROVED'
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            ? 'border-success/30 bg-success/10 text-success'
             : status === 'REVISION_REQUIRED'
-              ? 'border-amber-200 bg-amber-50 text-amber-700'
+              ? 'border-warning/30 bg-warning/10 text-amber-700'
               : status === 'REJECTED'
-                ? 'border-red-200 bg-red-50 text-red-700'
-                : 'border-blue-200 bg-blue-50 text-blue-700';
+                ? 'border-destructive/25 bg-destructive/10 text-destructive'
+                : 'border-primary/20 bg-primary/10 text-primary';
 
     return <Badge className={color}>{label}</Badge>;
 }
@@ -146,7 +146,7 @@ function RoleOverview({ overview }: { overview: RoleDashboardData }) {
                     <Card key={key} className="gap-0 py-0">
                         <CardContent className="flex items-start justify-between gap-3 p-5">
                             <div className="space-y-1">
-                                <p className="text-[13px] text-muted-foreground">
+                                <p className="text-sm text-muted-foreground">
                                     {label}
                                 </p>
                                 <p className="text-2xl font-semibold text-foreground">

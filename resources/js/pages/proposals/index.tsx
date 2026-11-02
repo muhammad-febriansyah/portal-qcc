@@ -421,7 +421,7 @@ export default function ProposalsIndex({
                             />
                             {canManageTeams ? (
                                 <Button
-                                    className="h-10 bg-orange-500 px-4 text-sm text-white hover:bg-orange-600"
+                                    className="h-10 bg-warning px-4 text-sm text-white hover:bg-warning/90"
                                     render={
                                         <Link href={teamFormationIndex()} />
                                     }

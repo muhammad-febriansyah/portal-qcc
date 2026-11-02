@@ -199,7 +199,7 @@ export default function ReviewerAssignmentsIndex({
                 accessorKey: 'project',
                 header: 'Proyek',
                 cell: ({ row }) => (
-                    <div className="min-w-44 max-w-64">
+                    <div className="max-w-64 min-w-44">
                         <p className="line-clamp-2 font-medium text-foreground">
                             {row.original.project}
                         </p>
@@ -217,7 +217,7 @@ export default function ReviewerAssignmentsIndex({
                 accessorKey: 'reviewer',
                 header: 'Reviewer',
                 cell: ({ row }) => (
-                    <div className="min-w-40 max-w-56">
+                    <div className="max-w-56 min-w-40">
                         <p className="truncate font-medium text-foreground">
                             {row.original.reviewer}
                         </p>
@@ -306,7 +306,10 @@ export default function ReviewerAssignmentsIndex({
                     title="Penugasan Reviewer"
                     description="Tentukan reviewer untuk proyek dan scope tertentu. Permission akun tetap menjadi syarat review."
                     actions={
-                        <Button onClick={openDialog} className="w-full sm:w-auto">
+                        <Button
+                            onClick={openDialog}
+                            className="w-full sm:w-auto"
+                        >
                             <Plus aria-hidden="true" />
                             Tugaskan Reviewer
                         </Button>

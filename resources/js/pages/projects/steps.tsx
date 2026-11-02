@@ -105,7 +105,7 @@ function StepMarker({ step, active }: { step: StepItem; active: boolean }) {
     return (
         <span
             className={cn(
-                'flex size-8 shrink-0 items-center justify-center rounded-full border text-[13px] font-semibold',
+                'flex size-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold',
                 step.status === 'APPROVED' &&
                     'border-success/30 bg-success/10 text-success',
                 step.status !== 'APPROVED' &&
@@ -137,7 +137,7 @@ function Field({
 }) {
     return (
         <div className="grid gap-1.5">
-            <dt className="text-[13px] font-medium">{label}</dt>
+            <dt className="text-sm font-medium">{label}</dt>
             <dd
                 className={cn(
                     'rounded-lg border bg-muted/30 px-3 py-2.5 text-sm whitespace-pre-line',
@@ -282,7 +282,7 @@ export default function ProjectSteps({
                             Delapan step dibuka otomatis setelah proposal
                             disetujui reviewer.
                         </p>
-                        <ol className="mt-2 grid max-w-md gap-1 text-left text-[13px] text-muted-foreground">
+                        <ol className="mt-2 grid max-w-md gap-1 text-left text-sm text-muted-foreground">
                             {catalog.map((item) => (
                                 <li key={item.number}>
                                     {item.number}. {item.name}
@@ -296,7 +296,7 @@ export default function ProjectSteps({
                             <CardContent className="grid gap-4 p-5">
                                 <div className="flex flex-wrap items-end justify-between gap-3">
                                     <div className="grid gap-1">
-                                        <p className="text-[13px] font-medium text-muted-foreground">
+                                        <p className="text-sm font-medium text-muted-foreground">
                                             Progress proyek
                                         </p>
                                         <p className="text-3xl leading-none font-semibold tracking-tight">
@@ -401,7 +401,7 @@ export default function ProjectSteps({
                                                             }
                                                         />
                                                         <div className="grid min-w-0 flex-1 gap-1.5">
-                                                            <p className="text-[13px] leading-snug font-medium">
+                                                            <p className="text-sm leading-snug font-medium">
                                                                 {step.name}
                                                             </p>
                                                             <div className="flex flex-wrap items-center gap-1.5">
@@ -467,7 +467,7 @@ export default function ProjectSteps({
                                     </div>
 
                                     <div className="grid gap-1.5">
-                                        <div className="flex items-center justify-between text-[13px]">
+                                        <div className="flex items-center justify-between text-sm">
                                             <span className="font-medium">
                                                 Progress step
                                             </span>

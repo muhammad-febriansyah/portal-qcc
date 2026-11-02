@@ -83,7 +83,7 @@ function NotificationMenu() {
             >
                 <Bell className="size-5" aria-hidden="true" />
                 {notifications.unread_count > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-4 text-white">
+                    <span className="absolute -top-0.5 -right-0.5 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-xs leading-4 text-white">
                         {notifications.unread_count > 9
                             ? '9+'
                             : notifications.unread_count}
@@ -171,14 +171,14 @@ function NotificationMenu() {
                                                     {notification.kind_label}
                                                 </Badge>
                                                 {notification.project_code && (
-                                                    <span className="text-[11px] font-medium text-muted-foreground">
+                                                    <span className="text-xs font-medium text-muted-foreground">
                                                         {
                                                             notification.project_code
                                                         }
                                                     </span>
                                                 )}
                                                 {createdAt && (
-                                                    <span className="text-[11px] text-muted-foreground">
+                                                    <span className="text-xs text-muted-foreground">
                                                         {formatDistanceToNow(
                                                             createdAt,
                                                             {
@@ -262,11 +262,11 @@ function UserMenu() {
                     </AvatarFallback>
                 </Avatar>
                 <span className="hidden min-w-0 flex-col leading-tight sm:flex">
-                    <span className="max-w-40 truncate text-[13px] font-medium text-foreground">
+                    <span className="max-w-40 truncate text-sm font-medium text-foreground">
                         {auth.user.name}
                     </span>
                     {primaryRole && (
-                        <span className="max-w-40 truncate text-[11px] text-muted-foreground">
+                        <span className="max-w-40 truncate text-xs text-muted-foreground">
                             {primaryRole}
                         </span>
                     )}

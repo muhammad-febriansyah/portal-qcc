@@ -221,7 +221,10 @@ export default function Profile() {
                                                 error={errors.work_contact}
                                             >
                                                 <Input
-                                                    defaultValue={profile.work_contact ?? ''}
+                                                    defaultValue={
+                                                        profile.work_contact ??
+                                                        ''
+                                                    }
                                                     name="work_contact"
                                                     autoComplete="tel"
                                                     placeholder="Nomor telepon kerja"
@@ -235,7 +238,10 @@ export default function Profile() {
                                                 error={errors.personal_contact}
                                             >
                                                 <Input
-                                                    defaultValue={profile.personal_contact ?? ''}
+                                                    defaultValue={
+                                                        profile.personal_contact ??
+                                                        ''
+                                                    }
                                                     name="personal_contact"
                                                     autoComplete="tel"
                                                     placeholder="Nomor telepon pribadi"

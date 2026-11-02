@@ -40,7 +40,6 @@ export function AppSidebar() {
             <SidebarContent className="gap-0 py-3">
                 <NavMain sections={sections} />
             </SidebarContent>
-
         </Sidebar>
     );
 }

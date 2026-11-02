@@ -199,7 +199,10 @@ export function StepForm({
                 hint="Opsional: tambahkan konteks yang perlu diketahui reviewer."
                 error={form.errors.submitter_note}
                 footer={
-                    <CharacterCount value={form.data.submitter_note} max={5000} />
+                    <CharacterCount
+                        value={form.data.submitter_note}
+                        max={5000}
+                    />
                 }
             >
                 <Textarea

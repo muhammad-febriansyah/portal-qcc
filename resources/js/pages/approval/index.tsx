@@ -160,7 +160,10 @@ export default function ApprovalIndex({
                                                 value={value}
                                                 className="h-9 flex-none gap-2 rounded-lg border border-transparent px-3 aria-selected:border-border aria-selected:bg-background aria-selected:shadow-sm"
                                             >
-                                                <Icon data-icon="inline-start" aria-hidden="true" />
+                                                <Icon
+                                                    data-icon="inline-start"
+                                                    aria-hidden="true"
+                                                />
                                                 {label}
                                                 <Badge variant="secondary">
                                                     {counts[value]}

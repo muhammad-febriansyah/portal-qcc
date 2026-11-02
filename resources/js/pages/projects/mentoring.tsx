@@ -685,7 +685,7 @@ export default function ProjectMentoring({
                     <CardContent className="grid gap-4 p-5">
                         <p className="text-sm font-medium">Mentor proyek</p>
                         {assignments.length === 0 ? (
-                            <p className="text-[13px] text-muted-foreground">
+                            <p className="text-sm text-muted-foreground">
                                 Belum ada mentor yang ditugaskan.
                             </p>
                         ) : (
@@ -696,7 +696,7 @@ export default function ProjectMentoring({
                                         className="flex items-center justify-between gap-3 rounded-lg border p-3"
                                     >
                                         <div className="grid">
-                                            <p className="text-[13px] font-medium">
+                                            <p className="text-sm font-medium">
                                                 {item.mentor}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
@@ -775,7 +775,7 @@ export default function ProjectMentoring({
                                         </SelectContent>
                                     </Select>
                                     {assignError && (
-                                        <p className="text-[13px] text-destructive">
+                                        <p className="text-sm text-destructive">
                                             {assignError}
                                         </p>
                                     )}
@@ -870,7 +870,7 @@ export default function ProjectMentoring({
                                                 value && (
                                                     <p
                                                         key={label}
-                                                        className="text-[13px] whitespace-pre-line"
+                                                        className="text-sm whitespace-pre-line"
                                                     >
                                                         <span className="font-medium">
                                                             {label}:
@@ -881,7 +881,7 @@ export default function ProjectMentoring({
                                         )}
                                         {report.actions.length > 0 && (
                                             <div className="grid gap-2">
-                                                <p className="text-[13px] font-medium">
+                                                <p className="text-sm font-medium">
                                                     Action item
                                                 </p>
                                                 {report.actions.map(
@@ -922,7 +922,7 @@ export default function ProjectMentoring({
                                         )}
                                         {report.evidence.length > 0 && (
                                             <div className="grid gap-2">
-                                                <p className="text-[13px] font-medium">
+                                                <p className="text-sm font-medium">
                                                     Evidence
                                                 </p>
                                                 {report.evidence.map((item) => (
@@ -972,7 +972,7 @@ export default function ProjectMentoring({
                                         )}
                                         {report.evidence.length > 0 && (
                                             <div className="grid gap-2">
-                                                <p className="text-[13px] font-medium">
+                                                <p className="text-sm font-medium">
                                                     Evidence
                                                 </p>
                                                 {report.evidence.map((item) => (

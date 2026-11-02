@@ -270,9 +270,9 @@ export function DataTable<TData extends RowData>({
                                     {emptyDescription}
                                 </EmptyDescription>
                             </EmptyHeader>
-                        {emptyAction && (
-                            <EmptyContent>{emptyAction}</EmptyContent>
-                        )}
+                            {emptyAction && (
+                                <EmptyContent>{emptyAction}</EmptyContent>
+                            )}
                         </Empty>
                     </div>
                 )}

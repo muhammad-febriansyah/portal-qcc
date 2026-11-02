@@ -34,9 +34,7 @@ import type { NavSection, SidebarItem } from '@/types';
 const sharedSections: NavSection[] = [
     {
         title: 'Utama',
-        items: [
-            { title: 'Dashboard', href: dashboard(), icon: LayoutGrid },
-        ],
+        items: [{ title: 'Dashboard', href: dashboard(), icon: LayoutGrid }],
     },
     {
         title: 'Data Saya',
