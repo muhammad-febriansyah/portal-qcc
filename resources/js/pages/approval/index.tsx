@@ -130,7 +130,7 @@ export default function ApprovalIndex({
                         <CardTitle className="text-base">
                             Daftar yang perlu ditinjau
                         </CardTitle>
-                        <div className="relative w-full sm:max-w-sm">
+                        <div className="relative w-full sm:w-96 sm:shrink-0">
                             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 aria-label="Cari review"

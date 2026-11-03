@@ -12,14 +12,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { store } from '@/routes/login';
-import { register } from '@/routes';
+import { request as forgotPassword } from '@/routes/password';
 
 type Props = {
     status?: string;
-    canRegister?: boolean;
+    canResetPassword?: boolean;
 };
 
-export default function Login({ status, canRegister = false }: Props) {
+export default function Login({ status, canResetPassword = false }: Props) {
     return (
         <AuthShowcase title="Masuk">
             <div className="w-full max-w-[350px]">
@@ -97,25 +97,36 @@ export default function Login({ status, canRegister = false }: Props) {
                                 <InputError message={errors.password} />
                             </div>
 
-                            <div className="mt-4 flex items-center gap-3">
-                                <Checkbox
-                                    id="remember"
-                                    name="remember"
-                                    tabIndex={3}
-                                    className="size-4 rounded-[4px] border-[#d5d8e0]"
-                                />
-                                <Label
-                                    htmlFor="remember"
-                                    className="font-normal"
-                                >
-                                    Ingat saya
-                                </Label>
+                            <div className="mt-4 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <Checkbox
+                                        id="remember"
+                                        name="remember"
+                                        tabIndex={3}
+                                        className="size-4 rounded-[4px] border-[#d5d8e0]"
+                                    />
+                                    <Label
+                                        htmlFor="remember"
+                                        className="font-normal"
+                                    >
+                                        Ingat saya
+                                    </Label>
+                                </div>
+                                {canResetPassword && (
+                                    <Link
+                                        href={forgotPassword()}
+                                        tabIndex={4}
+                                        className="text-sm font-semibold text-primary hover:underline"
+                                    >
+                                        Lupa password?
+                                    </Link>
+                                )}
                             </div>
 
                             <Button
                                 type="submit"
                                 className="relative mt-6 h-12 w-full rounded-[10px] text-base font-semibold shadow-[0_6px_14px_rgba(11,92,240,0.18)] transition-[transform,box-shadow] hover:shadow-[0_8px_18px_rgba(11,92,240,0.24)] active:translate-y-px"
-                                tabIndex={4}
+                                tabIndex={5}
                                 disabled={processing}
                                 data-test="login-button"
                             >
@@ -126,19 +137,6 @@ export default function Login({ status, canRegister = false }: Props) {
                         </>
                     )}
                 </Form>
-
-                {canRegister && (
-                    <p className="mt-5 text-center text-sm text-[#5e6779]">
-                        Belum punya akun?{' '}
-                        <Link
-                            href={register()}
-                            tabIndex={5}
-                            className="font-semibold text-primary hover:underline"
-                        >
-                            Daftar sebagai SIMer
-                        </Link>
-                    </p>
-                )}
 
                 <div className="mt-6 flex items-center gap-4 rounded-xl bg-[#f4f7ff] px-5 py-3.5">
                     <ShieldCheck

@@ -31,7 +31,7 @@ import OrganizationController from '@/actions/App/Http/Controllers/OrganizationC
 import organizationsRoute from '@/routes/admin/organizations';
 import { dashboard } from '@/routes';
 import { useEffect, useMemo, useState } from 'react';
-import { PencilLine, Plus, Power } from 'lucide-react';
+import { PencilLine, Plus, Power, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type OrganizationRow = {
@@ -171,6 +171,13 @@ export default function OrganizationsIndex({
         );
     }
 
+    function deleteOrganization(organization: OrganizationRow): void {
+        router.delete(OrganizationController.destroy.url(organization.id), {
+            preserveScroll: true,
+            onError: () => toast.error('Organisasi gagal dihapus.'),
+        });
+    }
+
     const columns = useMemo<DataTableColumnDef<OrganizationRow>[]>(
         () => [
             {
@@ -238,6 +245,18 @@ export default function OrganizationsIndex({
                                     onSelect: () =>
                                         updateOrganizationStatus(organization),
                                 },
+                                {
+                                    label: 'Hapus',
+                                    icon: Trash2,
+                                    destructive: true,
+                                    requiresConfirmation: true,
+                                    confirmTitle: 'Hapus organisasi?',
+                                    confirmDescription:
+                                        'Organisasi akan dihapus. Anggota yang terkait akan kehilangan asosiasi ke organisasi ini.',
+                                    confirmLabel: 'Hapus organisasi',
+                                    onSelect: () =>
+                                        deleteOrganization(organization),
+                                },
                             ]}
                         />
                     );
@@ -256,7 +275,7 @@ export default function OrganizationsIndex({
     return (
         <>
             <Head title="Master Organisasi" />
-            <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-6 md:py-8">
                 <PageHeader
                     breadcrumbs={[
                         { title: 'Dashboard', href: dashboard() },

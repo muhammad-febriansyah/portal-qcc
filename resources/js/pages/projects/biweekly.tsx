@@ -2,7 +2,9 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
 import {
+    CalendarDays,
     Check,
+    ClipboardList,
     Download,
     FileText,
     MessageSquareWarning,
@@ -10,21 +12,24 @@ import {
     Plus,
     Send,
     Trash2,
+    UsersRound,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { DataTable } from '@/components/data-table';
+import type { DataTableColumnDef } from '@/components/data-table';
 import { DatePicker } from '@/components/date-picker';
+import { ExcelExportButton } from '@/components/excel-export-button';
 import { FormField } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
-import { CsvExportButton } from '@/components/csv-export-button';
-import { EmptyState } from '@/components/ui-states';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -42,7 +47,7 @@ import {
     store,
     submit,
     update,
-    exportMethod as exportBiweeklyCsv,
+    exportMethod as exportBiweeklyReport,
 } from '@/routes/projects/biweekly';
 
 type Report = {
@@ -104,6 +109,22 @@ const variants: Record<string, BadgeVariant> = {
     SUBMITTED: 'violet',
     APPROVED: 'success',
     REVISION_REQUIRED: 'warning',
+};
+
+const actionStatusVariants: Record<string, BadgeVariant> = {
+    OPEN: 'secondary',
+    IN_PROGRESS: 'info',
+    BLOCKED: 'warning',
+    COMPLETED: 'success',
+    CANCELLED: 'outline',
+};
+
+const actionStatusLabels: Record<string, string> = {
+    OPEN: 'Terbuka',
+    IN_PROGRESS: 'Dikerjakan',
+    BLOCKED: 'Terhambat',
+    COMPLETED: 'Selesai',
+    CANCELLED: 'Dibatalkan',
 };
 
 function date(value: string | null): string {
@@ -510,10 +531,12 @@ function ReportForm({
 
 function DetailDialog({
     projectId,
+    project,
     report,
     onClose,
 }: {
     projectId: number;
+    project: Props['project'];
     report: Report;
     onClose: () => void;
 }) {
@@ -530,188 +553,333 @@ function DetailDialog({
         });
 
     return (
-        <>
-            <DialogHeader>
-                <DialogTitle>
-                    Periode {report.period_no} · {date(report.starts_on)} –{' '}
-                    {date(report.ends_on)}
-                </DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={variants[report.status] ?? 'secondary'}>
-                        {report.status_label}
-                    </Badge>
-                    <span className="text-muted-foreground">
-                        Rapat {date(report.meeting_date)}
-                    </span>
-                </div>
-                {report.review_note && (
-                    <Alert variant="destructive">
-                        <MessageSquareWarning aria-hidden="true" />
-                        <AlertTitle>Catatan reviewer</AlertTitle>
-                        <AlertDescription>
-                            {report.review_note}
-                        </AlertDescription>
-                    </Alert>
-                )}
-                {textFields.map(([field, label]) => (
-                    <div key={field} className="grid gap-1">
-                        <p className="text-sm font-medium">{label}</p>
-                        <p className="rounded-lg border bg-muted/30 px-3 py-2 whitespace-pre-line">
-                            {report[field] || (
-                                <span className="text-muted-foreground">
-                                    Belum diisi
-                                </span>
-                            )}
-                        </p>
+        <div className="flex max-h-[90dvh] flex-col overflow-hidden">
+            <div className="shrink-0 border-b bg-muted/20 px-6 py-5 pr-14">
+                <DialogHeader className="gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="grid gap-1">
+                            <DialogTitle className="text-xl font-semibold">
+                                Bi-weekly · Periode {report.period_no}
+                            </DialogTitle>
+                            <DialogDescription>
+                                {project.code} · {project.title}
+                            </DialogDescription>
+                        </div>
+                        <Badge
+                            variant={variants[report.status] ?? 'secondary'}
+                            className="mt-0.5"
+                        >
+                            {report.status_label}
+                        </Badge>
                     </div>
-                ))}
-                <div className="grid gap-1">
-                    <p className="text-sm font-medium">Peserta</p>
-                    <p>
-                        {report.attendees.length
-                            ? report.attendees.join(', ')
-                            : '—'}
-                    </p>
-                </div>
-                <div className="grid gap-2">
-                    <p className="text-sm font-medium">Evidence</p>
-                    {report.evidence.length > 0 ? (
-                        <ul className="grid gap-2">
-                            {report.evidence.map((item) => (
-                                <li
-                                    key={item.id}
-                                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
+                    <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="grid gap-1 rounded-lg border bg-background p-3">
+                            <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                <CalendarDays aria-hidden="true" /> Rentang
+                                periode
+                            </span>
+                            <span className="text-sm font-medium">
+                                {date(report.starts_on)} –{' '}
+                                {date(report.ends_on)}
+                            </span>
+                        </div>
+                        <div className="grid gap-1 rounded-lg border bg-background p-3">
+                            <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                <CalendarDays aria-hidden="true" /> Tanggal
+                                rapat
+                            </span>
+                            <span className="text-sm font-medium">
+                                {date(report.meeting_date)}
+                            </span>
+                        </div>
+                        <div className="grid gap-1 rounded-lg border bg-background p-3">
+                            <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                <UsersRound aria-hidden="true" /> Peserta
+                            </span>
+                            <span className="text-sm font-medium">
+                                {report.attendees.length} orang
+                                {report.submitted_by && (
+                                    <span className="font-normal text-muted-foreground">
+                                        {' '}
+                                        · diajukan {report.submitted_by}
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+                    </div>
+                </DialogHeader>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <div className="grid gap-6">
+                    {report.review_note && (
+                        <Alert variant="destructive">
+                            <MessageSquareWarning aria-hidden="true" />
+                            <AlertTitle>Catatan reviewer</AlertTitle>
+                            <AlertDescription className="whitespace-pre-line">
+                                {report.review_note}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+
+                    <section
+                        className="grid gap-3"
+                        aria-labelledby="report-content-title"
+                    >
+                        <h3
+                            id="report-content-title"
+                            className="text-base font-semibold"
+                        >
+                            Isi laporan
+                        </h3>
+                        <div className="grid gap-3 md:grid-cols-2">
+                            {textFields.map(([field, label]) => (
+                                <Card
+                                    key={field}
+                                    className={`gap-0 py-0 ${field === 'agenda' || field === 'summary' ? 'md:col-span-2' : ''}`}
                                 >
-                                    <div className="flex min-w-0 items-center gap-2.5">
-                                        <FileText
-                                            className="size-4 shrink-0 text-muted-foreground"
-                                            aria-hidden="true"
+                                    <CardHeader className="border-b p-4">
+                                        <CardTitle className="text-sm font-semibold">
+                                            {label}
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="px-4 py-3 text-sm leading-6 break-words whitespace-pre-wrap">
+                                        {report[field] || (
+                                            <span className="text-muted-foreground">
+                                                Belum diisi
+                                            </span>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    </section>
+
+                    <Card className="gap-0 py-0">
+                        <CardHeader className="border-b p-4">
+                            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                                <UsersRound aria-hidden="true" /> Peserta rapat
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-wrap gap-2 p-4">
+                            {report.attendees.length ? (
+                                report.attendees.map((attendee) => (
+                                    <Badge
+                                        key={attendee}
+                                        variant="outline"
+                                        className="h-7 px-2.5"
+                                    >
+                                        {attendee}
+                                    </Badge>
+                                ))
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    Belum ada peserta tercatat.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="gap-0 py-0">
+                        <CardHeader className="border-b p-4">
+                            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                                <FileText aria-hidden="true" /> Evidence
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                            {report.evidence.length > 0 ? (
+                                <ul className="grid gap-3 sm:grid-cols-2">
+                                    {report.evidence.map((item) => (
+                                        <li
+                                            key={item.id}
+                                            className="flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-background p-3"
+                                        >
+                                            <div className="flex min-w-0 items-start gap-3">
+                                                <FileText
+                                                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                                                    aria-hidden="true"
+                                                />
+                                                <div className="grid min-w-0 gap-1">
+                                                    <span className="text-sm font-medium break-words">
+                                                        {item.title}
+                                                    </span>
+                                                    <span className="text-xs break-all text-muted-foreground">
+                                                        {item.original_name}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            {item.download_url ? (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    render={
+                                                        <a
+                                                            href={
+                                                                item.download_url
+                                                            }
+                                                        />
+                                                    }
+                                                >
+                                                    <Download
+                                                        data-icon="inline-start"
+                                                        aria-hidden="true"
+                                                    />
+                                                    Unduh
+                                                </Button>
+                                            ) : (
+                                                <Badge variant="secondary">
+                                                    Pemeriksaan{' '}
+                                                    {item.scan_status.toLowerCase()}
+                                                </Badge>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    Belum ada evidence tertaut.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="gap-0 py-0">
+                        <CardHeader className="border-b p-4">
+                            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                                <ClipboardList aria-hidden="true" /> Corrective
+                                action
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                            {report.actions.length ? (
+                                <ul className="grid gap-3 lg:grid-cols-2">
+                                    {report.actions.map((action) => (
+                                        <li
+                                            key={action.id}
+                                            className="grid gap-3 rounded-lg border bg-background p-4"
+                                        >
+                                            <div className="grid gap-1">
+                                                <p className="text-sm leading-6 font-semibold">
+                                                    {action.title}
+                                                </p>
+                                                {action.description && (
+                                                    <p className="text-sm leading-6 whitespace-pre-line text-muted-foreground">
+                                                        {action.description}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="grid gap-3 border-t pt-3 sm:grid-cols-3">
+                                                <div className="grid gap-1">
+                                                    <span className="text-xs font-medium text-muted-foreground">
+                                                        PIC
+                                                    </span>
+                                                    <span className="text-sm">
+                                                        {action.pic ??
+                                                            'Belum ditentukan'}
+                                                    </span>
+                                                </div>
+                                                <div className="grid gap-1">
+                                                    <span className="text-xs font-medium text-muted-foreground">
+                                                        Tenggat
+                                                    </span>
+                                                    <span className="text-sm tabular-nums">
+                                                        {date(action.due_date)}
+                                                    </span>
+                                                </div>
+                                                <div className="grid gap-1">
+                                                    <span className="text-xs font-medium text-muted-foreground">
+                                                        Status
+                                                    </span>
+                                                    <Badge
+                                                        variant={
+                                                            actionStatusVariants[
+                                                                action.status
+                                                            ] ?? 'secondary'
+                                                        }
+                                                    >
+                                                        {actionStatusLabels[
+                                                            action.status
+                                                        ] ?? action.status}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    Belum ada corrective action.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {report.can_review && (
+                        <Card className="gap-0 border-primary/20 bg-primary/5 py-0">
+                            <CardHeader className="border-b border-primary/20 p-4">
+                                <CardTitle className="text-sm font-semibold">
+                                    Keputusan review
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid gap-3 p-4">
+                                {asking && (
+                                    <FormField
+                                        id="reason"
+                                        label="Alasan revisi"
+                                        required
+                                        error={error ?? undefined}
+                                    >
+                                        <Textarea
+                                            value={reason}
+                                            onChange={(event) =>
+                                                setReason(event.target.value)
+                                            }
+                                            placeholder="Jelaskan bagian yang perlu diperbaiki"
+                                            className="min-h-24 bg-background"
                                         />
-                                        <div className="grid min-w-0 gap-0.5">
-                                            <span className="truncate text-sm font-medium">
-                                                {item.title}
-                                            </span>
-                                            <span className="truncate text-xs text-muted-foreground">
-                                                {item.original_name}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {item.download_url ? (
+                                    </FormField>
+                                )}
+                                <div className="flex flex-wrap justify-end gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setAsking(!asking)}
+                                    >
+                                        {asking ? 'Batal' : 'Minta Revisi'}
+                                    </Button>
+                                    {asking ? (
                                         <Button
-                                            variant="outline"
-                                            size="sm"
-                                            render={
-                                                <a href={item.download_url} />
+                                            type="button"
+                                            onClick={() =>
+                                                post(revision.url(target), {
+                                                    reason,
+                                                })
+                                            }
+                                            disabled={!reason.trim()}
+                                        >
+                                            Kirim revisi
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type="button"
+                                            onClick={() =>
+                                                post(approve.url(target))
                                             }
                                         >
-                                            <Download
+                                            <Check
                                                 data-icon="inline-start"
                                                 aria-hidden="true"
                                             />
-                                            Unduh
+                                            Setujui laporan
                                         </Button>
-                                    ) : (
-                                        <Badge variant="secondary">
-                                            Pemeriksaan{' '}
-                                            {item.scan_status.toLowerCase()}
-                                        </Badge>
                                     )}
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">
-                            Belum ada evidence tertaut.
-                        </p>
+                                </div>
+                            </CardContent>
+                        </Card>
                     )}
                 </div>
-                <div className="grid gap-2">
-                    <p className="text-sm font-medium">Corrective action</p>
-                    {report.actions.length ? (
-                        <ul className="grid gap-2">
-                            {report.actions.map((action) => (
-                                <li
-                                    key={action.id}
-                                    className="grid gap-1 rounded-lg border px-3 py-2.5 sm:grid-cols-[1fr_auto] sm:items-center"
-                                >
-                                    <div>
-                                        <p className="text-sm font-medium">
-                                            {action.title}
-                                        </p>
-                                        {action.description && (
-                                            <p className="text-xs text-muted-foreground">
-                                                {action.description}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        PIC {action.pic} · tenggat{' '}
-                                        {date(action.due_date)} ·{' '}
-                                        {action.status}
-                                    </p>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">
-                            Belum ada tindakan.
-                        </p>
-                    )}
-                </div>
-                {report.can_review && (
-                    <div className="grid gap-3 rounded-lg border bg-muted/30 p-4">
-                        {asking && (
-                            <FormField
-                                id="reason"
-                                label="Alasan revisi"
-                                required
-                                error={error ?? undefined}
-                            >
-                                <Textarea
-                                    value={reason}
-                                    onChange={(e) => setReason(e.target.value)}
-                                    placeholder="Jelaskan apa yang perlu diperbaiki"
-                                    className="min-h-20"
-                                />
-                            </FormField>
-                        )}
-                        <div className="flex flex-wrap gap-2">
-                            <Button
-                                type="button"
-                                onClick={() => post(approve.url(target))}
-                            >
-                                <Check
-                                    data-icon="inline-start"
-                                    aria-hidden="true"
-                                />
-                                Setujui
-                            </Button>
-                            {asking ? (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() =>
-                                        post(revision.url(target), { reason })
-                                    }
-                                >
-                                    Kirim Revisi
-                                </Button>
-                            ) : (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setAsking(true)}
-                                >
-                                    Minta Revisi
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                )}
             </div>
-        </>
+        </div>
     );
 }
 
@@ -726,6 +894,136 @@ export default function ProjectBiweekly({
         mode: 'form' | 'detail';
         report: Report | null;
     } | null>(null);
+    const [search, setSearch] = useState('');
+    const filteredReports = reports.filter((report) =>
+        [
+            `Periode ${report.period_no}`,
+            date(report.starts_on),
+            date(report.ends_on),
+            report.summary,
+            date(report.meeting_date),
+            report.attendees.join(' '),
+            report.status_label,
+            report.submitted_by,
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLocaleLowerCase('id')
+            .includes(search.trim().toLocaleLowerCase('id')),
+    );
+    const columns = useMemo<DataTableColumnDef<Report>[]>(
+        () => [
+            {
+                id: 'period',
+                header: 'Periode',
+                cell: ({ row }) => (
+                    <div className="grid gap-0.5">
+                        <span className="font-medium">
+                            Periode {row.original.period_no}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                            {date(row.original.starts_on)} –{' '}
+                            {date(row.original.ends_on)}
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                id: 'summary',
+                header: 'Ringkasan',
+                cell: ({ row }) => (
+                    <span className="block max-w-64 truncate text-muted-foreground">
+                        {row.original.summary || 'Ringkasan belum diisi'}
+                    </span>
+                ),
+            },
+            {
+                id: 'meeting',
+                header: 'Rapat',
+                cell: ({ row }) => (
+                    <div className="grid gap-0.5 text-sm">
+                        <span>{date(row.original.meeting_date)}</span>
+                        <span className="text-xs text-muted-foreground">
+                            {row.original.attendees.length} peserta
+                        </span>
+                        {row.original.submitted_by && (
+                            <span className="text-xs text-muted-foreground">
+                                Diajukan {row.original.submitted_by}
+                            </span>
+                        )}
+                    </div>
+                ),
+            },
+            {
+                id: 'status',
+                header: 'Status',
+                cell: ({ row }) => (
+                    <Badge
+                        variant={variants[row.original.status] ?? 'secondary'}
+                    >
+                        {row.original.status_label}
+                    </Badge>
+                ),
+            },
+            {
+                id: 'actions',
+                header: 'Aksi',
+                cell: ({ row }) => (
+                    <div className="flex w-max gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                                setDialog({
+                                    mode: 'detail',
+                                    report: row.original,
+                                })
+                            }
+                        >
+                            {row.original.can_review ? 'Review' : 'Detail'}
+                        </Button>
+                        {row.original.can_edit && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                    setDialog({
+                                        mode: 'form',
+                                        report: row.original,
+                                    })
+                                }
+                            >
+                                <PencilLine
+                                    data-icon="inline-start"
+                                    aria-hidden="true"
+                                />
+                                Ubah
+                            </Button>
+                        )}
+                        {row.original.status === 'DRAFT' &&
+                            row.original.can_edit && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                        router.delete(
+                                            destroy.url({
+                                                project: project.id,
+                                                report: row.original.id,
+                                            }),
+                                            { preserveScroll: true },
+                                        )
+                                    }
+                                >
+                                    Hapus
+                                </Button>
+                            )}
+                    </div>
+                ),
+            },
+        ],
+        [project.id],
+    );
 
     return (
         <>
@@ -743,8 +1041,8 @@ export default function ProjectBiweekly({
                     description={`${project.code} · ${project.title}`}
                     actions={
                         <div className="flex flex-wrap gap-2">
-                            <CsvExportButton
-                                href={exportBiweeklyCsv.url({
+                            <ExcelExportButton
+                                href={exportBiweeklyReport.url({
                                     project: project.id,
                                 })}
                             />
@@ -769,115 +1067,44 @@ export default function ProjectBiweekly({
                     }
                 />
 
-                {reports.length === 0 ? (
-                    <div className="rounded-xl border border-dashed">
-                        <EmptyState
-                            icon={FileText}
-                            title="Belum ada laporan bi-weekly"
-                            description="Laporan pemantauan berkala proyek akan muncul di sini."
-                        />
-                    </div>
-                ) : (
-                    <ul className="grid gap-3">
-                        {reports.map((report) => (
-                            <li key={report.id}>
-                                <Card className="gap-0 py-0">
-                                    <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
-                                        <div className="grid min-w-0 flex-1 gap-1">
-                                            <p className="text-sm font-semibold">
-                                                Periode {report.period_no} ·{' '}
-                                                {date(report.starts_on)} –{' '}
-                                                {date(report.ends_on)}
-                                            </p>
-                                            <p className="truncate text-sm text-muted-foreground">
-                                                {report.summary ||
-                                                    'Ringkasan belum diisi'}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                Rapat{' '}
-                                                {date(report.meeting_date)} ·{' '}
-                                                {report.attendees.length}{' '}
-                                                peserta
-                                                {report.submitted_by &&
-                                                    ` · diajukan ${report.submitted_by}`}
-                                            </p>
-                                        </div>
-                                        <Badge
-                                            variant={
-                                                variants[report.status] ??
-                                                'secondary'
-                                            }
-                                        >
-                                            {report.status_label}
-                                        </Badge>
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() =>
-                                                    setDialog({
-                                                        mode: 'detail',
-                                                        report,
-                                                    })
-                                                }
-                                            >
-                                                {report.can_review
-                                                    ? 'Review'
-                                                    : 'Detail'}
-                                            </Button>
-                                            {report.can_edit && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        setDialog({
-                                                            mode: 'form',
-                                                            report,
-                                                        })
-                                                    }
-                                                >
-                                                    <PencilLine
-                                                        data-icon="inline-start"
-                                                        aria-hidden="true"
-                                                    />
-                                                    Ubah
-                                                </Button>
-                                            )}
-                                            {report.status === 'DRAFT' &&
-                                                report.can_edit && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            router.delete(
-                                                                destroy.url({
-                                                                    project:
-                                                                        project.id,
-                                                                    report: report.id,
-                                                                }),
-                                                                {
-                                                                    preserveScroll: true,
-                                                                },
-                                                            )
-                                                        }
-                                                    >
-                                                        Hapus
-                                                    </Button>
-                                                )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </li>
-                        ))}
-                    </ul>
-                )}
+                <Card className="gap-0 py-0">
+                    <DataTable
+                        embedded
+                        columns={columns}
+                        data={filteredReports}
+                        rowId={(report) => String(report.id)}
+                        page={1}
+                        pageSize={Math.max(filteredReports.length, 1)}
+                        total={filteredReports.length}
+                        onPageChange={() => {}}
+                        search={search}
+                        onSearchChange={setSearch}
+                        searchPlaceholder="Cari periode, ringkasan, status, atau peserta..."
+                        emptyTitle={
+                            reports.length === 0
+                                ? 'Belum ada laporan bi-weekly'
+                                : 'Laporan tidak ditemukan'
+                        }
+                        emptyDescription={
+                            reports.length === 0
+                                ? 'Laporan pemantauan berkala proyek akan muncul di sini.'
+                                : 'Coba kata kunci lain.'
+                        }
+                    />
+                </Card>
             </div>
 
             <Dialog
                 open={dialog !== null}
                 onOpenChange={(open) => !open && setDialog(null)}
             >
-                <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+                <DialogContent
+                    className={
+                        dialog?.mode === 'detail'
+                            ? 'max-h-[90dvh] w-[calc(100%-2rem)] gap-0 overflow-hidden p-0 sm:max-w-5xl'
+                            : 'max-h-[90dvh] overflow-y-auto sm:max-w-2xl'
+                    }
+                >
                     {dialog?.mode === 'form' && (
                         <ReportForm
                             key={dialog.report?.id ?? 'new'}
@@ -891,6 +1118,7 @@ export default function ProjectBiweekly({
                         <DetailDialog
                             key={dialog.report.id}
                             projectId={project.id}
+                            project={project}
                             report={dialog.report}
                             onClose={() => setDialog(null)}
                         />

@@ -84,4 +84,15 @@ class OrganizationController extends Controller
 
         return to_route('admin.organizations.index');
     }
+
+    public function destroy(Organization $organization): RedirectResponse
+    {
+        Gate::authorize('delete', $organization);
+
+        $organization->delete();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Organisasi berhasil dihapus.']);
+
+        return to_route('admin.organizations.index');
+    }
 }

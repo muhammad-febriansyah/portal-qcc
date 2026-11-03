@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { surfaceClassName } from '@/components/dashboard/dashboard-kit';
 import { cn } from '@/lib/utils';
 import { index as auditIndex } from '@/routes/admin/audit';
 import { index as batchesIndex } from '@/routes/admin/batches';
@@ -99,8 +100,8 @@ function StatCard({
     footer?: React.ReactNode;
 }) {
     return (
-        <Card className="gap-0 py-0">
-            <CardContent className="grid gap-4 p-5">
+        <Card className={cn('gap-0 py-0', surfaceClassName)}>
+            <CardContent className="grid gap-4 p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-3">
                     <p className="text-sm font-medium text-muted-foreground">
                         {label}
@@ -297,7 +298,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
             </section>
 
             <div className="flex flex-col gap-6">
-                <Card className="min-w-0">
+                <Card className={cn('min-w-0', surfaceClassName)}>
                     <CardHeader className="gap-4">
                         <div className="grid gap-1">
                             <CardTitle className="text-base font-semibold">
@@ -360,7 +361,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                 </Card>
 
                 <div className="grid gap-6 lg:grid-cols-2">
-                    <Card className="min-w-0">
+                    <Card className={cn('min-w-0', surfaceClassName)}>
                         <CardHeader>
                             <CardTitle className="text-base font-semibold">
                                 Level Kompetensi per Kelompok
@@ -393,7 +394,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                         </CardContent>
                     </Card>
 
-                    <Card className="min-w-0">
+                    <Card className={cn('min-w-0', surfaceClassName)}>
                         <CardHeader>
                             <CardTitle className="text-base font-semibold">
                                 Peserta per LOB / Divisi
@@ -427,7 +428,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-2">
-                    <Card className="min-w-0">
+                    <Card className={cn('min-w-0', surfaceClassName)}>
                         <CardHeader>
                             <CardTitle className="text-base font-semibold">
                                 Perlu Perhatian
@@ -492,7 +493,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                         </CardContent>
                     </Card>
 
-                    <Card className="min-w-0">
+                    <Card className={cn('min-w-0', surfaceClassName)}>
                         <CardHeader className="flex-row items-start justify-between gap-3">
                             <div className="grid gap-1">
                                 <CardTitle className="text-base font-semibold">

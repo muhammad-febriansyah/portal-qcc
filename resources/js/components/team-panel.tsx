@@ -41,6 +41,7 @@ export type TeamPanelPerson = {
 };
 
 type Props = {
+    embedded?: boolean;
     picks: TeamPick[];
     people: Map<number, TeamPanelPerson>;
     problems: string[];
@@ -65,6 +66,7 @@ const roleItems = [
  * confirm step. Nothing here becomes a team until Konfirmasi is accepted.
  */
 export function TeamPanel({
+    embedded = false,
     picks,
     people,
     problems,
@@ -141,8 +143,16 @@ export function TeamPanel({
     }
 
     return (
-        <Card className="gap-0 py-0">
-            <CardContent className="grid gap-4 p-5">
+        <Card
+            className={
+                embedded
+                    ? 'border-0 bg-transparent py-0 shadow-none'
+                    : 'gap-0 py-0'
+            }
+        >
+            <CardContent
+                className={embedded ? 'grid gap-4 p-0' : 'grid gap-4 p-5'}
+            >
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                         <Users

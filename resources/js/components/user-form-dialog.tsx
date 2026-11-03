@@ -88,6 +88,11 @@ function UserForm({
                         id="user-sim-id"
                         label="SIM ID"
                         required
+                        hint={
+                            !isEditing
+                                ? 'Password awal otomatis sama dengan SIM ID.'
+                                : undefined
+                        }
                         error={errors.sim_id}
                     >
                         <Input

@@ -138,6 +138,9 @@ export default function ProposalShow({ proposal }: Props) {
         reason: '',
     });
     const { errors } = usePage().props as { errors: Record<string, string> };
+    const latestRevision = proposal.review_history
+        .filter((item) => item.decision === 'REQUEST_REVISION')
+        .at(-1);
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: dashboard() },
         { title: 'Proposal QCC', href: index() },
@@ -283,6 +286,26 @@ export default function ProposalShow({ proposal }: Props) {
                                 )}
                             </ul>
                         </div>
+                    )}
+                    {proposal.status === 'REVISION_REQUIRED' && (
+                        <Alert className="border-warning/40 bg-warning/10">
+                            <AlertTitle>Proposal perlu revisi</AlertTitle>
+                            <AlertDescription>
+                                {latestRevision?.reason
+                                    ? `"${latestRevision.reason}"`
+                                    : 'Reviewer belum mencatat alasan revisi.'}
+                                {latestRevision?.decided_at && (
+                                    <span className="mt-1 block text-xs">
+                                        {latestRevision.actor ?? 'Reviewer'} ·{' '}
+                                        {format(
+                                            parseISO(latestRevision.decided_at),
+                                            'd MMMM yyyy, HH:mm',
+                                            { locale: indonesianLocale },
+                                        )}
+                                    </span>
+                                )}
+                            </AlertDescription>
+                        </Alert>
                     )}
                     <Tabs defaultValue="summary" className="gap-5">
                         <TabsList

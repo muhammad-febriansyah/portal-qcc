@@ -105,6 +105,7 @@
     }
 
     body {
+        position: relative;
         @apply bg-background font-sans text-foreground;
     }
 }

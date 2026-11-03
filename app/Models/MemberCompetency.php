@@ -21,6 +21,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class MemberCompetency extends Model
 {
+    public const MAX_PER_USER = 10;
+
     public const STATUS_PENDING = 'PENDING';
 
     public const STATUS_VERIFIED = 'VERIFIED';

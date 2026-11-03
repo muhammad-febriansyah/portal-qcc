@@ -353,7 +353,7 @@ class ProposalController extends Controller
             ->with('organization:id,name')
             ->orderByRaw("CASE project_members.role_in_project WHEN 'LEADER' THEN 0 ELSE 1 END")
             ->orderBy('users.name')
-            ->get(['users.id', 'users.name', 'users.organization_id']);
+            ->get(['users.id', 'users.name', 'users.organization_id', 'users.avatar_path']);
 
         $held = MemberCompetency::query()
             ->whereIn('user_id', $members->pluck('id'))
@@ -366,6 +366,7 @@ class ProposalController extends Controller
         return array_values($members->map(fn (User $member): array => [
             'user_id' => $member->id,
             'name' => $member->name,
+            'avatar' => $member->avatar,
             'organization' => $member->organization?->name,
             'organization_id' => $member->organization_id,
             'role' => (string) $member->pivot->getAttribute('role_in_project'),

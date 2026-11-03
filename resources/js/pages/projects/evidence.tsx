@@ -2,6 +2,9 @@ import { Head, router, useForm, usePoll } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
 import {
+    Download,
+    ExternalLink,
+    Eye,
     FileArchive,
     FileImage,
     FileText,
@@ -14,6 +17,7 @@ import { FileUploader } from '@/components/file-uploader';
 import { FormField } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { DataTable, type DataTableColumnDef } from '@/components/data-table';
+import { DataTableRowActions } from '@/components/data-table-row-actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -131,6 +135,14 @@ const scanVariants: Record<
     REJECTED: 'destructive',
     FAILED: 'warning',
     NOT_REQUIRED: 'secondary',
+};
+const scanBadgeClasses: Record<string, string> = {
+    PENDING: 'border-transparent bg-slate-100 text-slate-700',
+    PROCESSING: 'border-transparent bg-cyan-100 text-cyan-800',
+    PASSED: 'border-transparent bg-emerald-100 text-emerald-800',
+    REJECTED: 'border-transparent bg-rose-100 text-rose-800',
+    FAILED: 'border-transparent bg-amber-100 text-amber-900',
+    NOT_REQUIRED: 'border-transparent bg-slate-100 text-slate-700',
 };
 
 function formatBytes(bytes: number): string {
@@ -369,6 +381,10 @@ export default function ProjectEvidencePage({
                 cell: ({ row }) => (
                     <div className="grid justify-items-start gap-1">
                         <Badge
+                            className={
+                                scanBadgeClasses[row.original.scan_status] ??
+                                'border-transparent bg-slate-100 text-slate-700'
+                            }
                             variant={
                                 scanVariants[row.original.scan_status] ??
                                 'secondary'
@@ -398,36 +414,60 @@ export default function ProjectEvidencePage({
             {
                 id: 'actions',
                 header: 'Aksi',
-                cell: ({ row }) => (
-                    <div className="flex min-w-max items-center gap-2">
-                        {row.original.preview_url && (
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                render={
-                                    <a
-                                        href={row.original.preview_url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                    />
-                                }
-                                nativeButton={false}
-                            >
-                                Pratinjau
-                            </Button>
-                        )}
-                        {row.original.download_url && (
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                render={<a href={row.original.download_url} />}
-                                nativeButton={false}
-                            >
-                                Unduh
-                            </Button>
-                        )}
-                    </div>
-                ),
+                cell: ({ row }) => {
+                    const item = row.original;
+                    const hasAvailableAction =
+                        item.preview_url !== null ||
+                        item.download_url !== null ||
+                        (item.source_type !== 'FILE' && item.url !== null);
+
+                    if (!hasAvailableAction) {
+                        return <span className="text-muted-foreground">—</span>;
+                    }
+
+                    return (
+                        <div className="flex justify-end">
+                            <DataTableRowActions
+                                label={`Aksi evidence ${item.title}`}
+                                actions={[
+                                    {
+                                        label: 'Pratinjau',
+                                        icon: Eye,
+                                        onSelect: () =>
+                                            window.open(
+                                                item.preview_url!,
+                                                '_blank',
+                                                'noopener,noreferrer',
+                                            ),
+                                        hidden: !item.preview_url,
+                                    },
+                                    {
+                                        label: 'Unduh',
+                                        icon: Download,
+                                        onSelect: () =>
+                                            window.location.assign(
+                                                item.download_url!,
+                                            ),
+                                        hidden: !item.download_url,
+                                    },
+                                    {
+                                        label: 'Buka tautan',
+                                        icon: ExternalLink,
+                                        onSelect: () =>
+                                            window.open(
+                                                item.url!,
+                                                '_blank',
+                                                'noopener,noreferrer',
+                                            ),
+                                        hidden:
+                                            item.source_type === 'FILE' ||
+                                            !item.url,
+                                    },
+                                ]}
+                            />
+                        </div>
+                    );
+                },
             },
         ],
         [],

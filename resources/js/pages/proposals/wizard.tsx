@@ -912,7 +912,7 @@ export default function ProposalWizard({
                 </Card>
             ) : (
                 <div className="grid gap-5">
-                    <Card className="overflow-hidden border-border/80 shadow-sm">
+                    <Card className="overflow-hidden border-border/60 shadow-xs">
                         <CardHeader className="gap-2 border-b bg-muted/25 px-5 py-5 sm:px-7">
                             <div className="flex items-start justify-between gap-4">
                                 <div className="grid gap-1.5">
@@ -972,7 +972,7 @@ export default function ProposalWizard({
                                 {renderStepFields(activeStep)}
                             </div>
                         </CardContent>
-                        <CardFooter className="sticky bottom-0 z-20 flex flex-col gap-3 border-t bg-background/95 px-5 py-4 shadow-[0_-8px_20px_-18px_var(--foreground)] backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-7">
+                        <CardFooter className="sticky bottom-0 z-20 flex flex-col gap-3 border-t border-border/50 bg-background/95 px-5 py-4 shadow-[0_-3px_10px_-8px_var(--foreground)] backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-7">
                             <p
                                 className="text-xs text-muted-foreground"
                                 aria-live="polite"

@@ -226,7 +226,7 @@ export default function RolesIndex({ roles, permissionCatalog }: Props) {
     return (
         <>
             <Head title="Role & Permission" />
-            <div className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
+            <div className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-6 md:py-8">
                 <PageHeader
                     breadcrumbs={[
                         { title: 'Dashboard', href: dashboard().url },

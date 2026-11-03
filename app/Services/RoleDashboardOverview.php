@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\ActionStatus;
 use App\Enums\ProposalStatus;
+use App\Enums\QccStep;
 use App\Enums\ReportStatus;
 use App\Enums\StepStatus;
 use App\Models\ActionItem;
@@ -19,6 +20,7 @@ class RoleDashboardOverview
     /**
      * @return array{
      *     summary: array{pending_tasks: int, proposals: int, active_projects: int, average_progress: int|null, biweekly_on_time: int, biweekly_late: int, biweekly_overdue: int, mentoring_sessions: int, mentoring_feedback_pending: int},
+     *     monitoring: array{biweekly_reports: list<array<string, mixed>>, step_statuses: list<array{status: string, label: string, count: int}>, steps: list<array<string, mixed>>, mentoring_reports: list<array<string, mixed>>},
      *     status_counts: list<array{status: string, label: string, count: int}>, projects: list<array<string, mixed>>, tasks: list<array<string, mixed>>
      * }
      */
@@ -60,6 +62,33 @@ class RoleDashboardOverview
             ->when($periodStart !== null, fn (Builder $query): Builder => $query
                 ->whereDate('session_at', '>=', $periodStart)
                 ->whereDate('session_at', '<=', $today->toDateString()));
+        $activeProjectIds = $activeProjects()->select('projects.id');
+        $stepStatusCounts = ProjectStep::query()
+            ->whereIn('project_id', $activeProjectIds)
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+        $recentBiweeklyReports = BiweeklyReport::query()
+            ->with('project:id,title')
+            ->whereIn('project_id', $reportProjectIds)
+            ->when($periodStart !== null, fn (Builder $query): Builder => $query
+                ->whereDate('ends_on', '>=', $periodStart)
+                ->whereDate('ends_on', '<=', $today->toDateString()))
+            ->orderByDesc('ends_on')
+            ->orderByDesc('period_no')
+            ->limit(5)
+            ->get();
+        $recentSteps = ProjectStep::query()
+            ->with('project:id,title')
+            ->whereIn('project_id', $activeProjectIds)
+            ->latest('updated_at')
+            ->limit(5)
+            ->get();
+        $recentMentoringReports = (clone $mentoringReports)
+            ->with('project:id,title')
+            ->latest('session_at')
+            ->limit(5)
+            ->get();
         $projectCounts = $visibleProjects()->selectRaw('proposal_status, COUNT(*) as total')
             ->groupBy('proposal_status')
             ->pluck('total', 'proposal_status');
@@ -96,6 +125,42 @@ class RoleDashboardOverview
                 'biweekly_overdue' => $overdueReports->count(),
                 'mentoring_sessions' => (clone $mentoringReports)->count(),
                 'mentoring_feedback_pending' => (clone $mentoringReports)->where('status', ReportStatus::Submitted->value)->whereNull('acknowledged_at')->count(),
+            ],
+            'monitoring' => [
+                'biweekly_reports' => $recentBiweeklyReports->map(fn (BiweeklyReport $report): array => [
+                    'id' => $report->id,
+                    'project' => $report->project->title,
+                    'period_no' => $report->period_no,
+                    'ends_on' => $report->ends_on->toDateString(),
+                    'status' => $report->status->value,
+                    'status_label' => $report->status->label(),
+                    'overdue' => $report->submitted_at === null && $report->ends_on->lt($today),
+                    'href' => route('projects.biweekly.index', $report->project_id),
+                ])->all(),
+                'step_statuses' => array_map(fn (StepStatus $status): array => [
+                    'status' => $status->value,
+                    'label' => $status->label(),
+                    'count' => (int) ($stepStatusCounts[$status->value] ?? 0),
+                ], StepStatus::cases()),
+                'steps' => $recentSteps->map(fn (ProjectStep $step): array => [
+                    'project' => $step->project->title,
+                    'step_number' => $step->step_number,
+                    'step_label' => QccStep::from($step->step_number)->label(),
+                    'status' => $step->status->value,
+                    'status_label' => $step->status->label(),
+                    'progress' => $step->progress_pct,
+                    'target_date' => $step->target_date?->toDateString(),
+                    'href' => route('projects.steps.show', ['project' => $step->project_id, 'step' => $step->step_number]),
+                ])->all(),
+                'mentoring_reports' => $recentMentoringReports->map(fn (MentoringReport $report): array => [
+                    'project' => $report->project->title,
+                    'topic' => $report->topic,
+                    'session_at' => $report->session_at->toDateString(),
+                    'status' => $report->status->value,
+                    'status_label' => $report->status->label(),
+                    'feedback_pending' => $report->status === ReportStatus::Submitted && $report->acknowledged_at === null,
+                    'href' => route('projects.mentoring.index', $report->project_id),
+                ])->all(),
             ],
             'status_counts' => array_map(fn (ProposalStatus $status): array => [
                 'status' => $status->value,

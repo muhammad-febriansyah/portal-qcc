@@ -15,7 +15,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -99,7 +98,7 @@ class UserController extends Controller
     public function store(StoreUserRequest $request, AuditService $audit): RedirectResponse
     {
         $data = $request->validated();
-        $password = Str::password(12, symbols: false);
+        $password = $data['sim_id'];
 
         $user = DB::transaction(function () use ($data, $password, $audit): User {
             $user = new User([

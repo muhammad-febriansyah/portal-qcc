@@ -297,7 +297,7 @@ export default function ReviewerAssignmentsIndex({
     return (
         <>
             <Head title="Penugasan Reviewer" />
-            <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-6 md:py-8">
                 <PageHeader
                     breadcrumbs={[
                         { title: 'Dashboard', href: dashboard() },
@@ -399,6 +399,9 @@ export default function ReviewerAssignmentsIndex({
                         <DialogDescription>
                             Reviewer hanya mendapat akses pada proyek dan scope
                             yang dipilih, jika permission akunnya mengizinkan.
+                            Akun yang sudah bisa melihat semua proyek (misalnya
+                            Owner QCC dan Super Admin) tidak muncul di daftar
+                            ini karena tidak memerlukan penugasan.
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={submitAssignment} className="grid gap-5">

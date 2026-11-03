@@ -124,13 +124,14 @@ test('the user list loads organizations and roles without extra queries per row'
     expect($queries)->toBeLessThan(20);
 });
 
-test('creating a member stores a verified active account with a one-time password', function () {
+test('creating a member stores a verified active account with password matching normalized SIM ID', function () {
     $payload = validUserPayload(['email' => ' Budi@Example.com ', 'sim_id' => ' sim-0042 ', 'role' => 'Mentor']);
 
     $this->actingAs(userManager())
         ->post(route('admin.users.store'), $payload)
         ->assertRedirect()
         ->assertInertiaFlash('credential.email', 'budi@example.com')
+        ->assertInertiaFlash('credential.password', 'SIM-0042')
         ->assertInertiaFlash('credential.reason', 'created');
 
     $user = User::query()->where('email', 'budi@example.com')->firstOrFail();
@@ -142,13 +143,13 @@ test('creating a member stores a verified active account with a one-time passwor
         ->and($user->getRoleNames()->all())->toBe(['Mentor']);
 });
 
-test('the generated password is hashed and lets the new member log in', function () {
+test('the SIM ID password is hashed and lets the new member log in', function () {
     $response = $this->actingAs(userManager())->post(route('admin.users.store'), validUserPayload());
     $password = session('inertia.flash_data.credential.password');
     $user = User::query()->where('email', 'budi@example.com')->firstOrFail();
 
-    expect($password)->toBeString()->toHaveLength(12)
-        ->and($user->password)->not->toBe($password)
+    expect($password)->toBe('SIM-0001')
+        ->and($user->password)->not->toBe('SIM-0001')
         ->and(Hash::check($password, $user->password))->toBeTrue();
 
     auth()->logout();

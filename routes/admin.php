@@ -65,7 +65,7 @@ Route::middleware(['auth', 'verified'])
         Route::patch('batches/{batch}/schedules/{schedule}', [BatchScheduleController::class, 'update'])->name('batches.schedules.update');
 
         Route::resource('organizations', OrganizationController::class)
-            ->only(['index', 'store', 'update']);
+            ->only(['index', 'store', 'update', 'destroy']);
 
         Route::resource('competencies', CompetencyController::class)
             ->only(['index', 'store', 'update', 'destroy'])

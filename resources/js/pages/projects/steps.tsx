@@ -2,12 +2,10 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
 import {
-    AlertTriangle,
     ArrowLeft,
     ArrowRight,
     Check,
     CircleAlert,
-    Files,
     ListChecks,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
@@ -24,10 +22,6 @@ import type { BadgeVariant } from '@/lib/badge-variants';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { index as proposalsIndex } from '@/routes/proposals';
-import { index as biweeklyIndex } from '@/routes/projects/biweekly';
-import { index as mentoringIndex } from '@/routes/projects/mentoring';
-import { index as risksIndex } from '@/routes/projects/risks';
-import { index as evidenceIndex } from '@/routes/projects/evidence';
 import { exportMethod as exportStepsCsv, show } from '@/routes/projects/steps';
 
 type StepItem = {
@@ -194,77 +188,6 @@ export default function ProjectSteps({
                                     project: project.id,
                                 })}
                             />
-                            <Button
-                                variant="warning"
-                                className="h-10 px-4 text-sm"
-                                render={
-                                    <Link
-                                        href={risksIndex.url({
-                                            project: project.id,
-                                        })}
-                                    />
-                                }
-                                nativeButton={false}
-                            >
-                                <AlertTriangle
-                                    data-icon="inline-start"
-                                    aria-hidden="true"
-                                />
-                                Risiko & Tindakan
-                            </Button>
-                            <Button
-                                variant="info"
-                                className="h-10 px-4 text-sm"
-                                render={
-                                    <Link
-                                        href={biweeklyIndex.url({
-                                            project: project.id,
-                                        })}
-                                    />
-                                }
-                                nativeButton={false}
-                            >
-                                Bi-weekly
-                            </Button>
-                            <Button
-                                variant="violet"
-                                className="h-10 px-4 text-sm"
-                                render={
-                                    <Link
-                                        href={mentoringIndex.url({
-                                            project: project.id,
-                                        })}
-                                    />
-                                }
-                                nativeButton={false}
-                            >
-                                Mentoring
-                            </Button>
-                            {selected !== null && (
-                                <Button
-                                    variant="teal"
-                                    className="h-10 px-4 text-sm"
-                                    render={
-                                        <Link
-                                            href={evidenceIndex.url(
-                                                { project: project.id },
-                                                {
-                                                    query: {
-                                                        step: selected.number,
-                                                    },
-                                                },
-                                            )}
-                                        />
-                                    }
-                                    nativeButton={false}
-                                >
-                                    <Files
-                                        data-icon="inline-start"
-                                        aria-hidden="true"
-                                    />
-                                    Evidence
-                                </Button>
-                            )}
                         </div>
                     }
                 />

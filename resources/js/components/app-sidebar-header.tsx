@@ -1,12 +1,21 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
-import { Bell, BellOff, Check, CheckCheck, ChevronDown } from 'lucide-react';
+import { Bell, BellOff, Check, CheckCheck, ChevronDown, X } from 'lucide-react';
 import { useState } from 'react';
 import { MenuSearch } from '@/components/menu-search';
 import { NotificationKindIcon } from '@/components/notification-kind-icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import {
+    Drawer,
+    DrawerClose,
+    DrawerContent,
+    DrawerDescription,
+    DrawerHeader,
+    DrawerTitle,
+    DrawerTrigger,
+} from '@/components/ui/drawer';
 import {
     Empty,
     EmptyDescription,
@@ -20,14 +29,6 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
-import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
-    SheetTrigger,
-} from '@/components/ui/sheet';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useInitials } from '@/hooks/use-initials';
@@ -70,8 +71,8 @@ function NotificationMenu() {
     }
 
     return (
-        <Sheet>
-            <SheetTrigger
+        <Drawer swipeDirection="right">
+            <DrawerTrigger
                 render={
                     <Button
                         variant="ghost"
@@ -89,19 +90,19 @@ function NotificationMenu() {
                             : notifications.unread_count}
                     </span>
                 )}
-            </SheetTrigger>
-            <SheetContent side="right" className="gap-0 p-0 sm:max-w-md">
-                <SheetHeader className="border-b border-border/60 pr-12">
+            </DrawerTrigger>
+            <DrawerContent className="gap-0 rounded-2xl p-0 [--drawer-bleed-background:transparent] [--drawer-inset:1rem] data-[swipe-axis=x]:w-[min(28rem,calc(100vw_-_2rem))]">
+                <DrawerHeader className="relative border-b border-border/60 pr-12">
                     <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
-                            <SheetTitle>Notifikasi</SheetTitle>
-                            <SheetDescription>
+                            <DrawerTitle>Notifikasi</DrawerTitle>
+                            <DrawerDescription>
                                 {notifications.unread_count} belum dibaca
-                            </SheetDescription>
+                            </DrawerDescription>
                         </div>
                         {notifications.unread_count > 0 && (
                             <Button
-                                variant="secondary"
+                                variant="default"
                                 size="sm"
                                 disabled={processing !== null}
                                 onClick={markAllRead}
@@ -111,7 +112,20 @@ function NotificationMenu() {
                             </Button>
                         )}
                     </div>
-                </SheetHeader>
+                    <DrawerClose
+                        render={
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="absolute top-3 right-3"
+                                aria-label="Tutup notifikasi"
+                            />
+                        }
+                    >
+                        <X aria-hidden="true" />
+                    </DrawerClose>
+                </DrawerHeader>
                 {notifications.recent.length === 0 ? (
                     <Empty className="flex-1 gap-2 rounded-none border-0 px-6 py-8">
                         <EmptyHeader>
@@ -167,7 +181,10 @@ function NotificationMenu() {
                                                 </span>
                                             </Link>
                                             <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-                                                <Badge variant="secondary">
+                                                <Badge
+                                                    variant="outline"
+                                                    className="border-primary/20 bg-primary/10 text-primary"
+                                                >
                                                     {notification.kind_label}
                                                 </Badge>
                                                 {notification.project_code && (
@@ -191,7 +208,7 @@ function NotificationMenu() {
                                                 {!notification.read_at && (
                                                     <Button
                                                         type="button"
-                                                        variant="ghost"
+                                                        variant="outline"
                                                         size="xs"
                                                         className="ml-auto"
                                                         disabled={
@@ -218,7 +235,7 @@ function NotificationMenu() {
                 )}
                 <div className="border-t border-border/60 p-3">
                     <Button
-                        variant="secondary"
+                        variant="default"
                         className="w-full"
                         nativeButton={false}
                         render={<Link href={notificationsIndex()} />}
@@ -226,8 +243,8 @@ function NotificationMenu() {
                         Lihat semua notifikasi
                     </Button>
                 </div>
-            </SheetContent>
-        </Sheet>
+            </DrawerContent>
+        </Drawer>
     );
 }
 

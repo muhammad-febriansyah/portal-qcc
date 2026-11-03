@@ -7,6 +7,11 @@ use Database\Seeders\ProjectAccessSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Fortify\Features;
+
+beforeEach(function () {
+    $this->skipUnlessFortifyHas(Features::registration());
+});
 
 /**
  * @param  array<string, mixed>  $overrides

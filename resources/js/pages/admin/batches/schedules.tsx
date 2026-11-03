@@ -132,7 +132,7 @@ export default function BatchSchedules({ batch, schedules }: Props) {
     return (
         <>
             <Head title={`Jadwal ${batch.name}`} />
-            <main className="mx-auto w-full max-w-[1100px] flex-1 space-y-6 px-4 py-6 md:px-6 md:py-8">
+            <main className="mx-auto w-full max-w-[1440px] flex-1 space-y-6 px-4 py-6 md:px-6 md:py-8">
                 <PageHeader
                     breadcrumbs={[
                         { title: 'Dashboard', href: dashboard() },

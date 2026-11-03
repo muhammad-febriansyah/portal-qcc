@@ -68,6 +68,8 @@ type Props = {
     groupOptions: GroupOption[];
     competencyOptions: CompetencyOption[];
     levelOptions: LevelOption[];
+    competencyCount: number;
+    competencyLimit: number;
 };
 
 export default function MyCompetenciesIndex({
@@ -76,6 +78,8 @@ export default function MyCompetenciesIndex({
     groupOptions,
     competencyOptions,
     levelOptions,
+    competencyCount,
+    competencyLimit,
 }: Props) {
     const [searchValue, setSearchValue] = useState(filters.search);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -273,6 +277,7 @@ export default function MyCompetenciesIndex({
         desc: filters.direction === 'desc',
     };
     const hasActiveFilter = filters.search !== '' || filters.group !== 'all';
+    const reachedCompetencyLimit = competencyCount >= competencyLimit;
 
     return (
         <>
@@ -284,18 +289,21 @@ export default function MyCompetenciesIndex({
                         { title: 'Kompetensi Saya', href: index() },
                     ]}
                     title="Kompetensi Saya"
-                    description="Catat kemampuan Anda agar pembentukan tim QCC dapat mempertimbangkannya."
+                    description={`Catat kemampuan Anda agar pembentukan tim QCC dapat mempertimbangkannya. ${competencyCount}/${competencyLimit} kompetensi.`}
                     actions={
                         <Button
                             type="button"
                             className="h-10 px-4 text-sm"
+                            disabled={reachedCompetencyLimit}
                             onClick={() => {
                                 setEditing(null);
                                 setIsDialogOpen(true);
                             }}
                         >
                             <Plus data-icon="inline-start" aria-hidden="true" />
-                            Tambah Kompetensi
+                            {reachedCompetencyLimit
+                                ? 'Batas Tercapai'
+                                : 'Tambah Kompetensi'}
                         </Button>
                     }
                 />

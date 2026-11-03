@@ -104,6 +104,36 @@ test('a person can add a competency with a level from 1 to 4', function () {
         ->and($row->verified_level)->toBeNull();
 });
 
+test('a person can add at most ten competencies', function () {
+    $me = User::factory()->create();
+    $competencies = collect(range(1, 11))
+        ->map(fn (int $number): Competency => competencyInGroup(sprintf('C%03d', $number), "Kompetensi {$number}"));
+
+    foreach ($competencies->take(9) as $competency) {
+        MemberCompetency::factory()->create([
+            'user_id' => $me->id,
+            'competency_id' => $competency->id,
+        ]);
+    }
+
+    $this->actingAs($me)
+        ->post(route('my-competencies.store'), ['competency_id' => $competencies[9]->id, 'self_level' => 2])
+        ->assertSessionHasNoErrors();
+
+    $this->post(route('my-competencies.store'), ['competency_id' => $competencies[10]->id, 'self_level' => 2])
+        ->assertSessionHasErrors([
+            'competency_id' => 'Maksimal 10 kompetensi. Hapus salah satu kompetensi sebelum menambahkan yang baru.',
+        ]);
+
+    $this->get(route('my-competencies.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('competencyCount', 10)
+            ->where('competencyLimit', 10)
+            ->has('competencyOptions', 0));
+
+    expect(MemberCompetency::query()->where('user_id', $me->id)->count())->toBe(10);
+});
+
 test('adding validates the competency and the level', function () {
     $me = User::factory()->create();
     $active = competencyInGroup('C001', 'Aktif');

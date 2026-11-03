@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { login } from '@/routes';
-import { store } from '@/routes/register';
 
 type Props = {
     passwordRules: string;
@@ -70,7 +69,8 @@ export default function Register({ passwordRules }: Props) {
                 </p>
 
                 <Form
-                    {...store.form()}
+                    action="/register"
+                    method="post"
                     resetOnSuccess={['password', 'password_confirmation']}
                     disableWhileProcessing
                     className="mt-6 grid gap-4"

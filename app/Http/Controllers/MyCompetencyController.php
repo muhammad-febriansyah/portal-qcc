@@ -8,11 +8,14 @@ use App\Http\Requests\UpdateMemberCompetencyRequest;
 use App\Models\Competency;
 use App\Models\CompetencyGroup;
 use App\Models\MemberCompetency;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -37,6 +40,7 @@ class MyCompetencyController extends Controller
         $sort = $filters['sort'] ?? 'code';
         $direction = $filters['direction'] ?? 'asc';
         $perPage = (int) ($filters['per_page'] ?? 10);
+        $competencyCount = $user->memberCompetencies()->count();
 
         $sortColumn = $sort === 'code' ? 'competency_master.code' : "member_competencies.{$sort}";
 
@@ -82,24 +86,41 @@ class MyCompetencyController extends Controller
                 'id' => $item->id,
                 'label' => $item->name,
             ])->all(),
-            'competencyOptions' => Competency::query()
-                ->where('is_active', true)
-                ->whereNotIn('id', MemberCompetency::query()->where('user_id', $user->id)->select('competency_id'))
-                ->orderBy('code')
-                ->get(['id', 'group_id', 'code', 'name'])
-                ->map(fn (Competency $competency): array => [
-                    'id' => $competency->id,
-                    'group_id' => $competency->group_id,
-                    'label' => $competency->code.' - '.$competency->name,
-                ])
-                ->all(),
+            'competencyCount' => $competencyCount,
+            'competencyLimit' => MemberCompetency::MAX_PER_USER,
+            'competencyOptions' => $competencyCount >= MemberCompetency::MAX_PER_USER
+                ? []
+                : Competency::query()
+                    ->where('is_active', true)
+                    ->whereNotIn('id', MemberCompetency::query()->where('user_id', $user->id)->select('competency_id'))
+                    ->orderBy('code')
+                    ->get(['id', 'group_id', 'code', 'name'])
+                    ->map(fn (Competency $competency): array => [
+                        'id' => $competency->id,
+                        'group_id' => $competency->group_id,
+                        'label' => $competency->code.' - '.$competency->name,
+                    ])
+                    ->all(),
             'levelOptions' => CompetencyLevel::options(),
         ]);
     }
 
     public function store(StoreMemberCompetencyRequest $request): RedirectResponse
     {
-        $request->user()->memberCompetencies()->create($request->validated());
+        $data = $request->validated();
+        $userId = $request->user()->id;
+
+        DB::transaction(function () use ($userId, $data): void {
+            $user = User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
+
+            if ($user->memberCompetencies()->count() >= MemberCompetency::MAX_PER_USER) {
+                throw ValidationException::withMessages([
+                    'competency_id' => 'Maksimal 10 kompetensi. Hapus salah satu kompetensi sebelum menambahkan yang baru.',
+                ]);
+            }
+
+            $user->memberCompetencies()->create($data);
+        });
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Kompetensi berhasil ditambahkan.']);
 
