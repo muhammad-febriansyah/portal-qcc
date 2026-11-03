@@ -60,8 +60,7 @@ jobs:
 
       - name: Install Node dependencies and build frontend
         run: |
-          corepack enable
-          corepack prepare pnpm@10.33.0 --activate
+          npm install --global pnpm@10.33.0
           pnpm install --frozen-lockfile
           pnpm build
 

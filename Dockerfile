@@ -7,7 +7,7 @@ RUN composer install --no-dev --no-interaction --prefer-dist --no-progress --opt
 FROM node:26.13.0-bookworm-slim AS frontend
 
 WORKDIR /var/www/html
-RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+RUN npm install --global pnpm@10.33.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
