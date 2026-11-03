@@ -17,6 +17,7 @@ env:
 
 jobs:
   test:
+    name: CI Checks
     runs-on: ubuntu-24.04
     env:
       APP_ENV: testing
@@ -68,6 +69,7 @@ jobs:
         run: composer ci:check
 
   image:
+    name: Docker Build + Trivy + Push
     needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
