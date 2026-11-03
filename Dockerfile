@@ -17,7 +17,7 @@ FROM php:8.5.12-cli-bookworm AS app
 WORKDIR /var/www/html
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libicu-dev libonig-dev libzip-dev unzip \
-    && docker-php-ext-install bcmath intl mbstring opcache pdo_mysql zip \
+    && docker-php-ext-install bcmath intl mbstring pdo_mysql zip \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=vendor /var/www/html/vendor ./vendor
