@@ -4,7 +4,7 @@ WORKDIR /var/www/html
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader --no-scripts
 
-FROM node:22-bookworm-slim AS frontend
+FROM node:26.13.0-bookworm-slim AS frontend
 
 WORKDIR /var/www/html
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-FROM php:8.3-cli-bookworm AS app
+FROM php:8.5.12-cli-bookworm AS app
 
 WORKDIR /var/www/html
 RUN apt-get update \
