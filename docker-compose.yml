@@ -1,53 +1,53 @@
 services:
-  app:
-    image: ${APP_IMAGE:-ghcr.io/muhammad-febriansyah/portal-qcc:development}
-    env_file:
-      - .env
-    ports:
-      - "${APP_PORT:-8000}:8000"
-    depends_on:
-      redis:
-        condition: service_healthy
-    volumes:
-      - app-storage:/var/www/html/storage
-    restart: unless-stopped
+    app:
+        image: ${APP_IMAGE:-ghcr.io/muhammad-febriansyah/portal-qcc:development}
+        env_file:
+            - .env
+        ports:
+            - '${APP_PORT:-8000}:8000'
+        depends_on:
+            redis:
+                condition: service_healthy
+        volumes:
+            - app-storage:/var/www/html/storage
+        restart: unless-stopped
 
-  worker:
-    image: ${APP_IMAGE:-ghcr.io/muhammad-febriansyah/portal-qcc:development}
-    env_file:
-      - .env
-    command: php artisan queue:work redis --queue=ai,default --sleep=3 --tries=3 --timeout=120
-    depends_on:
-      redis:
-        condition: service_healthy
-    volumes:
-      - app-storage:/var/www/html/storage
-    restart: unless-stopped
+    worker:
+        image: ${APP_IMAGE:-ghcr.io/muhammad-febriansyah/portal-qcc:development}
+        env_file:
+            - .env
+        command: php artisan queue:work redis --queue=ai,default --sleep=3 --tries=3 --timeout=120
+        depends_on:
+            redis:
+                condition: service_healthy
+        volumes:
+            - app-storage:/var/www/html/storage
+        restart: unless-stopped
 
-  scheduler:
-    image: ${APP_IMAGE:-ghcr.io/muhammad-febriansyah/portal-qcc:development}
-    env_file:
-      - .env
-    command: php artisan schedule:work
-    depends_on:
-      redis:
-        condition: service_healthy
-    volumes:
-      - app-storage:/var/www/html/storage
-    restart: unless-stopped
+    scheduler:
+        image: ${APP_IMAGE:-ghcr.io/muhammad-febriansyah/portal-qcc:development}
+        env_file:
+            - .env
+        command: php artisan schedule:work
+        depends_on:
+            redis:
+                condition: service_healthy
+        volumes:
+            - app-storage:/var/www/html/storage
+        restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    restart: unless-stopped
+    redis:
+        image: redis:7-alpine
+        command: redis-server --appendonly yes
+        volumes:
+            - redis-data:/data
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'ping']
+            interval: 5s
+            timeout: 3s
+            retries: 10
+        restart: unless-stopped
 
 volumes:
-  app-storage:
-  redis-data:
+    app-storage:
+    redis-data:
