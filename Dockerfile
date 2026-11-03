@@ -11,7 +11,6 @@ RUN npm install --global pnpm@10.33.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm build
 
 FROM php:8.5.12-cli-bookworm AS app
 
@@ -22,8 +21,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=vendor /var/www/html/vendor ./vendor
-COPY --from=frontend /var/www/html/public/build ./public/build
+COPY --from=frontend /usr/local/bin/node /usr/local/bin/node
+COPY --from=frontend /var/www/html/node_modules ./node_modules
 COPY . .
+
+RUN ./node_modules/.bin/vp build \
+    && rm -rf node_modules
 
 RUN mkdir -p storage/app/private storage/app/public storage/framework/cache \
     storage/framework/sessions storage/framework/views storage/logs \
