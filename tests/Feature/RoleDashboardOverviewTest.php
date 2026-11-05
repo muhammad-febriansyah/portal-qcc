@@ -33,7 +33,7 @@ function roleDashboardProject(User $proposer, string $title, ProposalStatus $sta
     ]);
 }
 
-test('team member dashboard only includes projects where user has active project role', function (string $role, string $projectRole) {
+test('team members get the member dashboard with only the projects they belong to', function (string $role, string $projectRole, string $roleLabel) {
     $user = roleDashboardUser($role, 'projects.view');
     $visible = roleDashboardProject(User::factory()->create(), 'Proyek yang boleh dilihat');
     $hidden = roleDashboardProject(User::factory()->create(), 'Proyek milik tim lain');
@@ -52,12 +52,14 @@ test('team member dashboard only includes projects where user has active project
         ->get(route('dashboard'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('roleOverview.summary.active_projects', 1)
-            ->has('roleOverview.projects', 1)
-            ->where('roleOverview.projects.0.title', 'Proyek yang boleh dilihat'));
+            ->component('member-dashboard')
+            ->missing('roleOverview')
+            ->has('overview.projects', 1)
+            ->where('overview.projects.0.title', 'Proyek yang boleh dilihat')
+            ->where('overview.projects.0.role', $roleLabel));
 })->with([
-    'Team Leader sees leader assignments' => ['Team Leader', 'LEADER'],
-    'SIMer member sees member assignments' => ['SIMer / Member', 'MEMBER'],
+    'Team Leader sees leader assignments' => ['Team Leader', 'LEADER', 'Leader'],
+    'SIMer member sees member assignments' => ['SIMer / Member', 'MEMBER', 'Anggota'],
 ]);
 
 test('mentor dashboard scopes projects to active mentor assignments', function () {
@@ -97,26 +99,28 @@ test('reviewer dashboard shows submitted proposals as pending tasks', function (
         ->get(route('dashboard'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('roleOverview.summary.pending_tasks', 2)
-            ->has('roleOverview.tasks', 2)
-            ->where('roleOverview.tasks.0.title', 'Review proposal')
-            ->where('roleOverview.tasks.0.project', 'Menunggu review')
-            ->where('roleOverview.tasks.1.title', 'Review Step 1')
-            ->where('roleOverview.tasks.1.project', 'Step menunggu review'));
+            // The submitted proposal also waits for its team.
+            ->where('roleOverview.summary.pending_tasks', 3)
+            ->where('roleOverview.tasks', fn ($tasks) => collect($tasks)->pluck('title')->sort()->values()->all()
+                === ['Proposal menunggu penyusunan tim', 'Review Step 1', 'Review proposal']));
 });
 
 test('owner dashboard shows proposals waiting for team composition until team is confirmed', function () {
     $owner = roleDashboardUser('Owner QCC', 'projects.view', 'projects.viewAny', 'projects.review');
     $member = roleDashboardUser('SIMer / Member', 'projects.view', 'projects.create', 'projects.update');
-    $project = roleDashboardProject($member, 'Menunggu penyusunan tim', ProposalStatus::Draft);
+    $project = roleDashboardProject($member, 'Menunggu penyusunan tim', ProposalStatus::Submitted);
+    roleDashboardProject($member, 'Masih draf', ProposalStatus::Draft);
 
+    $teamTask = fn (array $tasks): ?array => collect($tasks)->firstWhere('title', 'Proposal menunggu penyusunan tim');
+
+    // A submitted proposal is both waiting for review and for its team; the draft is neither.
     $this->actingAs($owner)->get(route('dashboard'))
         ->assertInertia(fn (Assert $page) => $page
-            ->where('roleOverview.summary.pending_tasks', 1)
-            ->has('roleOverview.tasks', 1)
-            ->where('roleOverview.tasks.0.title', 'Proposal menunggu penyusunan tim')
-            ->where('roleOverview.tasks.0.project', 'Menunggu penyusunan tim')
-            ->where('roleOverview.tasks.0.href', route('proposals.candidates', $project)));
+            ->where('roleOverview.summary.pending_tasks', 2)
+            ->where('roleOverview.tasks', fn ($tasks) => $teamTask(collect($tasks)->toArray()) !== null
+                && $teamTask(collect($tasks)->toArray())['project'] === 'Menunggu penyusunan tim'
+                && $teamTask(collect($tasks)->toArray())['href'] === route('proposals.candidates', $project)
+                && $teamTask(collect($tasks)->toArray())['detail'] === 'Susun dan konfirmasi tim sebelum proposal disetujui.'));
 
     $run = TeamMatchingRun::query()->create([
         'project_id' => $project->id,
@@ -128,12 +132,13 @@ test('owner dashboard shows proposals waiting for team composition until team is
 
     $this->get(route('dashboard'))
         ->assertInertia(fn (Assert $page) => $page
-            ->where('roleOverview.summary.pending_tasks', 0)
-            ->has('roleOverview.tasks', 0));
+            ->where('roleOverview.summary.pending_tasks', 1)
+            ->where('roleOverview.tasks', fn ($tasks) => $teamTask(collect($tasks)->toArray()) === null));
 });
 
 test('role dashboard summarizes submitted report punctuality and mentoring feedback', function () {
-    $owner = roleDashboardUser('Team Leader', 'projects.view');
+    // Mentors keep the monitoring dashboard and see projects they belong to.
+    $owner = roleDashboardUser('Mentor', 'projects.view');
     $visible = roleDashboardProject(User::factory()->create(), 'Proyek terlihat');
     $hidden = roleDashboardProject(User::factory()->create(), 'Proyek tersembunyi');
     $visible->members()->attach($owner->id, ['role_in_project' => 'LEADER', 'status' => 'ACTIVE', 'joined_at' => now()]);
@@ -199,7 +204,7 @@ test('role dashboard summarizes submitted report punctuality and mentoring feedb
 });
 
 test('dashboard batch filter scopes every QCC count and keeps hidden batches out of options', function () {
-    $user = roleDashboardUser('Team Leader', 'projects.view');
+    $user = roleDashboardUser('Mentor', 'projects.view');
     $first = roleDashboardProject(User::factory()->create(), 'Batch terlihat A');
     $second = roleDashboardProject(User::factory()->create(), 'Batch terlihat B', ProposalStatus::Submitted);
     roleDashboardProject(User::factory()->create(), 'Batch tersembunyi');
@@ -223,7 +228,7 @@ test('dashboard period filters projects by creation date and reports by reportin
     $today = today()->setTime(12, 0);
     $this->travelTo($today);
 
-    $leader = roleDashboardUser('Team Leader', 'projects.view');
+    $leader = roleDashboardUser('Mentor', 'projects.view');
     $recentProject = roleDashboardProject(User::factory()->create(), 'Proyek baru');
     $olderProject = roleDashboardProject(User::factory()->create(), 'Proyek lama');
     $recentProject->forceFill(['created_at' => $today->copy()->subDays(10)])->save();

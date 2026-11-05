@@ -139,6 +139,18 @@ class User extends Authenticatable implements MustVerifyEmail
             && ! $this->memberCompetencies()->exists();
     }
 
+    /**
+     * SIMers and Team Leaders get the simple personal dashboard; reviewers, mentors and admins
+     * keep the monitoring dashboard, even when they also hold a member role.
+     */
+    public function usesMemberDashboard(): bool
+    {
+        return $this->hasAnyRole(['SIMer / Member', 'Team Leader'])
+            && ! $this->hasAnyRole(['Owner QCC', 'Mentor', 'Super Admin'])
+            && ! $this->can('projects.viewAny')
+            && ! $this->can('dashboard.admin');
+    }
+
     public function isInTalentPool(): bool
     {
         return $this->memberCompetencies()->exists();

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\QccBatch;
 use App\Services\AdminDashboardOverview;
+use App\Services\MemberDashboardOverview;
 use App\Services\RoleDashboardOverview;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -13,9 +14,16 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request, AdminDashboardOverview $overview, RoleDashboardOverview $roleOverview): Response
+    public function index(Request $request, AdminDashboardOverview $overview, RoleDashboardOverview $roleOverview, MemberDashboardOverview $memberOverview): Response
     {
         $user = $request->user();
+
+        if ($user->usesMemberDashboard()) {
+            return Inertia::render('member-dashboard', [
+                'overview' => $memberOverview->get($user),
+            ]);
+        }
+
         $filters = $request->validate([
             'batch_id' => ['nullable', 'integer', 'exists:qcc_batches,id'],
             'period' => ['nullable', Rule::in(['all', '30', '90', '365'])],

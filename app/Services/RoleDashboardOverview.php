@@ -199,9 +199,7 @@ class RoleDashboardOverview
         if ($user->can('projects.viewAny') && $user->can('projects.review')) {
             $teamPendingProposals = Project::query()
                 ->when($batchId !== null, fn (Builder $query): Builder => $query->where('batch_id', $batchId))
-                ->where('proposal_status', ProposalStatus::Draft->value)
-                ->whereHas('proposer.roles', fn (Builder $roles): Builder => $roles->where('name', 'SIMer / Member'))
-                ->whereDoesntHave('proposer.roles', fn (Builder $roles): Builder => $roles->where('name', 'Team Leader'))
+                ->whereIn('proposal_status', array_column(ProposalStatus::teamFormationStatuses(), 'value'))
                 ->whereNotExists(fn ($query) => $query->selectRaw('1')
                     ->from('team_matching_runs')
                     ->whereColumn('team_matching_runs.project_id', 'projects.id')
@@ -211,7 +209,7 @@ class RoleDashboardOverview
                 'key' => 'team-composition-'.$project->id,
                 'title' => 'Proposal menunggu penyusunan tim',
                 'project' => $project->title,
-                'detail' => 'Susun dan konfirmasi tim sebelum proposal diajukan.',
+                'detail' => 'Susun dan konfirmasi tim sebelum proposal disetujui.',
                 'href' => route('proposals.candidates', $project),
                 'date' => $project->updated_at?->toDateString(),
             ])->all()];
