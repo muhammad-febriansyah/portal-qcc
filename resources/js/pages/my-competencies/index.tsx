@@ -334,9 +334,8 @@ export default function MyCompetenciesIndex({
                             Isi kompetensi untuk masuk Talent Pool
                         </AlertTitle>
                         <AlertDescription>
-                            Tambahkan minimal satu kompetensi. Menu lain,
-                            termasuk pembuatan proposal, terbuka setelah Anda
-                            masuk Talent Pool.
+                            Tambahkan minimal satu kompetensi. Pembuatan
+                            proposal QCC terbuka setelah Anda masuk Talent Pool.
                         </AlertDescription>
                     </Alert>
                 ) : null}
