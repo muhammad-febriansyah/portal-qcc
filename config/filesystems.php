@@ -62,7 +62,9 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim((string) env('APP_URL', 'http://localhost'), '/').'/storage',
+            // Host-relative, so logos and uploads load whichever address the portal is opened on
+            // (localhost, a LAN IP or a domain). Set PUBLIC_STORAGE_URL for a CDN or another host.
+            'url' => env('PUBLIC_STORAGE_URL', '/storage'),
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
