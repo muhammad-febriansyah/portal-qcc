@@ -32,16 +32,13 @@ PROMPT;
                 'title' => $project->title,
                 'theme' => $project->theme,
                 'background' => $project->background,
-                'problem_statement' => $project->problem_statement,
                 'current_situation' => $project->current_situation,
-                'baseline' => $project->baseline,
+                'improvement_plan' => $project->improvement_plan,
                 'target' => $project->target,
                 'scope' => $project->scope,
                 'learning_goals' => $project->learning_goals_json,
-                'root_cause_analysis' => $project->rca,
-                'improvement_plan' => $project->improvement_plan,
-                'business_benefit' => $project->business_benefit,
                 'supplementary_information' => $project->supplementary_information,
+                ...$this->legacySections($project),
             ],
             'rules' => ['max_members' => 5, 'leaders' => 1, 'min_organizations' => 2],
             'requirements' => $snapshot['requirements'],
@@ -55,6 +52,21 @@ PROMPT;
             'request_hash' => hash('sha256', json_encode($input, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)),
             'prompt_version' => (string) config('team_matching.prompt_version'),
         ];
+    }
+
+    /**
+     * Sections removed from the proposal form are sent only when an older proposal still has them.
+     *
+     * @return array<string, string>
+     */
+    private function legacySections(Project $project): array
+    {
+        return array_filter([
+            'problem_statement' => $project->problem_statement,
+            'baseline' => $project->baseline,
+            'root_cause_analysis' => $project->rca,
+            'business_benefit' => $project->business_benefit,
+        ], fn (?string $value): bool => filled($value));
     }
 
     /**

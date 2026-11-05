@@ -130,8 +130,6 @@ test('matching prompt includes project context and mitigation schema', function 
     $this->project->forceFill([
         'current_situation' => 'Dokumen diverifikasi manual.',
         'improvement_plan' => 'Otomatisasi verifikasi.',
-        'rca' => 'Proses belum terstandar.',
-        'business_benefit' => 'Waktu proses turun.',
         'supplementary_information' => 'Baseline tervalidasi pada sampel 120 transaksi.',
     ])->save();
 
@@ -142,13 +140,29 @@ test('matching prompt includes project context and mitigation schema', function 
         ->toMatchArray([
             'current_situation' => 'Dokumen diverifikasi manual.',
             'improvement_plan' => 'Otomatisasi verifikasi.',
-            'root_cause_analysis' => 'Proses belum terstandar.',
-            'business_benefit' => 'Waktu proses turun.',
             'supplementary_information' => 'Baseline tervalidasi pada sampel 120 transaksi.',
         ])
+        ->not->toHaveKeys(['problem_statement', 'baseline', 'root_cause_analysis', 'business_benefit'])
         ->and($request['schema']['required'])->toContain('mitigations')
         ->and($request['schema']['properties']['mitigations']['items']['properties']['type']['enum'])
         ->toBe(['COACHING', 'TRAINING', 'MENTOR']);
+});
+
+test('matching prompt still carries sections an older proposal filled in before they were removed', function () {
+    $this->project->forceFill([
+        'rca' => 'Proses belum terstandar.',
+        'business_benefit' => 'Waktu proses turun.',
+    ])->save();
+
+    $shortlist = app(CandidateShortlist::class);
+    $request = app(TeamMatchingRequestBuilder::class)->build($this->project, $shortlist->snapshot($this->project, $shortlist->for($this->project)));
+
+    expect($request['input']['project'])
+        ->toMatchArray([
+            'root_cause_analysis' => 'Proses belum terstandar.',
+            'business_benefit' => 'Waktu proses turun.',
+        ])
+        ->not->toHaveKeys(['problem_statement', 'baseline']);
 });
 
 test('starting with AI ready stores the snapshot and queues the job', function () {
