@@ -17,7 +17,8 @@ type Props = {
 };
 
 /**
- * Progress through a multi step form. Done steps show a check, the open step is
+ * Progress through a multi step form: numbered circles joined by a progress line,
+ * with the full step name underneath. Done steps show a check, the open step is
  * highlighted and steps that cannot be opened yet are locked.
  */
 export function WizardStepper({
@@ -29,50 +30,50 @@ export function WizardStepper({
 }: Props) {
     return (
         <nav aria-label={label}>
-            <ol
-                className="grid gap-1.5 sm:gap-2"
-                style={{
-                    gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`,
-                }}
-            >
-                {steps.map((step) => {
+            <ol className="flex items-start">
+                {steps.map((step, index) => {
                     const isCurrent = step.number === current;
                     const isDone = step.number < reached;
                     const isLocked = step.number > reached;
+                    // The line into this step is filled once the step can be opened.
+                    const lineFilled = step.number <= reached;
 
                     return (
-                        <li key={step.number} className="min-w-0">
+                        <li
+                            key={step.number}
+                            className="relative flex min-w-0 flex-1 justify-center"
+                        >
+                            {index > 0 && (
+                                <span
+                                    aria-hidden="true"
+                                    className={cn(
+                                        'absolute top-4 right-[calc(50%+1.25rem)] left-[calc(-50%+1.25rem)] h-0.5 -translate-y-1/2 rounded-full',
+                                        lineFilled ? 'bg-primary' : 'bg-border',
+                                    )}
+                                />
+                            )}
                             <button
                                 type="button"
                                 disabled={isLocked}
                                 onClick={() => onSelect(step.number)}
                                 aria-current={isCurrent ? 'step' : undefined}
                                 aria-label={`Langkah ${step.number}: ${step.label}${isDone ? ', selesai' : ''}${isLocked ? ', belum bisa dibuka' : ''}`}
-                                className={cn(
-                                    'group flex h-full w-full flex-col items-center gap-2 rounded-xl border px-1.5 py-3 text-center transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 xl:flex-row xl:gap-2.5 xl:px-3 xl:text-left',
-                                    isCurrent &&
-                                        'border-primary bg-primary/5 shadow-sm',
-                                    !isCurrent &&
-                                        !isLocked &&
-                                        'border-border bg-card hover:border-primary/40 hover:bg-primary/[0.03]',
-                                    isLocked &&
-                                        'cursor-not-allowed border-dashed border-border bg-muted/30',
-                                )}
+                                className="group relative flex w-full min-w-0 flex-col items-center gap-2 rounded-lg px-1 pb-1 text-center outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed"
                             >
                                 <span
                                     className={cn(
-                                        'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors',
+                                        'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors',
                                         isCurrent &&
-                                            'bg-primary text-primary-foreground',
+                                            'border-primary bg-primary text-primary-foreground shadow-sm ring-4 ring-primary/15',
                                         isDone &&
                                             !isCurrent &&
-                                            'bg-success/15 text-success',
+                                            'border-primary bg-primary/10 text-primary group-hover:bg-primary/20',
                                         !isCurrent &&
                                             !isDone &&
                                             !isLocked &&
-                                            'bg-muted text-foreground',
+                                            'border-primary/50 bg-background text-foreground group-hover:border-primary',
                                         isLocked &&
-                                            'bg-muted text-muted-foreground',
+                                            'border-border bg-muted text-muted-foreground',
                                     )}
                                 >
                                     {isLocked ? (
@@ -89,29 +90,17 @@ export function WizardStepper({
                                         step.number
                                     )}
                                 </span>
-                                <span className="hidden min-w-0 lg:grid lg:gap-0.5">
-                                    <span
-                                        className={cn(
-                                            'hidden text-xs font-medium tracking-wide uppercase xl:block',
-                                            isCurrent
-                                                ? 'text-primary'
-                                                : 'text-muted-foreground',
-                                        )}
-                                    >
-                                        Langkah {step.number}
-                                    </span>
-                                    <span
-                                        className={cn(
-                                            'line-clamp-2 text-sm leading-tight',
-                                            isCurrent
-                                                ? 'font-semibold text-foreground'
-                                                : isLocked
-                                                  ? 'text-muted-foreground'
-                                                  : 'font-medium text-foreground',
-                                        )}
-                                    >
-                                        {step.label}
-                                    </span>
+                                <span
+                                    className={cn(
+                                        'hidden text-xs leading-snug text-balance sm:block',
+                                        isCurrent
+                                            ? 'font-semibold text-primary'
+                                            : isLocked
+                                              ? 'text-muted-foreground'
+                                              : 'font-medium text-foreground',
+                                    )}
+                                >
+                                    {step.label}
                                 </span>
                             </button>
                         </li>
