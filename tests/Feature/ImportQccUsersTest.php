@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Spreadsheet\XlsxWriter;
 use Illuminate\Support\Facades\Hash;
@@ -80,4 +81,50 @@ test('dry run reports without saving', function () {
     ])->assertSuccessful();
 
     expect(User::query()->count())->toBe(0);
+});
+
+/**
+ * @param  list<list<string|int|null>>  $rows
+ */
+function userWorkbookWithOrganization(array $rows): string
+{
+    $path = tempnam(sys_get_temp_dir(), 'users-import-').'.xlsx';
+    (new XlsxWriter)->write($path, [[
+        'name' => 'Sheet1',
+        'rows' => [['SIM ID', 'EMPLOYEE NAME', 'LOB/DIV', 'E-MAIL KANTOR', 'PASSWORD', 'POSITION'], ...$rows],
+    ]]);
+
+    return $path;
+}
+
+test('it places members in the portal organization named by their LOB or DIV', function () {
+    $srnm = Organization::factory()->create(['name' => 'DIV SRNM']);
+    $hcgs = Organization::factory()->create(['name' => 'DIV HCGS CORDEV']);
+    $labour = Organization::factory()->create(['name' => 'LOB MSM LO']);
+    $cccm = Organization::factory()->create(['name' => 'LOB CCCM']);
+
+    $this->artisan('qcc:users:import', ['path' => userWorkbookWithOrganization([
+        [1001, 'SATU', 'SRNM', 'satu@sim.co.id', 'SIM1001', 'SIMers'],
+        [1002, 'DUA', 'HCGS & CORDEV', 'dua@sim.co.id', 'SIM1002', 'SIMers'],
+        [1003, 'TIGA', 'LOB MSM LABOUR', 'tiga@sim.co.id', 'SIM1003', 'SIMers'],
+        [1004, 'EMPAT', 'LOB CCCM', 'empat@sim.co.id', 'SIM1004', 'QCC Owner'],
+    ])])->assertSuccessful();
+
+    expect(User::query()->orderBy('sim_id')->pluck('organization_id')->all())
+        ->toBe([$srnm->id, $hcgs->id, $labour->id, $cccm->id]);
+});
+
+test('an unknown LOB or DIV stops the import unless new organizations may be created', function () {
+    $rows = [[1001, 'SATU', 'BOD', 'satu@sim.co.id', 'SIM1001', 'SIMers']];
+
+    $this->artisan('qcc:users:import', ['path' => userWorkbookWithOrganization($rows)])->assertFailed();
+    expect(User::query()->count())->toBe(0)
+        ->and(Organization::query()->count())->toBe(0);
+
+    $this->artisan('qcc:users:import', ['path' => userWorkbookWithOrganization($rows), '--create-organizations' => true])->assertSuccessful();
+
+    $organization = Organization::query()->sole();
+    expect($organization->name)->toBe('BOD')
+        ->and($organization->is_active)->toBeTrue()
+        ->and(User::query()->sole()->organization_id)->toBe($organization->id);
 });
