@@ -251,12 +251,13 @@ function initialData(
     project: ProjectDraft | null,
     step: number,
     stepCount: number,
+    defaultBatchId = '',
 ): DraftForm {
     const timeline = project?.step_timeline ?? [];
     const deliverables = project?.step_deliverables ?? [];
 
     return {
-        batch_id: project ? String(project.batch_id) : '',
+        batch_id: project ? String(project.batch_id) : defaultBatchId,
         title: project?.title ?? '',
         theme: project?.theme ?? '',
         background: project?.background ?? '',
@@ -305,8 +306,10 @@ export default function ProposalWizard({
     const [submitting, setSubmitting] = useState(false);
     const draftSaveInFlight = useRef(false);
     const errorSummaryRef = useRef<HTMLDivElement>(null);
+    // With a single open batch there is nothing to choose, so it is picked already.
+    const onlyBatchId = batches.length === 1 ? String(batches[0].id) : '';
     const form = useForm<DraftForm>(
-        initialData(project, step, qccSteps.length),
+        initialData(project, step, qccSteps.length, onlyBatchId),
     );
     const uploadForm = useForm<{ files: File[] }>({ files: [] });
     const pageErrors = usePage().props.errors as Record<string, string>;

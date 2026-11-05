@@ -172,10 +172,10 @@ class DemoQccSeeder extends Seeder
             ['code' => 'DEMO-QCC-2026-03', 'name' => 'Batch QCC 2026 · Gelombang 3', 'starts_on' => '2026-08-03', 'ends_on' => '2027-02-28', 'status' => BatchStatus::Closed],
         ];
 
-        // Batch 4 is the only batch open for new proposals.
+        // QCC Batch 4 is the only batch open for new proposals.
         QccBatch::query()->updateOrCreate(
             ['code' => 'BATCH-4'],
-            ['name' => 'Batch 4', 'starts_on' => '2026-11-01', 'ends_on' => '2027-06-30', 'status' => BatchStatus::Active],
+            ['name' => 'QCC Batch 4', 'starts_on' => '2026-11-01', 'ends_on' => '2027-06-30', 'status' => BatchStatus::Active],
         );
 
         return array_map(fn (array $batch): QccBatch => QccBatch::query()->updateOrCreate(

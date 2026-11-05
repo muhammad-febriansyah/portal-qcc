@@ -34,7 +34,7 @@ it('seeds realistic local demo data idempotently without changing existing accou
 
     expect(User::query()->where('email', 'like', 'demo.%@example.test')->count())->toBe(75)
         ->and(QccBatch::query()->where('code', 'like', 'DEMO-QCC-%')->count())->toBe(3)
-        ->and(QccBatch::query()->where('status', BatchStatus::Active)->pluck('name')->all())->toBe(['Batch 4'])
+        ->and(QccBatch::query()->where('status', BatchStatus::Active)->pluck('name')->all())->toBe(['QCC Batch 4'])
         ->and(Project::query()->where('title', 'like', '[DEMO] %')->count())->toBe(15)
         ->and(Project::query()->where('proposal_status', ProposalStatus::Approved)->count())->toBe(3)
         ->and(Project::query()->where('proposal_status', ProposalStatus::Approved)->withCount('steps')->get()->sum('steps_count'))->toBe(24)
