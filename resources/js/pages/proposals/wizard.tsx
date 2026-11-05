@@ -1096,12 +1096,19 @@ export default function ProposalWizard({
                                                     className="flex flex-wrap items-center gap-x-2 gap-y-1"
                                                 >
                                                     <span>
-                                                        {location && (
-                                                            <span className="font-medium">
-                                                                {location.label}
-                                                                :{' '}
-                                                            </span>
-                                                        )}
+                                                        {location &&
+                                                            !message
+                                                                .toLowerCase()
+                                                                .includes(
+                                                                    location.label.toLowerCase(),
+                                                                ) && (
+                                                                <span className="font-medium">
+                                                                    {
+                                                                        location.label
+                                                                    }
+                                                                    :{' '}
+                                                                </span>
+                                                            )}
                                                         {message}
                                                     </span>
                                                     {location &&

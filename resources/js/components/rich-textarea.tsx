@@ -4,6 +4,18 @@ import { Button } from '@/components/ui/button';
 import { htmlToRichText, richTextToHtml } from '@/lib/rich-text';
 import { cn } from '@/lib/utils';
 
+function focusAtEnd(editor: HTMLElement | null): void {
+    if (!editor) return;
+
+    editor.focus();
+
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+}
+
 type RichTextareaProps = {
     id?: string;
     value: string;
@@ -40,6 +52,20 @@ export function RichTextarea({
         editor.innerHTML = richTextToHtml(value);
         lastEmitted.current = value;
     }, [value]);
+
+    // A <label for> does not focus a contentEditable box by itself.
+    useEffect(() => {
+        if (!id) return;
+
+        const label = document.querySelector<HTMLLabelElement>(
+            `label[for="${CSS.escape(id)}"]`,
+        );
+        const focusEditor = (): void => focusAtEnd(editorRef.current);
+
+        label?.addEventListener('click', focusEditor);
+
+        return () => label?.removeEventListener('click', focusEditor);
+    }, [id]);
 
     function emit(): void {
         const editor = editorRef.current;
