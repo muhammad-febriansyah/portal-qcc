@@ -64,13 +64,27 @@ class ReviewProposal
                     $project->proposer?->notify(new ProposalWorkflowNotification(
                         $project->id,
                         $label,
-                        $reason ?: "Status proposal {$project->title} telah diperbarui.",
+                        $this->decisionMessage($project, $decision, $reason),
                         route('proposals.show', $project, false),
                         $decision,
                     ));
                 });
             }
         });
+    }
+
+    /**
+     * One clear sentence for the proposer, with the reviewer's note when there is one.
+     */
+    private function decisionMessage(Project $project, string $decision, ?string $reason): string
+    {
+        $message = match ($decision) {
+            'APPROVE' => "Proposal {$project->title} disetujui. Proyek QCC dapat dimulai dari Step 1.",
+            'REQUEST_REVISION' => "Proposal {$project->title} perlu direvisi sebelum dapat disetujui.",
+            default => "Proposal {$project->title} tidak dapat dilanjutkan.",
+        };
+
+        return filled($reason) ? "{$message} Catatan reviewer: {$reason}" : $message;
     }
 
     private function recordTransition(Project $project, User $actor, string $decision, ProposalStatus $status, ?string $reason): void

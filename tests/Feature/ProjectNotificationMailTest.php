@@ -157,3 +157,12 @@ test('every kind of project notice the portal sends arrives by email with its ow
     ['DUE_SOON', 'Tenggat mendekati'],
     ['overdue', 'Melewati tenggat'],
 ]);
+
+test('names written in capitals from HR data are greeted in normal case', function () {
+    $project = Project::factory()->create();
+    $user = User::factory()->create(['name' => 'GILANG RAMADHAN']);
+
+    $user->notify(projectNotice($project));
+
+    expect((string) sentEmails()[0]->getHtmlBody())->toContain('Halo Gilang Ramadhan,');
+});

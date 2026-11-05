@@ -135,7 +135,7 @@ class ProjectRiskBoardController extends Controller
             $risk = $project->risks()->create([...$request->validated(), 'created_by' => $request->user()->id, 'resolved_at' => $this->resolvedAt(RiskStatus::from($request->validated('status')))]);
             $this->audit->record('risk.created', $risk, after: $this->snapshot($risk), subjectLabel: $this->label($project, $risk->title));
             $this->notifier->notify(
-                $risk->pic ? [$risk->pic] : [], $project, 'Risiko atau isu ditugaskan', "{$risk->title} ditugaskan kepadamu.",
+                $risk->pic ? [$risk->pic] : [], $project, 'Risiko atau isu ditugaskan', "Risiko \"{$risk->title}\" pada proyek {$project->title} ditugaskan kepada Anda.",
                 route('projects.risks.index', ['project' => $project, 'tab' => 'risks'], false), 'RISK_ASSIGNED', $request->user(),
             );
         });
@@ -155,7 +155,7 @@ class ProjectRiskBoardController extends Controller
             $this->audit->record('risk.updated', $risk, before: $before, after: $this->snapshot($risk), subjectLabel: $this->label($project, $risk->title));
             if ($risk->pic_id !== $previousPicId) {
                 $this->notifier->notify(
-                    $risk->pic ? [$risk->pic] : [], $project, 'Risiko atau isu ditugaskan', "{$risk->title} ditugaskan kepadamu.",
+                    $risk->pic ? [$risk->pic] : [], $project, 'Risiko atau isu ditugaskan', "Risiko \"{$risk->title}\" pada proyek {$project->title} ditugaskan kepada Anda.",
                     route('projects.risks.index', ['project' => $project, 'tab' => 'risks'], false), 'RISK_ASSIGNED', $request->user(),
                 );
             }
@@ -185,7 +185,7 @@ class ProjectRiskBoardController extends Controller
             $item = $project->actionItems()->create([...$data, 'created_by' => $request->user()->id, 'completed_at' => $data['status'] === ActionStatus::Completed->value ? now() : null]);
             $this->audit->record('action_item.created', $item, after: $this->snapshot($item), subjectLabel: $this->label($project, $item->title));
             $this->notifier->notify(
-                $item->pic ? [$item->pic] : [], $project, 'Tindakan baru ditugaskan', "{$item->title} ditugaskan kepadamu.",
+                $item->pic ? [$item->pic] : [], $project, 'Tindakan ditugaskan', "Tindakan \"{$item->title}\" pada proyek {$project->title} ditugaskan kepada Anda.",
                 route('projects.risks.index', ['project' => $project, 'tab' => 'actions'], false), 'ACTION_ASSIGNED', $request->user(),
             );
         });
@@ -208,7 +208,7 @@ class ProjectRiskBoardController extends Controller
             $this->audit->record('action_item.updated', $action, before: $before, after: $this->snapshot($action), subjectLabel: $this->label($project, $action->title));
             if ($action->pic_id !== $previousPicId) {
                 $this->notifier->notify(
-                    $action->pic ? [$action->pic] : [], $project, 'Tindakan baru ditugaskan', "{$action->title} ditugaskan kepadamu.",
+                    $action->pic ? [$action->pic] : [], $project, 'Tindakan ditugaskan', "Tindakan \"{$action->title}\" pada proyek {$project->title} ditugaskan kepada Anda.",
                     route('projects.risks.index', ['project' => $project, 'tab' => 'actions'], false), 'ACTION_ASSIGNED', $request->user(),
                 );
             }

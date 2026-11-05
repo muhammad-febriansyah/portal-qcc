@@ -92,7 +92,7 @@ class ProjectNotificationMail extends Mailable
 
         $data = [
             ...$this->brandData(),
-            'recipientName' => $this->recipient->name,
+            'recipientName' => $this->greetingName($this->recipient->name),
             'headline' => $this->title,
             'summary' => $this->summary,
             'rows' => $rows,

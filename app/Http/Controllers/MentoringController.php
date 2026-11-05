@@ -113,8 +113,8 @@ class MentoringController extends Controller
 
             $this->audit->record('mentor.assigned', $assignment, after: ['mentor_id' => $mentor->id], subjectLabel: "{$mentor->name} untuk proposal PRP-".sprintf('%04d', $project->id));
 
-            $this->notifier->notify([$mentor], $project, 'Kamu ditugaskan sebagai mentor', "Kamu menjadi mentor proyek {$project->title}.", route('projects.mentoring.index', $project, false), 'MENTOR_ASSIGNED', $request->user());
-            $this->notifier->notify($this->notifier->leaders($project), $project, 'Mentor ditugaskan', "{$mentor->name} menjadi mentor proyek {$project->title}.", route('projects.mentoring.index', $project, false), 'MENTOR_ASSIGNED', $request->user());
+            $this->notifier->notify([$mentor], $project, 'Anda ditugaskan sebagai mentor', "Anda ditugaskan sebagai mentor untuk proyek {$project->title}.", route('projects.mentoring.index', $project, false), 'MENTOR_ASSIGNED', $request->user());
+            $this->notifier->notify($this->notifier->leaders($project), $project, 'Mentor ditugaskan', "{$mentor->name} ditugaskan sebagai mentor untuk proyek {$project->title}.", route('projects.mentoring.index', $project, false), 'MENTOR_ASSIGNED', $request->user());
         });
 
         return $this->done($project, 'Mentor berhasil ditugaskan.');
@@ -207,7 +207,7 @@ class MentoringController extends Controller
             $recipients = $request->user()->hasRole('Mentor') ? $this->notifier->team($project)->all() : [$report->assignment?->mentor];
             $recipients = array_values(array_filter($recipients));
             $title = $request->user()->hasRole('Mentor') ? 'Feedback mentor baru' : 'Laporan mentoring baru';
-            $message = $request->user()->hasRole('Mentor') ? "Mentor mengirim feedback sesi \"{$report->topic}\"." : "Team Leader mengirim laporan mentoring \"{$report->topic}\".";
+            $message = $request->user()->hasRole('Mentor') ? "Mentor mengirim feedback sesi \"{$report->topic}\" untuk proyek {$project->title}." : "Team Leader mengirim laporan mentoring \"{$report->topic}\" untuk proyek {$project->title}.";
             $this->notifier->notify($recipients, $project, $title, $message, route('projects.mentoring.index', $project, false), 'MENTORING_SUBMITTED', $request->user());
         });
 
@@ -233,7 +233,7 @@ class MentoringController extends Controller
             $this->audit->record('mentoring.acknowledged', $report, subjectLabel: $this->label($project, $report));
 
             $recipients = $isMentorResponse ? $this->notifier->leaders($project) : array_filter([$report->assignment?->mentor]);
-            $this->notifier->notify($recipients, $project, $isMentorResponse ? 'Mentor memberi feedback' : 'Tim menanggapi feedback', $isMentorResponse ? "Mentor memberi feedback pada laporan \"{$report->topic}\"." : "Tim menanggapi sesi \"{$report->topic}\".", route('projects.mentoring.index', $project, false), 'MENTORING_ACKNOWLEDGED', $request->user());
+            $this->notifier->notify($recipients, $project, $isMentorResponse ? 'Mentor memberi feedback' : 'Tim menanggapi feedback', $isMentorResponse ? "Mentor memberi feedback pada laporan \"{$report->topic}\" untuk proyek {$project->title}." : "Tim proyek {$project->title} menanggapi feedback sesi \"{$report->topic}\".", route('projects.mentoring.index', $project, false), 'MENTORING_ACKNOWLEDGED', $request->user());
         });
 
         return $this->done($project, $isMentorResponse ? 'Feedback Mentor tersimpan.' : 'Tanggapan tim tersimpan.');
@@ -285,7 +285,7 @@ class MentoringController extends Controller
                 $this->audit->record('action_item.updated', $item, before: $before, after: $item->only(['title', 'description', 'pic_id', 'due_date']));
                 if ($item->pic_id !== $previousPicId) {
                     $this->notifier->notify(
-                        $item->pic ? [$item->pic] : [], $project, 'Action item mentoring ditugaskan', "{$item->title} ditugaskan kepadamu.",
+                        $item->pic ? [$item->pic] : [], $project, 'Tindakan mentoring ditugaskan', "Tindakan \"{$item->title}\" pada proyek {$project->title} ditugaskan kepada Anda.",
                         route('projects.mentoring.index', $project, false), 'ACTION_ASSIGNED', $request->user(),
                     );
                 }
@@ -294,7 +294,7 @@ class MentoringController extends Controller
                 $keptIds[] = $item->id;
                 $this->audit->record('action_item.created', $item, after: $item->only(['title', 'description', 'pic_id', 'due_date']));
                 $this->notifier->notify(
-                    $item->pic ? [$item->pic] : [], $project, 'Action item mentoring ditugaskan', "{$item->title} ditugaskan kepadamu.",
+                    $item->pic ? [$item->pic] : [], $project, 'Tindakan mentoring ditugaskan', "Tindakan \"{$item->title}\" pada proyek {$project->title} ditugaskan kepada Anda.",
                     route('projects.mentoring.index', $project, false), 'ACTION_ASSIGNED', $request->user(),
                 );
             }

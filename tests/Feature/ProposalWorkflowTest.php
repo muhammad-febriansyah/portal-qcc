@@ -126,6 +126,8 @@ test('proposal can be submitted revised resubmitted and approved with visible hi
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Approved)
         ->and($notices($proposer, 'APPROVE'))->toBe(1)
+        ->and($proposer->notifications()->where('data->decision', 'APPROVE')->value('data')['message'])->toContain('disetujui. Proyek QCC dapat dimulai dari Step 1.')
+        ->and($proposer->notifications()->where('data->decision', 'REQUEST_REVISION')->value('data')['message'])->toContain('Catatan reviewer: Perjelas baseline pengukuran.')
         ->and($project->fresh()->steps)->toHaveCount(8)
         ->and($project->fresh()->steps->first()->target_date?->toDateString())->toBe(now()->addWeek()->toDateString())
         ->and(ReviewDecision::query()->where('project_id', $project->id)->count())->toBe(6);
@@ -238,5 +240,5 @@ test('the proposer is told when the proposal is rejected', function () {
         ->assertSessionHasNoErrors();
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Rejected)
-        ->and($proposer->notifications()->where('data->decision', 'REJECT')->value('data'))->toContain('Di luar ruang lingkup batch.');
+        ->and($proposer->notifications()->where('data->decision', 'REJECT')->value('data')['message'])->toContain('Catatan reviewer: Di luar ruang lingkup batch.');
 });
