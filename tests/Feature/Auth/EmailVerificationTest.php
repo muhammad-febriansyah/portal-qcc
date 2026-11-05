@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Fortify\Features;
 use Symfony\Component\Mime\Email;
 
 /**
@@ -62,7 +63,7 @@ test('registering sends the verification notification to the new address', funct
     $user = User::query()->where('email', 'sari@example.test')->firstOrFail();
 
     Notification::assertSentTo($user, VerifyEmailNotification::class);
-});
+})->skip(fn (): bool => ! Features::enabled(Features::registration()), 'Self registration is turned off; accounts are created by admins or imported.');
 
 test('the verification email has the logo, the account details and a signed link', function () {
     $user = User::factory()->unverified()->create(['name' => 'Sari Wulandari', 'email' => 'sari@example.test', 'sim_id' => 'SIM12345']);
