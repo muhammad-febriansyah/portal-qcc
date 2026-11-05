@@ -16,7 +16,7 @@ export default function VerifyEmail({ status }: Props) {
     return (
         <AuthShowcase title="Verifikasi email">
             <div className="w-full">
-                <span className="mt-8 flex size-12 items-center justify-center rounded-xl bg-[#eef5fe] text-primary">
+                <span className="mt-8 flex size-12 items-center justify-center rounded-xl bg-[#e8f4f9] text-primary">
                     <MailCheck className="size-6" strokeWidth={1.8} />
                 </span>
 
@@ -46,7 +46,7 @@ export default function VerifyEmail({ status }: Props) {
                     {({ processing }) => (
                         <Button
                             type="submit"
-                            className="h-12 w-full rounded-[10px] text-base font-semibold shadow-[0_6px_14px_rgba(11,92,240,0.18)]"
+                            className="h-12 w-full rounded-[10px] text-base font-semibold shadow-[0_6px_14px_rgba(1,145,194,0.18)]"
                             disabled={processing}
                             data-test="resend-verification-button"
                         >

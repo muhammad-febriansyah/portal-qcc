@@ -11,7 +11,7 @@ export type ActivitySeries = {
 };
 
 const COLORS = {
-    login: '#2547F9',
+    login: '#0191C2',
     changes: '#16834A',
     failed: '#D92D20',
 };
@@ -48,7 +48,7 @@ export default function ActivityChart({ series, height = 360 }: Props) {
         dataLabels: { enabled: false },
         markers: { size: 0, hover: { size: 5 } },
         grid: {
-            borderColor: '#E7EAF2',
+            borderColor: '#E2EAEF',
             strokeDashArray: 4,
             padding: { left: 8, right: 12 },
         },

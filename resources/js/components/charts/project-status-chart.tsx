@@ -27,7 +27,7 @@ export default function ProjectStatusChart({
             foreColor: '#697386',
             animations: { enabled: true, speed: 400 },
         },
-        colors: ['#2547F9'],
+        colors: ['#0191C2'],
         states: {
             hover: { filter: { type: 'none' } },
             active: { filter: { type: 'none' } },
@@ -59,7 +59,7 @@ export default function ProjectStatusChart({
             labels: { maxWidth: 150 },
         },
         grid: {
-            borderColor: '#E7EAF2',
+            borderColor: '#E2EAEF',
             strokeDashArray: 4,
             padding: { left: 0, right: 12 },
             xaxis: { lines: { show: true } },

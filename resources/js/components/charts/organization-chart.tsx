@@ -4,11 +4,13 @@ import Chart from 'react-apexcharts';
 export type OrganizationCount = { label: string; total: number };
 
 const COLORS = [
-    '#2547F9',
+    // Validated with the dataviz palette checks: logo blue, a deeper logo tan,
+    // then hues that stay apart for color-blind readers. Gray is "other".
+    '#0191C2',
+    '#C4844F',
+    '#7A5AF8',
     '#16834A',
     '#F79009',
-    '#7A5AF8',
-    '#06AED4',
     '#D92D20',
     '#98A2B3',
 ];

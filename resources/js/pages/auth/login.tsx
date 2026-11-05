@@ -110,7 +110,7 @@ export default function Login({ status, canResetPassword = false }: Props) {
                                 <Link
                                     href={forgotPassword()}
                                     tabIndex={4}
-                                    className="text-base font-medium text-[#0191C2] hover:underline"
+                                    className="text-base font-semibold text-[#0179A3] hover:underline"
                                 >
                                     Lupa password?
                                 </Link>
@@ -119,7 +119,7 @@ export default function Login({ status, canResetPassword = false }: Props) {
 
                         <Button
                             type="submit"
-                            className="mt-8 h-14 w-full rounded-xl bg-[#0191C2] text-lg font-semibold text-white shadow-[0_10px_24px_-10px_rgba(1,145,194,0.7)] transition-[transform,box-shadow,background-color] hover:bg-[#017ba5] active:translate-y-px"
+                            className="mt-8 h-14 w-full rounded-xl bg-[#0191C2] text-[19px] font-bold text-white shadow-[0_10px_24px_-10px_rgba(1,145,194,0.7)] transition-[transform,box-shadow,background-color] hover:bg-[#017ba5] active:translate-y-px"
                             tabIndex={5}
                             disabled={processing}
                             data-test="login-button"

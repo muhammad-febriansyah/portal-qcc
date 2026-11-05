@@ -6,7 +6,7 @@ export type CompetencyLevelData = {
     levels: Record<string, { label: string; data: number[] }>;
 };
 
-const COLORS = ['#D0D5DD', '#8FA3FB', '#2547F9', '#16834A'];
+const COLORS = ['#D0D5DD', '#80C8E0', '#0191C2', '#16834A'];
 
 /**
  * Stacked bars: how many competency entries sit at each level, per group.
@@ -33,7 +33,7 @@ export default function CompetencyLevelChart({
         plotOptions: { bar: { columnWidth: '48%', borderRadius: 3 } },
         dataLabels: { enabled: false },
         stroke: { width: 1, colors: ['#fff'] },
-        grid: { borderColor: '#E7EAF2', strokeDashArray: 4 },
+        grid: { borderColor: '#E2EAEF', strokeDashArray: 4 },
         xaxis: {
             categories: data.groups,
             axisBorder: { show: false },

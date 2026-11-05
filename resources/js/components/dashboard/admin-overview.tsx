@@ -311,7 +311,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
                         </div>
                         <div className="flex flex-wrap gap-x-6 gap-y-2">
                             <Legend
-                                color="#2547F9"
+                                color="#0191C2"
                                 label="Login"
                                 value={totals.login}
                             />
