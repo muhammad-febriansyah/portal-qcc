@@ -89,7 +89,7 @@ export function TeamPanel({
         const isProjectLeader = isLeader && pick.role === 'LEADER';
 
         return (
-            <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border/80 bg-background p-2.5 shadow-sm shadow-black/[0.02]">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-border/80 bg-background p-2.5 shadow-sm shadow-black/[0.02]">
                 <span
                     className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${isProjectLeader ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
                     aria-hidden="true"
@@ -100,44 +100,47 @@ export function TeamPanel({
                         <UserRound className="size-4" />
                     )}
                 </span>
-                <div className="grid min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
+                <div className="grid min-w-32 flex-1">
+                    <p className="text-sm font-medium break-words">
                         {person?.name ?? `#${pick.user_id}`}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="text-xs break-words text-muted-foreground">
                         {person?.organization || 'Organisasi belum tersedia'}
                     </p>
                 </div>
-                <Select
-                    value={pick.role}
-                    onValueChange={(value) =>
-                        value && onRoleChange(pick.user_id, value as TeamRole)
-                    }
-                    items={roleItems}
-                >
-                    <SelectTrigger
-                        aria-label={`Peran ${person?.name ?? ''}`}
-                        className="h-8 w-25 px-2 text-xs"
+                <div className="ml-auto flex shrink-0 items-center gap-1">
+                    <Select
+                        value={pick.role}
+                        onValueChange={(value) =>
+                            value &&
+                            onRoleChange(pick.user_id, value as TeamRole)
+                        }
+                        items={roleItems}
                     >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {roleItems.map((item) => (
-                            <SelectItem key={item.value} value={item.value}>
-                                {item.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Keluarkan ${person?.name ?? ''} dari susunan`}
-                    onClick={() => onRemove(pick.user_id)}
-                >
-                    <X aria-hidden="true" />
-                </Button>
+                        <SelectTrigger
+                            aria-label={`Peran ${person?.name ?? ''}`}
+                            className="h-8 w-25 px-2 text-xs"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {roleItems.map((item) => (
+                                <SelectItem key={item.value} value={item.value}>
+                                    {item.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Keluarkan ${person?.name ?? ''} dari susunan`}
+                        onClick={() => onRemove(pick.user_id)}
+                    >
+                        <X aria-hidden="true" />
+                    </Button>
+                </div>
             </div>
         );
     }

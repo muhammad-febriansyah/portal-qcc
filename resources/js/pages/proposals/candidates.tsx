@@ -284,10 +284,10 @@ function CandidateCard({
                         {initials(candidate.name)}
                     </span>
                     <div className="grid min-w-0">
-                        <p className="truncate text-sm font-semibold">
+                        <p className="text-sm font-semibold break-words">
                             {candidate.name}
                         </p>
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p className="text-xs break-words text-muted-foreground">
                             {candidate.position ?? 'Jabatan belum diisi'} ·{' '}
                             {candidate.organization}
                         </p>
@@ -317,9 +317,9 @@ function CandidateCard({
                     {candidate.competencies.map((competency) => (
                         <li
                             key={competency.competency_id}
-                            className="flex min-w-0 items-center justify-between gap-3 text-sm"
+                            className="flex min-w-0 items-start justify-between gap-3 text-sm"
                         >
-                            <span className="min-w-0 truncate">
+                            <span className="min-w-0 break-words">
                                 {byId[competency.competency_id]?.name}
                             </span>
                             <span className="max-w-[45%] text-right text-xs leading-snug text-muted-foreground">
@@ -1096,9 +1096,10 @@ export default function ProposalCandidates({
         ],
         [canEdit, picks, requirements.length, togglePick],
     );
-    const manualPageCount = Math.max(
-        1,
-        Math.ceil(manual_candidates.length / visiblePageSize),
+    /** Manual search has no AI suggestion, so the suggested-role column is left out. */
+    const manualCandidateColumns = useMemo(
+        () => candidateColumns.filter((column) => column.id !== 'role'),
+        [candidateColumns],
     );
     const visibleManualCandidates = manual_candidates.slice(
         (manualPage - 1) * visiblePageSize,
@@ -1131,23 +1132,23 @@ export default function ProposalCandidates({
                                     return (
                                         <li
                                             key={member.user_id}
-                                            className="flex min-w-0 items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2"
+                                            className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2"
                                         >
-                                            <div className="flex min-w-0 items-center gap-3">
+                                            <div className="flex min-w-48 flex-1 items-center gap-3">
                                                 <TeamMemberAvatar
                                                     name={member.name}
                                                     avatar={member.avatar}
                                                 />
                                                 <div className="grid min-w-0">
-                                                    <span className="truncate text-sm font-medium">
+                                                    <span className="text-sm font-medium break-words">
                                                         {member.name}
                                                     </span>
-                                                    <span className="truncate text-xs text-muted-foreground">
+                                                    <span className="text-xs break-words text-muted-foreground">
                                                         {member.organization}
                                                     </span>
                                                 </div>
                                             </div>
-                                            <div className="flex shrink-0 items-center gap-2">
+                                            <div className="ml-auto flex shrink-0 items-center gap-2">
                                                 <Badge
                                                     variant={
                                                         member.role === 'LEADER'
@@ -1813,19 +1814,24 @@ export default function ProposalCandidates({
                                         mencari kandidat.
                                     </div>
                                 ) : visibleManualCandidates.length > 0 ? (
-                                    <>
-                                        {cardsFor(
-                                            visibleManualCandidates.map(
+                                    <div className="overflow-hidden rounded-xl border bg-card">
+                                        <DataTable
+                                            embedded
+                                            columns={manualCandidateColumns}
+                                            data={visibleManualCandidates.map(
                                                 (candidate) => ({ candidate }),
-                                            ),
-                                        )}
-                                        {candidatePagination(
-                                            manual_candidates.length,
-                                            manualPage,
-                                            manualPageCount,
-                                            setManualPage,
-                                        )}
-                                    </>
+                                            )}
+                                            page={manualPage}
+                                            pageSize={visiblePageSize}
+                                            total={manual_candidates.length}
+                                            onPageChange={setManualPage}
+                                            emptyTitle="Kandidat tidak ditemukan"
+                                            emptyDescription="Ubah kata kunci pencarian lalu coba lagi."
+                                            rowId={(row) =>
+                                                String(row.candidate.user_id)
+                                            }
+                                        />
+                                    </div>
                                 ) : (
                                     <div className="rounded-xl border border-dashed bg-muted/30 px-5 py-10 text-center text-sm text-muted-foreground">
                                         Tidak ada kandidat yang cocok dengan
@@ -2510,10 +2516,10 @@ export default function ProposalCandidates({
                                                             }
                                                         />
                                                         <div className="grid min-w-0 gap-1">
-                                                            <p className="truncate text-sm font-medium">
+                                                            <p className="text-sm font-medium break-words">
                                                                 {member.name}
                                                             </p>
-                                                            <p className="truncate text-xs text-muted-foreground">
+                                                            <p className="text-xs break-words text-muted-foreground">
                                                                 {member.organization ??
                                                                     'Organisasi belum diisi'}
                                                             </p>
