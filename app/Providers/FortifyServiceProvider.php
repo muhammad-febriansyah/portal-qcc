@@ -46,10 +46,14 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::createUsersUsing(CreateNewUser::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
 
+        // People sign in with their office email or their SIM ID ("SIM1493" or just "1493").
         Fortify::authenticateUsing(function (Request $request): ?User {
-            $user = User::query()
-                ->where(Fortify::username(), $request->input(Fortify::username()))
-                ->first();
+            $login = trim((string) $request->input(Fortify::username()));
+            $simId = strtoupper(preg_match('/^\d+$/', $login) === 1 ? 'SIM'.$login : $login);
+
+            $user = str_contains($login, '@')
+                ? User::query()->where('email', strtolower($login))->first()
+                : User::query()->where('sim_id', $simId)->first();
 
             if ($user && $user->is_active && Hash::check((string) $request->input('password'), $user->password)) {
                 return $user;

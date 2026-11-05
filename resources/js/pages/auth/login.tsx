@@ -1,8 +1,7 @@
 import { Form, Link } from '@inertiajs/react';
-import { ArrowRight, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { Lock, UserRound } from 'lucide-react';
 import AuthShowcase, {
     authInputClassName,
-    PortalLogo,
 } from '@/components/auth/auth-showcase';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
@@ -22,132 +21,119 @@ type Props = {
 export default function Login({ status, canResetPassword = false }: Props) {
     return (
         <AuthShowcase title="Masuk">
-            <div className="w-full max-w-[350px]">
-                <PortalLogo />
-                <h2 className="mt-8 text-[26px] leading-tight font-bold tracking-[-0.02em] sm:text-[28px]">
-                    Masuk ke akun Anda
-                </h2>
-                <p className="mt-3 max-w-[330px] text-sm leading-6 text-[#5e6779]">
-                    Akses sistem untuk monitoring, proposal, dan AI scoring
-                    dalam satu portal terpadu.
+            <div className="text-center">
+                <h1 className="text-[40px] leading-none font-extrabold tracking-[-0.03em] text-[#0b3a57] sm:text-[48px]">
+                    Sign In
+                </h1>
+                <p className="mt-3 text-lg font-medium text-[#3d5566] sm:text-xl">
+                    Portal QCC SIMGROUP
                 </p>
-
-                {status && (
-                    <div className="mt-5 rounded-xl border border-success/20 bg-success/10 px-4 py-3 text-sm font-medium text-success">
-                        {status}
-                    </div>
-                )}
-
-                <Form
-                    {...store.form()}
-                    resetOnSuccess={['password']}
-                    className="mt-6 flex flex-col"
-                >
-                    {({ processing, errors }) => (
-                        <>
-                            <div className="grid gap-2">
-                                <Label
-                                    htmlFor="email"
-                                    className="font-semibold"
-                                >
-                                    Email
-                                </Label>
-                                <div className="relative">
-                                    <Mail
-                                        className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-[#838592]"
-                                        strokeWidth={1.8}
-                                    />
-                                    <Input
-                                        id="email"
-                                        type="email"
-                                        name="email"
-                                        required
-                                        autoFocus
-                                        tabIndex={1}
-                                        autoComplete="email"
-                                        placeholder="nama@perusahaan.co.id"
-                                        className={authInputClassName}
-                                    />
-                                </div>
-                                <InputError message={errors.email} />
-                            </div>
-
-                            <div className="mt-[18px] grid gap-2">
-                                <Label
-                                    htmlFor="password"
-                                    className="font-semibold"
-                                >
-                                    Password
-                                </Label>
-                                <div className="relative">
-                                    <Lock
-                                        className="pointer-events-none absolute top-1/2 left-4 z-10 size-4 -translate-y-1/2 text-[#838592]"
-                                        strokeWidth={1.8}
-                                    />
-                                    <PasswordInput
-                                        id="password"
-                                        name="password"
-                                        required
-                                        tabIndex={2}
-                                        autoComplete="current-password"
-                                        placeholder="Masukkan password"
-                                        className={`${authInputClassName} pr-11`}
-                                    />
-                                </div>
-                                <InputError message={errors.password} />
-                            </div>
-
-                            <div className="mt-4 flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-3">
-                                    <Checkbox
-                                        id="remember"
-                                        name="remember"
-                                        tabIndex={3}
-                                        className="size-4 rounded-[4px] border-[#d5d8e0]"
-                                    />
-                                    <Label
-                                        htmlFor="remember"
-                                        className="font-normal"
-                                    >
-                                        Ingat saya
-                                    </Label>
-                                </div>
-                                {canResetPassword && (
-                                    <Link
-                                        href={forgotPassword()}
-                                        tabIndex={4}
-                                        className="text-sm font-semibold text-primary hover:underline"
-                                    >
-                                        Lupa password?
-                                    </Link>
-                                )}
-                            </div>
-
-                            <Button
-                                type="submit"
-                                className="relative mt-6 h-12 w-full rounded-[10px] text-base font-semibold shadow-[0_6px_14px_rgba(11,92,240,0.18)] transition-[transform,box-shadow] hover:shadow-[0_8px_18px_rgba(11,92,240,0.24)] active:translate-y-px"
-                                tabIndex={5}
-                                disabled={processing}
-                                data-test="login-button"
-                            >
-                                {processing && <Spinner />}
-                                Masuk
-                                <ArrowRight className="absolute right-6 size-[18px]" />
-                            </Button>
-                        </>
-                    )}
-                </Form>
-
-                <div className="mt-6 flex items-center gap-4 rounded-xl bg-[#f4f7ff] px-5 py-3.5">
-                    <ShieldCheck
-                        className="size-7 shrink-0 text-[#1c63c0]"
-                        strokeWidth={1.6}
-                    />
-                    <p className="text-sm leading-5 text-[#646a7a]">
-                        Akses aman untuk monitoring, proposal, dan AI scoring
-                    </p>
-                </div>
             </div>
+
+            {status && (
+                <div className="mt-6 rounded-xl border border-success/20 bg-success/10 px-4 py-3 text-sm font-medium text-success">
+                    {status}
+                </div>
+            )}
+
+            <Form
+                {...store.form()}
+                resetOnSuccess={['password']}
+                className="mt-8 flex flex-col"
+            >
+                {({ processing, errors }) => (
+                    <>
+                        <div className="grid gap-2">
+                            <Label htmlFor="email" className="sr-only">
+                                Username / Email Kantor
+                            </Label>
+                            <div className="relative">
+                                <UserRound
+                                    className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-[#6b7785]"
+                                    strokeWidth={1.8}
+                                />
+                                <Input
+                                    id="email"
+                                    type="text"
+                                    name="email"
+                                    required
+                                    autoFocus
+                                    tabIndex={1}
+                                    autoComplete="username"
+                                    autoCapitalize="none"
+                                    spellCheck={false}
+                                    placeholder="Username / Email Kantor"
+                                    className={authInputClassName}
+                                />
+                            </div>
+                            <InputError message={errors.email} />
+                        </div>
+
+                        <div className="mt-4 grid gap-2">
+                            <Label htmlFor="password" className="sr-only">
+                                Password
+                            </Label>
+                            <div className="relative">
+                                <Lock
+                                    className="pointer-events-none absolute top-1/2 left-4 z-10 size-5 -translate-y-1/2 text-[#6b7785]"
+                                    strokeWidth={1.8}
+                                />
+                                <PasswordInput
+                                    id="password"
+                                    name="password"
+                                    required
+                                    tabIndex={2}
+                                    autoComplete="current-password"
+                                    placeholder="Password"
+                                    className={`${authInputClassName} pr-12`}
+                                />
+                            </div>
+                            <InputError message={errors.password} />
+                        </div>
+
+                        <div className="mt-5 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <Checkbox
+                                    id="remember"
+                                    name="remember"
+                                    tabIndex={3}
+                                    className="size-5 rounded-[5px] border-[#c9d2dc]"
+                                />
+                                <Label
+                                    htmlFor="remember"
+                                    className="text-base font-normal"
+                                >
+                                    Ingat saya
+                                </Label>
+                            </div>
+                            {canResetPassword && (
+                                <Link
+                                    href={forgotPassword()}
+                                    tabIndex={4}
+                                    className="text-base font-medium text-[#0191C2] hover:underline"
+                                >
+                                    Lupa password?
+                                </Link>
+                            )}
+                        </div>
+
+                        <Button
+                            type="submit"
+                            className="mt-8 h-14 w-full rounded-xl bg-[#0191C2] text-lg font-semibold text-white shadow-[0_10px_24px_-10px_rgba(1,145,194,0.7)] transition-[transform,box-shadow,background-color] hover:bg-[#017ba5] active:translate-y-px"
+                            tabIndex={5}
+                            disabled={processing}
+                            data-test="login-button"
+                        >
+                            {processing && <Spinner />}
+                            Sign In
+                        </Button>
+
+                        <p className="mt-5 text-center text-sm text-[#6b7785]">
+                            Masuk dengan email kantor atau SIM ID Anda.
+                        </p>
+                    </>
+                )}
+            </Form>
         </AuthShowcase>
     );
 }

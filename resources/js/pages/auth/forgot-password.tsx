@@ -3,7 +3,6 @@ import { Form, Link } from '@inertiajs/react';
 import { ArrowRight, Mail } from 'lucide-react';
 import AuthShowcase, {
     authInputClassName,
-    PortalLogo,
 } from '@/components/auth/auth-showcase';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -16,8 +15,7 @@ import { email } from '@/routes/password';
 export default function ForgotPassword({ status }: { status?: string }) {
     return (
         <AuthShowcase title="Lupa password">
-            <div className="w-full max-w-[350px]">
-                <PortalLogo />
+            <div className="w-full">
                 <h2 className="mt-8 text-[26px] leading-tight font-bold tracking-[-0.02em] sm:text-[28px]">
                     Lupa password?
                 </h2>

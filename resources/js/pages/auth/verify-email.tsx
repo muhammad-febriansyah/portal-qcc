@@ -1,6 +1,6 @@
 import { Form, Link, router, usePage } from '@inertiajs/react';
 import { MailCheck } from 'lucide-react';
-import AuthShowcase, { PortalLogo } from '@/components/auth/auth-showcase';
+import AuthShowcase from '@/components/auth/auth-showcase';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { logout } from '@/routes';
@@ -15,9 +15,7 @@ export default function VerifyEmail({ status }: Props) {
 
     return (
         <AuthShowcase title="Verifikasi email">
-            <div className="w-full max-w-[350px]">
-                <PortalLogo />
-
+            <div className="w-full">
                 <span className="mt-8 flex size-12 items-center justify-center rounded-xl bg-[#eef5fe] text-primary">
                     <MailCheck className="size-6" strokeWidth={1.8} />
                 </span>

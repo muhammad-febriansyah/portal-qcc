@@ -4,7 +4,6 @@ import type { ComponentProps } from 'react';
 import { ArrowRight, BadgeCheck, Lock, Mail, User } from 'lucide-react';
 import AuthShowcase, {
     authInputClassName,
-    PortalLogo,
 } from '@/components/auth/auth-showcase';
 import { FormField } from '@/components/form-field';
 import PasswordInput from '@/components/password-input';
@@ -58,8 +57,7 @@ function IconField({
 export default function Register({ passwordRules }: Props) {
     return (
         <AuthShowcase title="Daftar">
-            <div className="w-full max-w-[350px]">
-                <PortalLogo />
+            <div className="w-full">
                 <h2 className="mt-8 text-[26px] leading-tight font-bold tracking-[-0.02em] sm:text-[28px]">
                     Daftar sebagai SIMer
                 </h2>
