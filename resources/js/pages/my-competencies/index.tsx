@@ -1,7 +1,13 @@
 import { Head, router } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
-import { PencilLine, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import {
+    BadgeCheck,
+    PencilLine,
+    Plus,
+    ShieldCheck,
+    Trash2,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { DataTable } from '@/components/data-table';
 import type {
@@ -17,6 +23,7 @@ import type {
     LevelOption,
 } from '@/components/member-competency-dialog';
 import { PageHeader } from '@/components/page-header';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { competencyGroupBadgeVariant } from '@/lib/badge-variants';
 import { Button } from '@/components/ui/button';
@@ -70,6 +77,7 @@ type Props = {
     levelOptions: LevelOption[];
     competencyCount: number;
     competencyLimit: number;
+    mustJoinTalentPool: boolean;
 };
 
 export default function MyCompetenciesIndex({
@@ -80,6 +88,7 @@ export default function MyCompetenciesIndex({
     levelOptions,
     competencyCount,
     competencyLimit,
+    mustJoinTalentPool,
 }: Props) {
     const [searchValue, setSearchValue] = useState(filters.search);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -307,6 +316,30 @@ export default function MyCompetenciesIndex({
                         </Button>
                     }
                 />
+
+                {competencyCount > 0 ? (
+                    <Alert className="mb-5 border-success/40 bg-success/10">
+                        <BadgeCheck aria-hidden="true" />
+                        <AlertTitle>Anda sudah masuk Talent Pool</AlertTitle>
+                        <AlertDescription>
+                            Owner QCC dapat menemukan Anda saat menyusun tim.
+                            Lanjutkan dengan membuat proposal QCC bila Anda
+                            punya ide perbaikan.
+                        </AlertDescription>
+                    </Alert>
+                ) : mustJoinTalentPool ? (
+                    <Alert className="mb-5 border-warning/40 bg-warning/10">
+                        <ShieldCheck aria-hidden="true" />
+                        <AlertTitle>
+                            Isi kompetensi untuk masuk Talent Pool
+                        </AlertTitle>
+                        <AlertDescription>
+                            Tambahkan minimal satu kompetensi. Menu lain,
+                            termasuk pembuatan proposal, terbuka setelah Anda
+                            masuk Talent Pool.
+                        </AlertDescription>
+                    </Alert>
+                ) : null}
 
                 <Card className="gap-0 py-0">
                     <DataTable

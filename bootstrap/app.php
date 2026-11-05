@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\ApplySystemSettings;
 use App\Http\Middleware\EnsureProfileIsComplete;
+use App\Http\Middleware\EnsureTalentPoolCompetencies;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'profile.complete' => EnsureProfileIsComplete::class,
+            'competencies.filled' => EnsureTalentPoolCompetencies::class,
         ]);
 
         $middleware->web(append: [

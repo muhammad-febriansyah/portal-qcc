@@ -73,6 +73,12 @@ class ProfileController extends Controller
         }
 
         if ($wasIncomplete && $request->user()->hasCompleteProfile()) {
+            if ($request->user()->mustFillCompetencies()) {
+                Inertia::flash('toast', ['type' => 'success', 'message' => 'Profil lengkap. Sekarang isi kompetensi Anda untuk masuk Talent Pool.']);
+
+                return to_route('my-competencies.index');
+            }
+
             Inertia::flash('toast', ['type' => 'success', 'message' => 'Profil lengkap. Selamat datang di portal QCC.']);
 
             return to_route('dashboard');

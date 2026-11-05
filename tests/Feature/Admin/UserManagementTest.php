@@ -154,8 +154,9 @@ test('the SIM ID password is hashed and lets the new member log in', function ()
 
     auth()->logout();
 
+    // A new member has no competencies yet, so login leads to the talent pool page first.
     $this->post(route('login.store'), ['email' => 'budi@example.com', 'password' => $password])
-        ->assertRedirect(route('dashboard', absolute: false));
+        ->assertRedirect(route('my-competencies.index', absolute: false));
     $this->assertAuthenticatedAs($user);
 });
 

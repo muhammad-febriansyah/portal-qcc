@@ -87,6 +87,7 @@ class MyCompetencyController extends Controller
                 'label' => $item->name,
             ])->all(),
             'competencyCount' => $competencyCount,
+            'mustJoinTalentPool' => $user->mustFillCompetencies(),
             'competencyLimit' => MemberCompetency::MAX_PER_USER,
             'competencyOptions' => $competencyCount >= MemberCompetency::MAX_PER_USER
                 ? []

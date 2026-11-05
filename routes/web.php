@@ -128,8 +128,10 @@ Route::middleware(['auth', 'verified', 'profile.complete'])->group(function () {
 
     Route::get('proposals/create', [ProposalWizardController::class, 'create'])
         ->can('create', Project::class)
+        ->middleware('competencies.filled')
         ->name('proposals.create');
     Route::post('proposals', [ProposalWizardController::class, 'store'])
+        ->middleware('competencies.filled')
         ->name('proposals.store');
     Route::get('proposals/{project}/edit', [ProposalWizardController::class, 'edit'])
         ->whereNumber('project')

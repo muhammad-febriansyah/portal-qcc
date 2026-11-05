@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\MemberCompetency;
 use App\Models\Organization;
 use App\Models\User;
 use Database\Seeders\ProjectAccessSeeder;
@@ -58,6 +59,7 @@ test('the profile stays incomplete when either required contact is missing', fun
 test('completing the profile opens the menus and goes to the dashboard', function () {
     $user = User::factory()->create(['needs_profile_setup' => true]);
     $user->assignRole('SIMer / Member');
+    MemberCompetency::factory()->create(['user_id' => $user->id]);
     $organization = Organization::factory()->create(['is_active' => true]);
 
     $this->actingAs($user)

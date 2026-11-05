@@ -130,6 +130,21 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Members (not reviewers or admins) must hold at least one competency to be in the talent pool.
+     */
+    public function mustFillCompetencies(): bool
+    {
+        return $this->hasAnyRole(['SIMer / Member', 'Team Leader'])
+            && ! $this->can('projects.viewAny')
+            && ! $this->memberCompetencies()->exists();
+    }
+
+    public function isInTalentPool(): bool
+    {
+        return $this->memberCompetencies()->exists();
+    }
+
+    /**
      * Sent straight away, so sign-up does not depend on a queue worker running. If the mail
      * server refuses the message now, it goes to the queue and is retried there.
      */
