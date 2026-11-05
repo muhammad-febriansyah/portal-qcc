@@ -25,10 +25,10 @@ class TeamFormationController extends Controller
         $search = trim((string) ($filters['search'] ?? ''));
 
         $proposals = Project::query()
-            ->select(['id', 'batch_id', 'proposer_id', 'title', 'updated_at'])
+            ->select(['id', 'batch_id', 'proposer_id', 'title', 'proposal_status', 'updated_at'])
             ->with(['batch:id,name', 'proposer:id,name,organization_id', 'proposer.organization:id,name'])
             ->withCount(['members', 'requirements'])
-            ->whereIn('proposal_status', [ProposalStatus::Draft->value, ProposalStatus::RevisionRequired->value])
+            ->whereIn('proposal_status', array_column(ProposalStatus::teamFormationStatuses(), 'value'))
             ->when(! $user->can('projects.viewAny'), fn (Builder $query): Builder => $query->where('proposer_id', $user->id))
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
@@ -52,6 +52,7 @@ class TeamFormationController extends Controller
                 'proposer' => $project->proposer?->name,
                 'organization' => $project->proposer?->organization?->name,
                 'members_count' => $project->members_count,
+                'status_label' => $project->proposal_status->label(),
                 'requirements_count' => $project->requirements_count,
                 'updated_at' => $project->updated_at?->toIso8601String(),
             ]);

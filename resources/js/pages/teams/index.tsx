@@ -28,6 +28,7 @@ type ProposalRow = {
     proposer: string | null;
     organization: string | null;
     members_count: number;
+    status_label: string;
     requirements_count: number;
     updated_at: string | null;
 };
@@ -119,7 +120,7 @@ export default function TeamFormationIndex({
                             {row.original.title}
                         </span>
                         <Badge variant="secondary" className="w-fit">
-                            Draf
+                            {row.original.status_label}
                         </Badge>
                     </div>
                 ),
@@ -202,7 +203,7 @@ export default function TeamFormationIndex({
                         },
                     ]}
                     title="Pembentukan Tim"
-                    description="Pilih proposal draf untuk mencocokkan anggota dan meninjau susunan tim."
+                    description="Pilih proposal yang sudah diajukan untuk mencocokkan anggota dan menyusun tim sebelum disetujui."
                     actions={
                         can_create_proposal ? (
                             <Button
@@ -223,7 +224,7 @@ export default function TeamFormationIndex({
                             Proposal siap dibentuk tim
                         </CardTitle>
                         <CardDescription>
-                            {proposals.total} proposal draf dapat ditangani
+                            {proposals.total} proposal menunggu susunan tim
                         </CardDescription>
                     </CardHeader>
                     <DataTable
@@ -241,12 +242,12 @@ export default function TeamFormationIndex({
                         emptyTitle={
                             filters.search
                                 ? 'Proposal tidak ditemukan'
-                                : 'Belum ada proposal draf'
+                                : 'Belum ada proposal yang diajukan'
                         }
                         emptyDescription={
                             filters.search
                                 ? 'Coba kata kunci lain atau hapus pencarian.'
-                                : 'Proposal draf yang dapat Anda tangani akan muncul di sini.'
+                                : 'Proposal yang sudah diajukan member akan muncul di sini.'
                         }
                     />
                 </Card>

@@ -7,6 +7,7 @@ use App\Actions\Proposals\SubmitProposal;
 use App\Actions\Teams\ConfirmProjectTeam;
 use App\Actions\Teams\StartTeamMatching;
 use App\Enums\ProposalStatus;
+use App\Enums\QccStep;
 use App\Enums\TeamMatchingStatus;
 use App\Http\Requests\ConfirmProjectTeamRequest;
 use App\Http\Requests\ReviewProposalDecisionRequest;
@@ -149,7 +150,7 @@ class ProposalController extends Controller
             ],
             'matching' => $this->latestMatching($project, $fingerprint),
             'team' => $this->currentTeam($project, array_column($result['requirements'], 'competency_id'), $picItems),
-            'can_edit_team' => in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)
+            'can_edit_team' => $project->proposal_status->allowsTeamFormation()
                 && $request->user()->can('findCandidates', $project),
             'can_manage_approved_team' => $project->proposal_status === ProposalStatus::Approved
                 && $request->user()->can('findCandidates', $project),
@@ -189,16 +190,20 @@ class ProposalController extends Controller
                 'status_label' => $project->proposal_status->label(),
                 'theme' => $project->theme,
                 'background' => $project->background,
-                'problem_statement' => $project->problem_statement,
                 'current_situation' => $project->current_situation,
-                'baseline' => $project->baseline,
+                'improvement_plan' => $project->improvement_plan,
                 'target' => $project->target,
                 'scope' => $project->scope,
-                'learning_goals' => $project->learning_goals_json ?? [],
-                'rca' => $project->rca,
-                'improvement_plan' => $project->improvement_plan,
-                'business_benefit' => $project->business_benefit,
                 'supplementary_information' => $project->supplementary_information,
+                'cost_projection' => $project->cost_projection,
+                'learning_goals' => $project->learning_goals_json ?? [],
+                'step_timeline' => $this->stepTimeline($project),
+                // Sections removed from the form; still shown for proposals written before the change.
+                'legacy_sections' => array_values(array_filter([
+                    ['label' => 'Pernyataan Masalah', 'value' => $project->problem_statement],
+                    ['label' => 'Root Cause Analysis (RCA)', 'value' => $project->rca],
+                    ['label' => 'Manfaat Bisnis', 'value' => $project->business_benefit],
+                ], fn (array $section): bool => filled($section['value']))),
                 'updated_at' => $project->updated_at?->toIso8601String(),
                 'attachments' => $project->attachments->map(fn (ProjectAttachment $attachment): array => [
                     'id' => $attachment->id,
@@ -228,8 +233,8 @@ class ProposalController extends Controller
                 'team_status_message' => $request->user()->can('findCandidates', $project)
                     ? null
                     : ($teamConfirmed
-                        ? 'Tim sudah dikonfirmasi. Proposal siap diajukan.'
-                        : 'Tim akan disusun oleh Owner QCC. Proposal bisa diajukan setelah tim dikonfirmasi.'),
+                        ? 'Tim sudah dikonfirmasi oleh Owner QCC.'
+                        : 'Tim akan disusun oleh Owner QCC setelah proposal diajukan.'),
                 'can_start_review' => $project->proposal_status === ProposalStatus::Submitted
                     && $request->user()->can('reviewProposal', $project),
                 'can_decide' => $project->proposal_status === ProposalStatus::UnderReview
@@ -254,7 +259,7 @@ class ProposalController extends Controller
         if ($request->boolean('manual')) {
             Gate::authorize('findCandidates', $project);
 
-            if (! in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)) {
+            if (! $project->proposal_status->allowsTeamFormation()) {
                 abort(403);
             }
 
@@ -266,8 +271,8 @@ class ProposalController extends Controller
             DB::transaction(function () use ($project, $request, $snapshot, $confirm): void {
                 $lockedProject = Project::query()->whereKey($project->id)->lockForUpdate()->firstOrFail();
 
-                if (! in_array($lockedProject->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)) {
-                    throw ValidationException::withMessages(['team' => 'Tim hanya bisa dikonfirmasi saat proposal masih draf atau perlu revisi.']);
+                if (! $lockedProject->proposal_status->allowsTeamFormation()) {
+                    throw ValidationException::withMessages(['team' => 'Tim hanya bisa disusun saat proposal diajukan, direview, atau perlu revisi.']);
                 }
 
                 $latestRun = TeamMatchingRun::query()->where('project_id', $project->id)->latest('id')->first();
@@ -340,6 +345,20 @@ class ProposalController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Keputusan review berhasil disimpan.']);
 
         return to_route('proposals.show', $project);
+    }
+
+    /**
+     * @return list<array{step_number: int, name: string, target_date: string|null}>
+     */
+    private function stepTimeline(Project $project): array
+    {
+        $dates = collect($project->step_timeline_json ?? [])->pluck('target_date', 'step_number');
+
+        return array_map(fn (QccStep $step): array => [
+            'step_number' => $step->value,
+            'name' => $step->label(),
+            'target_date' => $dates->get($step->value),
+        ], QccStep::cases());
     }
 
     /**

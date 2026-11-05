@@ -4,10 +4,8 @@ namespace App\Services;
 
 use App\Models\Project;
 use App\Models\ReviewAssignment;
-use App\Models\TeamMatchingRun;
 use App\Models\User;
 use App\Notifications\ProjectActivityNotification;
-use App\Notifications\ProposalWorkflowNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
@@ -35,63 +33,6 @@ class ProjectNotifier
 
         DB::afterCommit(function () use ($users, $project, $title, $message, $url, $kind): void {
             $users->each(fn (User $user) => $user->notify(new ProjectActivityNotification($project->id, $title, $message, $url, $kind)));
-        });
-    }
-
-    public function notifyTeamCompositionPending(Project $project, User $actor): void
-    {
-        if (! ProjectActivityNotification::enabled()
-            || ! $actor->hasRole('SIMer / Member')
-            || $actor->hasRole('Team Leader')) {
-            return;
-        }
-
-        DB::transaction(function () use ($project, $actor): void {
-            $lockedProject = Project::query()->lockForUpdate()->findOrFail($project->id);
-
-            if ($lockedProject->proposal_status->value !== 'DRAFT' || $lockedProject->proposer_id !== $actor->id) {
-                return;
-            }
-
-            $requiredFields = [
-                'title', 'theme', 'background', 'problem_statement', 'current_situation',
-                'baseline', 'target', 'scope', 'rca', 'improvement_plan', 'business_benefit',
-            ];
-
-            foreach ($requiredFields as $field) {
-                if (blank($lockedProject->{$field})) {
-                    return;
-                }
-            }
-
-            if (count(array_filter($lockedProject->learning_goals_json ?? [], fn ($goal): bool => filled($goal))) !== 3) {
-                return;
-            }
-
-            if (TeamMatchingRun::query()->where('project_id', $lockedProject->id)->whereNotNull('confirmed_at')->exists()) {
-                return;
-            }
-
-            $noticeExists = DB::table('notifications')
-                ->where('type', ProposalWorkflowNotification::class)
-                ->where('data->project_id', $lockedProject->id)
-                ->where('data->decision', 'TEAM_COMPOSITION_PENDING')
-                ->exists();
-
-            if ($noticeExists) {
-                return;
-            }
-
-            User::query()->where('is_active', true)->get()
-                ->filter(fn (User $user): bool => $user->can('projects.viewAny') && $user->can('projects.review'))
-                ->reject(fn (User $user): bool => $user->id === $actor->id)
-                ->each(fn (User $user) => $user->notify(new ProposalWorkflowNotification(
-                    $lockedProject->id,
-                    'Proposal menunggu penyusunan tim',
-                    $lockedProject->title.' menunggu tim disusun oleh Owner QCC.',
-                    route('proposals.candidates', $lockedProject, false),
-                    'TEAM_COMPOSITION_PENDING',
-                )));
         });
     }
 

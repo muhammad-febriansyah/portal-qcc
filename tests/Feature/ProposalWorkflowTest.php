@@ -1,8 +1,10 @@
 <?php
 
 use App\Enums\ProposalStatus;
+use App\Enums\QccStep;
 use App\Enums\TeamMatchingStatus;
 use App\Models\AuditLog;
+use App\Models\Competency;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Models\QccBatch;
@@ -36,15 +38,22 @@ function preparedProposal(): array
         'title' => 'Kurangi waktu proses',
         'theme' => 'Efisiensi',
         'background' => 'Latar belakang',
-        'problem_statement' => 'Masalah utama',
-        'current_situation' => 'Kondisi saat ini',
-        'baseline' => 'Baseline 10 jam',
+        'current_situation' => 'Kondisi saat ini, baseline 10 jam',
         'target' => 'Target 5 jam',
         'scope' => 'Proses internal',
         'learning_goals_json' => ['Belajar A', 'Belajar B', 'Belajar C'],
-        'rca' => 'Analisis akar masalah',
         'improvement_plan' => 'Rencana perbaikan',
-        'business_benefit' => 'Hemat waktu',
+        'cost_projection' => 'Tidak ada biaya',
+        'step_timeline_json' => array_map(fn (QccStep $step): array => [
+            'step_number' => $step->value,
+            'target_date' => now()->addWeeks($step->value)->toDateString(),
+        ], QccStep::cases()),
+    ]);
+    DB::table('project_requirements')->insert([
+        'project_id' => $project->id,
+        'competency_id' => Competency::factory()->create()->id,
+        'created_at' => now(),
+        'updated_at' => now(),
     ]);
 
     DB::table('project_members')->insert([
@@ -113,6 +122,7 @@ test('proposal can be submitted revised resubmitted and approved with visible hi
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Approved)
         ->and($project->fresh()->steps)->toHaveCount(8)
+        ->and($project->fresh()->steps->first()->target_date?->toDateString())->toBe(now()->addWeek()->toDateString())
         ->and(ReviewDecision::query()->where('project_id', $project->id)->count())->toBe(6);
 
     $this->actingAs($proposer)
@@ -124,15 +134,17 @@ test('proposal can be submitted revised resubmitted and approved with visible hi
             ->where('proposal.review_history.3.reason', 'Perjelas baseline pengukuran.'));
 });
 
-test('proposal submission requires team reconfirmation when matching inputs change', function () {
-    [$project, $proposer] = preparedProposal();
+test('approval requires team reconfirmation when matching inputs change', function () {
+    [$project, $proposer, $reviewer] = preparedProposal();
     $project->forceFill(['supplementary_information' => 'Informasi pelengkap baru'])->save();
 
-    $this->actingAs($proposer)
-        ->post(route('proposals.submit', $project))
-        ->assertSessionHasErrors(['team' => 'Informasi proposal atau kebutuhan kompetensi berubah setelah tim dikonfirmasi. Perbarui rekomendasi dan konfirmasi tim kembali sebelum mengajukan.']);
+    $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertSessionHasNoErrors();
+    $this->actingAs($reviewer)->post(route('proposals.review.start', $project))->assertRedirect();
 
-    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Draft);
+    $this->post(route('proposals.review.decide', $project), ['decision' => 'APPROVE'])
+        ->assertSessionHasErrors(['team' => 'Isi proposal atau kebutuhan kompetensi berubah setelah tim dikonfirmasi. Perbarui rekomendasi dan konfirmasi tim kembali.']);
+
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::UnderReview);
 });
 
 test('proposal transitions reject missing review reasons and invalid state changes', function () {
@@ -150,8 +162,8 @@ test('proposal transitions reject missing review reasons and invalid state chang
         ->and(ReviewDecision::query()->where('project_id', $project->id)->count())->toBe(2);
 });
 
-test('a deactivated team member blocks submission instead of being dropped from the check', function () {
-    [$project, $proposer] = preparedProposal();
+test('a deactivated team member blocks approval instead of being dropped from the check', function () {
+    [$project, $proposer, $reviewer] = preparedProposal();
     $inactive = User::factory()->create(['organization_id' => $proposer->organization_id, 'is_active' => false]);
     DB::table('project_members')->insert([
         'project_id' => $project->id,
@@ -163,11 +175,13 @@ test('a deactivated team member blocks submission instead of being dropped from 
         'updated_at' => now(),
     ]);
 
-    $this->actingAs($proposer)
-        ->post(route('proposals.submit', $project))
+    $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertSessionHasNoErrors();
+    $this->actingAs($reviewer)->post(route('proposals.review.start', $project))->assertRedirect();
+
+    $this->post(route('proposals.review.decide', $project), ['decision' => 'APPROVE'])
         ->assertSessionHasErrors('team');
 
-    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Draft);
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::UnderReview);
 });
 
 test('an active team leader cannot change a proposal once it is submitted', function () {
@@ -180,18 +194,32 @@ test('an active team leader cannot change a proposal once it is submitted', func
     expect($proposer->fresh()->can('update', $project->fresh()))->toBeFalse();
 });
 
-test('proposal submission blocks missing content and an unconfirmed team', function () {
+test('proposal submission blocks missing content, timeline and competency needs', function () {
     [$project, $proposer] = preparedProposal();
-    $project->forceFill(['baseline' => null])->save();
-    TeamMatchingRun::query()->where('project_id', $project->id)->update(['confirmed_at' => null]);
+    $project->forceFill(['cost_projection' => null, 'step_timeline_json' => null])->save();
+    DB::table('project_requirements')->where('project_id', $project->id)->delete();
 
     $this->actingAs($proposer)
         ->post(route('proposals.submit', $project))
-        ->assertSessionHasErrors('baseline');
-
-    $project->forceFill(['baseline' => 'Baseline 10 jam'])->save();
-    $this->post(route('proposals.submit', $project))->assertSessionHasErrors('team');
+        ->assertSessionHasErrors(['cost_projection', 'step_timeline', 'requirements']);
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Draft)
         ->and(ReviewDecision::query()->where('project_id', $project->id)->count())->toBe(0);
+});
+
+test('a proposal is submitted without a team and cannot be approved until Owner QCC confirms one', function () {
+    [$project, $proposer, $reviewer] = preparedProposal();
+    TeamMatchingRun::query()->where('project_id', $project->id)->update(['confirmed_at' => null]);
+
+    $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertSessionHasNoErrors();
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Submitted);
+
+    $this->actingAs($reviewer)->post(route('proposals.review.start', $project))->assertRedirect();
+    $this->post(route('proposals.review.decide', $project), ['decision' => 'APPROVE'])
+        ->assertSessionHasErrors(['team' => 'Susun dan konfirmasi tim proposal terlebih dahulu sebelum menyetujui.']);
+
+    $this->post(route('proposals.review.decide', $project), ['decision' => 'REQUEST_REVISION', 'reason' => 'Lengkapi data.'])
+        ->assertSessionHasNoErrors();
+
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::RevisionRequired);
 });

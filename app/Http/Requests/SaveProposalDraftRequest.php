@@ -3,13 +3,19 @@
 namespace App\Http\Requests;
 
 use App\Enums\BatchStatus;
+use App\Enums\QccStep;
 use App\Models\Project;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class SaveProposalDraftRequest extends FormRequest
 {
+    public const LAST_STEP = 7;
+
+    public const REQUIREMENTS_STEP = 6;
+
     public function authorize(): bool
     {
         $user = $this->user();
@@ -27,23 +33,24 @@ class SaveProposalDraftRequest extends FormRequest
     /** @return array<string, ValidationRule|array<mixed>|string> */
     public function rules(): array
     {
+        $timelineSize = count(QccStep::cases());
+
         $rules = [
             'batch_id' => ['required', 'integer'],
             'title' => ['required', 'string', 'max:255'],
             'theme' => ['nullable', 'string', 'max:5000'],
             'background' => ['nullable', 'string', 'max:20000'],
-            'problem_statement' => ['nullable', 'string', 'max:20000'],
             'current_situation' => ['nullable', 'string', 'max:20000'],
-            'baseline' => ['nullable', 'string', 'max:20000'],
+            'improvement_plan' => ['nullable', 'string', 'max:20000'],
             'target' => ['nullable', 'string', 'max:20000'],
             'scope' => ['nullable', 'string', 'max:5000'],
+            'supplementary_information' => ['nullable', 'string', 'max:20000'],
+            'cost_projection' => ['nullable', 'string', 'max:20000'],
             'learning_goals' => ['nullable', 'array', 'max:3'],
             'learning_goals.*' => ['nullable', 'string', 'max:255'],
-            'rca' => ['nullable', 'string', 'max:20000'],
-            'improvement_plan' => ['nullable', 'string', 'max:20000'],
-            'business_benefit' => ['nullable', 'string', 'max:20000'],
-            'supplementary_information' => ['nullable', 'string', 'max:20000'],
-            'wizard_step' => ['required', 'integer', 'between:1,5'],
+            'step_timeline' => ['nullable', 'array', "max:{$timelineSize}"],
+            'step_timeline.*' => ['nullable', 'date_format:Y-m-d'],
+            'wizard_step' => ['required', 'integer', 'between:1,'.self::LAST_STEP],
             'advance' => ['required', 'boolean'],
         ];
 
@@ -65,20 +72,21 @@ class SaveProposalDraftRequest extends FormRequest
                 ],
                 2 => [
                     'background' => ['required', 'string', 'max:20000'],
-                    'problem_statement' => ['required', 'string', 'max:20000'],
                     'current_situation' => ['required', 'string', 'max:20000'],
-                    'baseline' => ['required', 'string', 'max:20000'],
                 ],
                 3 => [
+                    'improvement_plan' => ['required', 'string', 'max:20000'],
                     'target' => ['required', 'string', 'max:20000'],
                     'scope' => ['required', 'string', 'max:5000'],
-                    'rca' => ['required', 'string', 'max:20000'],
-                    'improvement_plan' => ['required', 'string', 'max:20000'],
-                    'business_benefit' => ['required', 'string', 'max:20000'],
                 ],
                 4 => [
+                    'cost_projection' => ['required', 'string', 'max:20000'],
+                ],
+                5 => [
                     'learning_goals' => ['required', 'array', 'size:3'],
                     'learning_goals.*' => ['required', 'string', 'max:255'],
+                    'step_timeline' => ['required', 'array', "size:{$timelineSize}"],
+                    'step_timeline.*' => ['required', 'date_format:Y-m-d'],
                 ],
                 default => [],
             };
@@ -89,37 +97,99 @@ class SaveProposalDraftRequest extends FormRequest
         return $rules;
     }
 
+    /**
+     * @return array<int, callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $this->validateTimelineOrder($validator);
+                $this->validateRequirementsBeforeAdvancing($validator);
+            },
+        ];
+    }
+
     /** @return array<string, string> */
     public function attributes(): array
     {
-        return [
+        $attributes = [
             'batch_id' => 'batch',
             'title' => 'judul proposal',
-            'theme' => 'tema',
+            'theme' => 'tema improvement',
             'background' => 'latar belakang',
-            'problem_statement' => 'pernyataan masalah',
-            'current_situation' => 'situasi saat ini',
-            'baseline' => 'baseline',
-            'target' => 'target',
-            'scope' => 'ruang lingkup',
-            'learning_goals' => 'hal yang ingin dipelajari',
-            'rca' => 'analisis akar masalah',
+            'current_situation' => 'situasi saat ini & baseline',
             'improvement_plan' => 'rencana perbaikan',
-            'business_benefit' => 'manfaat bisnis',
+            'target' => 'target/tujuan',
+            'scope' => 'ruang lingkup proyek',
             'supplementary_information' => 'informasi dan data pelengkap',
+            'cost_projection' => 'proyeksi kebutuhan biaya proyek',
+            'learning_goals' => 'tiga hal yang akan dipelajari',
+            'step_timeline' => 'timeline',
         ];
+
+        foreach (QccStep::cases() as $index => $step) {
+            $attributes["step_timeline.{$index}"] = "target step {$step->value}";
+        }
+
+        return $attributes;
     }
 
     /** @return array<string, string> */
     public function messages(): array
     {
         return [
-            'required' => ':Attribute wajib diisi sebelum draft disimpan.',
+            'required' => ':Attribute wajib diisi.',
             'exists' => 'Pilihan :attribute tidak valid atau sudah tidak aktif.',
             'max' => ':Attribute maksimal :max karakter.',
-            'learning_goals.size' => 'Isi tepat 3 hal yang ingin dipelajari.',
-            'learning_goals.*.required' => 'Semua hal yang ingin dipelajari wajib diisi.',
+            'date_format' => ':Attribute harus berupa tanggal yang valid.',
+            'learning_goals.size' => 'Isi tepat 3 hal yang akan dipelajari.',
+            'learning_goals.*.required' => 'Semua hal yang akan dipelajari wajib diisi.',
+            'step_timeline.size' => 'Isi target tanggal untuk semua 8 step QCC.',
+            'step_timeline.*.required' => ':Attribute wajib diisi.',
             'wizard_step.between' => 'Langkah proposal tidak valid.',
         ];
+    }
+
+    /**
+     * A later QCC step cannot be due before the step it follows.
+     */
+    private function validateTimelineOrder(Validator $validator): void
+    {
+        $dates = $this->input('step_timeline');
+
+        if (! is_array($dates)) {
+            return;
+        }
+
+        $previous = null;
+
+        foreach (array_values($dates) as $index => $date) {
+            if (! is_string($date) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+                continue;
+            }
+
+            if ($previous !== null && $date < $previous) {
+                $step = $index + 1;
+                $validator->errors()->add("step_timeline.{$index}", "Target step {$step} tidak boleh lebih awal dari step sebelumnya.");
+            }
+
+            $previous = $date;
+        }
+    }
+
+    private function validateRequirementsBeforeAdvancing(Validator $validator): void
+    {
+        $project = $this->route('project');
+
+        if (! $this->boolean('advance')
+            || (int) $this->input('wizard_step') !== self::REQUIREMENTS_STEP
+            || ! $project instanceof Project) {
+            return;
+        }
+
+        if (! $project->requirements()->exists()) {
+            $validator->errors()->add('requirements', 'Tambahkan minimal satu kebutuhan kompetensi proyek.');
+        }
     }
 }

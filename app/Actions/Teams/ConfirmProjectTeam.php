@@ -2,7 +2,6 @@
 
 namespace App\Actions\Teams;
 
-use App\Enums\ProposalStatus;
 use App\Models\Project;
 use App\Models\TeamMatchingRun;
 use App\Models\User;
@@ -37,8 +36,8 @@ class ConfirmProjectTeam
         DB::transaction(function () use ($project, $run, $members, $picId, $actor): void {
             $lockedProject = Project::query()->whereKey($project->id)->lockForUpdate()->firstOrFail();
 
-            if (! in_array($lockedProject->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)) {
-                throw ValidationException::withMessages(['team' => 'Tim hanya bisa dikonfirmasi saat proposal masih draf atau perlu revisi.']);
+            if (! $lockedProject->proposal_status->allowsTeamFormation()) {
+                throw ValidationException::withMessages(['team' => 'Tim hanya bisa disusun saat proposal diajukan, direview, atau perlu revisi.']);
             }
 
             $run = TeamMatchingRun::query()->whereKey($run->id)->lockForUpdate()->firstOrFail();

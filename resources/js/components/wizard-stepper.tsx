@@ -29,7 +29,12 @@ export function WizardStepper({
 }: Props) {
     return (
         <nav aria-label={label}>
-            <ol className="grid grid-cols-5 gap-1.5 sm:gap-3">
+            <ol
+                className="grid gap-1.5 sm:gap-2"
+                style={{
+                    gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`,
+                }}
+            >
                 {steps.map((step) => {
                     const isCurrent = step.number === current;
                     const isDone = step.number < reached;
@@ -44,7 +49,7 @@ export function WizardStepper({
                                 aria-current={isCurrent ? 'step' : undefined}
                                 aria-label={`Langkah ${step.number}: ${step.label}${isDone ? ', selesai' : ''}${isLocked ? ', belum bisa dibuka' : ''}`}
                                 className={cn(
-                                    'group flex h-full w-full flex-col items-center gap-2 rounded-xl border px-2 py-3 text-center transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:flex-row sm:gap-3 sm:px-4 sm:text-left',
+                                    'group flex h-full w-full flex-col items-center gap-2 rounded-xl border px-1.5 py-3 text-center transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 xl:flex-row xl:gap-2.5 xl:px-3 xl:text-left',
                                     isCurrent &&
                                         'border-primary bg-primary/5 shadow-sm',
                                     !isCurrent &&
@@ -84,10 +89,10 @@ export function WizardStepper({
                                         step.number
                                     )}
                                 </span>
-                                <span className="hidden min-w-0 sm:grid sm:gap-0.5">
+                                <span className="hidden min-w-0 lg:grid lg:gap-0.5">
                                     <span
                                         className={cn(
-                                            'text-xs font-medium tracking-wide uppercase',
+                                            'hidden text-xs font-medium tracking-wide uppercase xl:block',
                                             isCurrent
                                                 ? 'text-primary'
                                                 : 'text-muted-foreground',

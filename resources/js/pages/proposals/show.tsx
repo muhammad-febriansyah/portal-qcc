@@ -1,3 +1,5 @@
+import { FormattedText } from '@/components/formatted-text';
+import { TimelineTable } from '@/components/step-timeline-table';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
@@ -63,16 +65,19 @@ type Proposal = {
     status_label: string;
     theme: string | null;
     background: string | null;
-    problem_statement: string | null;
     current_situation: string | null;
-    baseline: string | null;
+    improvement_plan: string | null;
     target: string | null;
     scope: string | null;
-    learning_goals: string[];
-    rca: string | null;
-    improvement_plan: string | null;
-    business_benefit: string | null;
     supplementary_information: string | null;
+    cost_projection: string | null;
+    learning_goals: string[];
+    step_timeline: {
+        step_number: number;
+        name: string;
+        target_date: string | null;
+    }[];
+    legacy_sections: { label: string; value: string }[];
     updated_at: string | null;
     attachments: ProposalAttachment[];
     can_edit_draft: boolean;
@@ -116,8 +121,8 @@ function DetailField({
             <dt className="text-xs font-semibold tracking-wide text-muted-foreground">
                 {label}
             </dt>
-            <dd className="mt-2 text-sm leading-6 break-words whitespace-pre-wrap text-foreground">
-                {value?.trim() ? value : '—'}
+            <dd className="mt-2 text-sm leading-6 text-foreground">
+                <FormattedText value={value} />
             </dd>
         </div>
     );
@@ -198,7 +203,6 @@ export default function ProposalShow({ proposal }: Props) {
                             )}
                             {proposal.can_submit && (
                                 <Button
-                                    disabled={!proposal.team_confirmed}
                                     onClick={() =>
                                         router.post(
                                             proposalRoutes.submit.url(
@@ -247,29 +251,34 @@ export default function ProposalShow({ proposal }: Props) {
                 />
 
                 <div className="space-y-5">
-                    {proposal.can_edit_draft &&
-                        !proposal.can_find_candidates && (
+                    {proposal.team_status_message &&
+                        proposal.status !== 'DRAFT' &&
+                        proposal.status !== 'APPROVED' &&
+                        proposal.status !== 'REJECTED' && (
                             <Alert>
                                 <UsersRound aria-hidden="true" />
                                 <AlertTitle>
                                     {proposal.team_confirmed
                                         ? 'Tim proposal sudah dikonfirmasi'
-                                        : 'Susunan tim menunggu Owner QCC'}
+                                        : 'Tim disusun oleh Owner QCC'}
                                 </AlertTitle>
                                 <AlertDescription>
                                     {proposal.team_status_message}
                                 </AlertDescription>
                             </Alert>
                         )}
-                    {proposal.can_submit && !proposal.team_confirmed && (
-                        <p
-                            className="text-sm text-muted-foreground"
-                            role="status"
-                        >
-                            Proposal belum dapat diajukan karena tim belum
-                            dikonfirmasi.
-                        </p>
-                    )}
+                    {proposal.can_decide &&
+                        proposal.can_find_candidates &&
+                        !proposal.team_confirmed && (
+                            <Alert className="border-warning/40 bg-warning/10">
+                                <UsersRound aria-hidden="true" />
+                                <AlertTitle>Tim belum dikonfirmasi</AlertTitle>
+                                <AlertDescription>
+                                    Susun dan konfirmasi tim lewat Cari kandidat
+                                    tim sebelum menyetujui proposal.
+                                </AlertDescription>
+                            </Alert>
+                        )}
                     {Object.keys(errors).length > 0 && (
                         <div
                             role="alert"
@@ -317,14 +326,14 @@ export default function ProposalShow({ proposal }: Props) {
                                     aria-hidden="true"
                                     data-icon="inline-start"
                                 />
-                                Ringkasan & masalah
+                                Ringkasan & situasi
                             </TabsTrigger>
                             <TabsTrigger value="plan">
                                 <ClipboardCheck
                                     aria-hidden="true"
                                     data-icon="inline-start"
                                 />
-                                Rencana & manfaat
+                                Rencana & timeline
                             </TabsTrigger>
                             <TabsTrigger value="documents">
                                 <Paperclip
@@ -396,11 +405,11 @@ export default function ProposalShow({ proposal }: Props) {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="text-base">
-                                        Masalah & baseline
+                                        Latar belakang & situasi
                                     </CardTitle>
                                     <CardDescription>
-                                        Konteks masalah dan data awal yang
-                                        menjadi dasar perbaikan.
+                                        Konteks dan data awal yang menjadi dasar
+                                        perbaikan.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
@@ -410,16 +419,8 @@ export default function ProposalShow({ proposal }: Props) {
                                             value={proposal.background}
                                         />
                                         <DetailField
-                                            label="Pernyataan masalah"
-                                            value={proposal.problem_statement}
-                                        />
-                                        <DetailField
-                                            label="Kondisi saat ini"
+                                            label="Situasi saat ini & baseline"
                                             value={proposal.current_situation}
-                                        />
-                                        <DetailField
-                                            label="Baseline"
-                                            value={proposal.baseline}
                                         />
                                     </dl>
                                 </CardContent>
@@ -429,43 +430,45 @@ export default function ProposalShow({ proposal }: Props) {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="text-base">
-                                        Target & manfaat
+                                        Rencana & target
                                     </CardTitle>
                                     <CardDescription>
-                                        Sasaran, ruang lingkup, rencana, dan
-                                        hasil yang diharapkan.
+                                        Arah solusi, sasaran, ruang lingkup, dan
+                                        kebutuhan biaya proyek.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <dl className="grid gap-3 sm:grid-cols-2">
                                         <DetailField
-                                            label="Target"
-                                            value={proposal.target}
-                                        />
-                                        <DetailField
-                                            label="Ruang lingkup"
-                                            value={proposal.scope}
-                                        />
-                                        <DetailField
-                                            label="Root cause analysis"
-                                            value={proposal.rca}
-                                        />
-                                        <DetailField
-                                            label="Rencana improvement"
+                                            label="Rencana perbaikan / arah solusi"
                                             value={proposal.improvement_plan}
                                         />
                                         <DetailField
-                                            label="Manfaat bisnis"
-                                            value={proposal.business_benefit}
+                                            label="Target / tujuan"
+                                            value={proposal.target}
+                                        />
+                                        <DetailField
+                                            label="Ruang lingkup proyek"
+                                            value={proposal.scope}
+                                        />
+                                        <DetailField
+                                            label="Informasi dan data pelengkap"
+                                            value={
+                                                proposal.supplementary_information
+                                            }
+                                        />
+                                        <DetailField
+                                            label="Proyeksi kebutuhan biaya proyek"
+                                            value={proposal.cost_projection}
                                         />
                                         <div className="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-4">
                                             <dt className="text-xs font-semibold tracking-wide text-muted-foreground">
-                                                Tujuan pembelajaran
+                                                Tiga hal yang akan dipelajari
                                             </dt>
                                             <dd className="mt-2">
                                                 {proposal.learning_goals
                                                     .length > 0 ? (
-                                                    <ul className="space-y-2 text-sm leading-6">
+                                                    <ol className="list-decimal space-y-1 pl-5 text-sm leading-6">
                                                         {proposal.learning_goals.map(
                                                             (
                                                                 goal,
@@ -475,18 +478,12 @@ export default function ProposalShow({ proposal }: Props) {
                                                                     key={
                                                                         position
                                                                     }
-                                                                    className="flex gap-2"
                                                                 >
-                                                                    <span className="font-semibold text-primary">
-                                                                        {position +
-                                                                            1}
-                                                                        .
-                                                                    </span>
                                                                     {goal}
                                                                 </li>
                                                             ),
                                                         )}
-                                                    </ul>
+                                                    </ol>
                                                 ) : (
                                                     <span className="text-sm text-foreground">
                                                         —
@@ -501,22 +498,52 @@ export default function ProposalShow({ proposal }: Props) {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="text-base">
-                                        Informasi pelengkap
+                                        Timeline
                                     </CardTitle>
                                     <CardDescription>
-                                        Catatan atau konteks tambahan untuk
-                                        memahami proposal.
+                                        Target tanggal selesai setiap step QCC.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <DetailField
-                                        label="Informasi tambahan"
-                                        value={
-                                            proposal.supplementary_information
-                                        }
+                                    <TimelineTable
+                                        rows={proposal.step_timeline.map(
+                                            (row) => ({
+                                                number: row.step_number,
+                                                name: row.name,
+                                                date: row.target_date,
+                                            }),
+                                        )}
                                     />
                                 </CardContent>
                             </Card>
+
+                            {proposal.legacy_sections.length > 0 && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-base">
+                                            Bagian proposal versi sebelumnya
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Bagian ini sudah tidak ada di
+                                            formulir, tetapi masih diisi pada
+                                            proposal ini.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <dl className="grid gap-3 sm:grid-cols-2">
+                                            {proposal.legacy_sections.map(
+                                                (section) => (
+                                                    <DetailField
+                                                        key={section.label}
+                                                        label={section.label}
+                                                        value={section.value}
+                                                    />
+                                                ),
+                                            )}
+                                        </dl>
+                                    </CardContent>
+                                </Card>
+                            )}
                         </TabsContent>
                         <TabsContent value="documents" className="space-y-5">
                             <Card>

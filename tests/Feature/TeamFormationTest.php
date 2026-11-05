@@ -16,13 +16,13 @@ function teamFormationUser(string $role): User
     return $user;
 }
 
-it('lists draft proposals for reviewers who can view all projects', function () {
+it('lists submitted proposals for reviewers who can view all projects', function () {
     $this->seed(ProjectAccessSeeder::class);
 
     $owner = teamFormationUser('Owner QCC');
-    $ownedDraft = Project::factory()->create(['title' => 'Optimasi proses pengemasan']);
-    $otherDraft = Project::factory()->create(['title' => 'Perbaikan waktu setup']);
-    Project::factory()->status(ProposalStatus::Submitted)->create(['title' => 'Proposal sudah diajukan']);
+    Project::factory()->status(ProposalStatus::Submitted)->create(['title' => 'Optimasi proses pengemasan']);
+    Project::factory()->status(ProposalStatus::UnderReview)->create(['title' => 'Perbaikan waktu setup']);
+    Project::factory()->create(['title' => 'Proposal masih draf']);
 
     $this->actingAs($owner)->get(route('team-formation.index'))
         ->assertOk()
@@ -34,12 +34,12 @@ it('lists draft proposals for reviewers who can view all projects', function () 
             ->where('proposals.data.1.title', 'Optimasi proses pengemasan'));
 });
 
-it('limits Team Leader to their own draft proposals', function () {
+it('limits Team Leader to their own submitted proposals', function () {
     $this->seed(ProjectAccessSeeder::class);
 
     $leader = teamFormationUser('Team Leader');
-    Project::factory()->create(['proposer_id' => $leader->id, 'title' => 'Proposal milik saya']);
-    Project::factory()->create(['title' => 'Proposal milik orang lain']);
+    Project::factory()->status(ProposalStatus::Submitted)->create(['proposer_id' => $leader->id, 'title' => 'Proposal milik saya']);
+    Project::factory()->status(ProposalStatus::Submitted)->create(['title' => 'Proposal milik orang lain']);
 
     $this->actingAs($leader)->get(route('team-formation.index'))
         ->assertOk()
@@ -53,8 +53,8 @@ it('filters team formation proposals by title or proposal code', function () {
     $this->seed(ProjectAccessSeeder::class);
 
     $owner = teamFormationUser('Owner QCC');
-    $match = Project::factory()->create(['title' => 'Kualitas produk']);
-    Project::factory()->create(['title' => 'Efisiensi mesin']);
+    $match = Project::factory()->status(ProposalStatus::Submitted)->create(['title' => 'Kualitas produk']);
+    Project::factory()->status(ProposalStatus::Submitted)->create(['title' => 'Efisiensi mesin']);
 
     $this->actingAs($owner)->get(route('team-formation.index', ['search' => sprintf('PRP-%04d', $match->id)]))
         ->assertOk()

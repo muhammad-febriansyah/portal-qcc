@@ -1,10 +1,11 @@
 <?php
 
 use App\Enums\ProposalStatus;
+use App\Enums\QccStep;
+use App\Models\Competency;
 use App\Models\Project;
 use App\Models\ProjectAttachment;
 use App\Models\QccBatch;
-use App\Models\TeamMatchingRun;
 use App\Models\User;
 use App\Notifications\ProposalWorkflowNotification;
 use Illuminate\Http\UploadedFile;
@@ -36,15 +37,14 @@ function proposalDraftPayload(QccBatch $batch, array $overrides = []): array
         'title' => 'Mengurangi waktu tunggu proses',
         'theme' => 'Efisiensi proses',
         'background' => '',
-        'problem_statement' => '',
         'current_situation' => '',
-        'baseline' => '',
+        'improvement_plan' => '',
         'target' => '',
         'scope' => '',
+        'supplementary_information' => '',
+        'cost_projection' => '',
         'learning_goals' => ['', '', ''],
-        'rca' => '',
-        'improvement_plan' => '',
-        'business_benefit' => '',
+        'step_timeline' => array_fill(0, count(QccStep::cases()), ''),
         'wizard_step' => 1,
         'advance' => false,
         ...$overrides,
@@ -133,9 +133,7 @@ it('rejects advancing past the next available wizard step', function () {
             'advance' => true,
             'target' => 'Turunkan waktu proses',
             'scope' => 'Proses verifikasi dokumen',
-            'rca' => 'Duplikasi pemeriksaan',
             'improvement_plan' => 'Satukan pemeriksaan',
-            'business_benefit' => 'Kurangi waktu tunggu',
         ]))
         ->assertSessionHasErrors(['wizard_step']);
 
@@ -164,7 +162,7 @@ it('rejects drafts for inactive batches', function () {
     expect(Project::query()->count())->toBe(0);
 });
 
-it('requires all problem and baseline fields before advancing to targets', function () {
+it('requires background and the merged situation and baseline before advancing', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 2]);
 
@@ -173,12 +171,13 @@ it('requires all problem and baseline fields before advancing to targets', funct
             'wizard_step' => 2,
             'advance' => true,
         ]))
-        ->assertSessionHasErrors(['background', 'problem_statement', 'current_situation', 'baseline']);
+        ->assertSessionHasErrors(['background', 'current_situation'])
+        ->assertSessionDoesntHaveErrors(['problem_statement', 'baseline']);
 
     expect($project->fresh()->wizard_step)->toBe(2);
 });
 
-it('requires all target and benefit fields before advancing to learning goals', function () {
+it('requires the improvement plan, target and scope before advancing', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 3]);
 
@@ -187,12 +186,13 @@ it('requires all target and benefit fields before advancing to learning goals', 
             'wizard_step' => 3,
             'advance' => true,
         ]))
-        ->assertSessionHasErrors(['target', 'scope', 'rca', 'improvement_plan', 'business_benefit']);
+        ->assertSessionHasErrors(['improvement_plan', 'target', 'scope'])
+        ->assertSessionDoesntHaveErrors(['rca', 'business_benefit']);
 
     expect($project->fresh()->wizard_step)->toBe(3);
 });
 
-it('requires three learning goals before advancing to attachments', function () {
+it('requires the project cost projection before advancing', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 4]);
 
@@ -200,11 +200,72 @@ it('requires three learning goals before advancing to attachments', function () 
         ->patch(route('proposals.update', $project), proposalDraftPayload($project->batch, [
             'wizard_step' => 4,
             'advance' => true,
-            'learning_goals' => ['', '', ''],
         ]))
-        ->assertSessionHasErrors(['learning_goals.0', 'learning_goals.1', 'learning_goals.2']);
+        ->assertSessionHasErrors(['cost_projection'])
+        ->assertSessionDoesntHaveErrors(['supplementary_information']);
 
     expect($project->fresh()->wizard_step)->toBe(4);
+});
+
+it('requires three learning goals and a target date for every QCC step before advancing', function () {
+    $user = proposalWizardCreator();
+    $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 5]);
+
+    $this->actingAs($user)
+        ->patch(route('proposals.update', $project), proposalDraftPayload($project->batch, [
+            'wizard_step' => 5,
+            'advance' => true,
+        ]))
+        ->assertSessionHasErrors(['learning_goals.0', 'learning_goals.1', 'learning_goals.2', 'step_timeline.0', 'step_timeline.7']);
+
+    expect($project->fresh()->wizard_step)->toBe(5);
+});
+
+it('stores the step timeline and refuses a step due before the previous one', function () {
+    $user = proposalWizardCreator();
+    $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 5]);
+    $dates = array_map(fn (QccStep $step): string => now()->addWeeks($step->value)->toDateString(), QccStep::cases());
+    $payload = proposalDraftPayload($project->batch, [
+        'wizard_step' => 5,
+        'advance' => true,
+        'learning_goals' => ['Satu', 'Dua', 'Tiga'],
+    ]);
+
+    $outOfOrder = $dates;
+    $outOfOrder[3] = now()->toDateString();
+    $this->actingAs($user)
+        ->patch(route('proposals.update', $project), [...$payload, 'step_timeline' => $outOfOrder])
+        ->assertSessionHasErrors(['step_timeline.3']);
+
+    $this->patch(route('proposals.update', $project), [...$payload, 'step_timeline' => $dates])
+        ->assertSessionHasNoErrors();
+
+    expect($project->fresh())
+        ->wizard_step->toBe(6)
+        ->step_timeline_json->toBe(array_map(fn (QccStep $step): array => [
+            'step_number' => $step->value,
+            'target_date' => $dates[$step->value - 1],
+        ], QccStep::cases()));
+});
+
+it('requires at least one competency need before advancing to the preview', function () {
+    $user = proposalWizardCreator();
+    $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 6]);
+    $payload = proposalDraftPayload($project->batch, ['wizard_step' => 6, 'advance' => true]);
+
+    $this->actingAs($user)
+        ->patch(route('proposals.update', $project), $payload)
+        ->assertSessionHasErrors(['requirements']);
+
+    DB::table('project_requirements')->insert([
+        'project_id' => $project->id,
+        'competency_id' => Competency::factory()->create()->id,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $this->patch(route('proposals.update', $project), $payload)->assertSessionHasNoErrors();
+    expect($project->fresh()->wizard_step)->toBe(7);
 });
 
 it('prevents editing another users proposal draft', function () {
@@ -309,7 +370,7 @@ it('inspects old pending proposal attachments without deleting their files', fun
     $this->get(route('proposals.attachments.preview', [$project, $invalid]))->assertNotFound();
 });
 
-it('shows SIMer that Owner QCC must confirm team and blocks submission first', function () {
+it('lets SIMer submit without a team and tells them Owner QCC will form it', function () {
     $user = proposalWizardCreator();
     $user->givePermissionTo(Permission::findOrCreate('projects.submit', 'web'));
     $project = Project::factory()->create([
@@ -318,20 +379,22 @@ it('shows SIMer that Owner QCC must confirm team and blocks submission first', f
         'title' => 'Perbaikan waktu proses',
         'theme' => 'Efisiensi',
         'background' => 'Latar belakang',
-        'problem_statement' => 'Masalah',
-        'current_situation' => 'Situasi saat ini',
-        'baseline' => 'Baseline',
+        'current_situation' => 'Situasi saat ini dan baseline',
+        'improvement_plan' => 'Rencana',
         'target' => 'Target',
         'scope' => 'Ruang lingkup',
+        'cost_projection' => 'Tidak ada biaya',
         'learning_goals_json' => ['Tujuan satu', 'Tujuan dua', 'Tujuan tiga'],
-        'rca' => 'Akar masalah',
-        'improvement_plan' => 'Rencana',
-        'business_benefit' => 'Manfaat',
+        'step_timeline_json' => array_map(fn (QccStep $step): array => [
+            'step_number' => $step->value,
+            'target_date' => now()->addWeeks($step->value)->toDateString(),
+        ], QccStep::cases()),
     ]);
-    $project->members()->attach($user->id, [
-        'role_in_project' => 'MEMBER',
-        'status' => 'ACTIVE',
-        'joined_at' => now(),
+    DB::table('project_requirements')->insert([
+        'project_id' => $project->id,
+        'competency_id' => Competency::factory()->create()->id,
+        'created_at' => now(),
+        'updated_at' => now(),
     ]);
 
     $this->actingAs($user)
@@ -340,38 +403,21 @@ it('shows SIMer that Owner QCC must confirm team and blocks submission first', f
         ->assertInertia(fn (Assert $page) => $page
             ->where('proposal.team_confirmed', false)
             ->where('proposal.can_submit', true)
-            ->where('proposal.team_status_message', 'Tim akan disusun oleh Owner QCC. Proposal bisa diajukan setelah tim dikonfirmasi.'));
+            ->where('proposal.cost_projection', 'Tidak ada biaya')
+            ->has('proposal.step_timeline', 8)
+            ->where('proposal.team_status_message', 'Tim akan disusun oleh Owner QCC setelah proposal diajukan.'));
 
-    TeamMatchingRun::query()->create([
-        'project_id' => $project->id,
-        'requested_by' => $user->id,
-        'status' => 'READY',
-        'idempotency_key' => (string) str()->uuid(),
-    ]);
-
-    $this->post(route('proposals.submit', $project))->assertSessionHasErrors('team');
-    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Draft);
+    $this->post(route('proposals.submit', $project))->assertSessionHasNoErrors();
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Submitted);
 });
 
-it('notifies active Owner QCC once when a complete SIMer draft still needs team composition', function () {
+it('no longer asks Owner QCC to compose a team while the proposal is a draft', function () {
     $user = proposalWizardCreator();
     $batch = QccBatch::factory()->active()->create();
     $project = Project::factory()->create([
         'batch_id' => $batch->id,
         'proposer_id' => $user->id,
-        'wizard_step' => 5,
-        'title' => 'Mengurangi waktu tunggu',
-        'theme' => 'Efisiensi proses',
-        'background' => 'Latar belakang lengkap',
-        'problem_statement' => 'Masalah lengkap',
-        'current_situation' => 'Kondisi saat ini',
-        'baseline' => 'Baseline proses',
-        'target' => 'Target proses',
-        'scope' => 'Ruang lingkup proses',
-        'learning_goals_json' => ['Tujuan satu', 'Tujuan dua', 'Tujuan tiga'],
-        'rca' => 'Analisis akar masalah',
-        'improvement_plan' => 'Rencana perbaikan',
-        'business_benefit' => 'Manfaat bisnis',
+        'wizard_step' => 7,
     ]);
     $owner = User::factory()->create();
     $owner->assignRole(Role::findOrCreate('Owner QCC', 'web'));
@@ -381,31 +427,18 @@ it('notifies active Owner QCC once when a complete SIMer draft still needs team 
         Permission::findOrCreate('projects.review', 'web'),
     ]);
 
-    $payload = proposalDraftPayload($batch, [
-        'wizard_step' => 5,
-        'advance' => false,
+    $this->actingAs($user)->patch(route('proposals.update', $project), proposalDraftPayload($batch, [
+        'wizard_step' => 7,
         'background' => 'Latar belakang lengkap',
-        'problem_statement' => 'Masalah lengkap',
         'current_situation' => 'Kondisi saat ini',
-        'baseline' => 'Baseline proses',
+        'improvement_plan' => 'Rencana perbaikan',
         'target' => 'Target proses',
         'scope' => 'Ruang lingkup proses',
+        'cost_projection' => 'Tidak ada biaya',
         'learning_goals' => ['Tujuan satu', 'Tujuan dua', 'Tujuan tiga'],
-        'rca' => 'Analisis akar masalah',
-        'improvement_plan' => 'Rencana perbaikan',
-        'business_benefit' => 'Manfaat bisnis',
-    ]);
-    $this->actingAs($user)->patch(route('proposals.update', $project), $payload)->assertRedirect();
-    $this->patch(route('proposals.update', $project), $payload)->assertRedirect();
+    ]))->assertRedirect();
 
-    $notifications = $owner->notifications()->where('type', ProposalWorkflowNotification::class)->get();
-    expect($notifications)->toHaveCount(1)
-        ->and($notifications->sole()->data)->toMatchArray([
-            'project_id' => $project->id,
-            'title' => 'Proposal menunggu penyusunan tim',
-            'decision' => 'TEAM_COMPOSITION_PENDING',
-            'url' => route('proposals.candidates', $project, false),
-        ]);
+    expect($owner->notifications()->where('type', ProposalWorkflowNotification::class)->count())->toBe(0);
 });
 
 it('rejects a draft edit when proposal status changes after route binding', function () {

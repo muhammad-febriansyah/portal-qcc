@@ -2,26 +2,22 @@
 
 namespace App\Actions\Proposals;
 
-use App\Actions\Teams\TeamRuleValidator;
 use App\Enums\ProposalStatus;
+use App\Enums\QccStep;
 use App\Models\Project;
 use App\Models\ReviewDecision;
-use App\Models\TeamMatchingRun;
 use App\Models\User;
 use App\Notifications\ProposalWorkflowNotification;
 use App\Services\AuditService;
 use App\Services\ProjectNotifier;
-use App\Services\Teams\Matching\TeamMatchingInputFingerprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SubmitProposal
 {
     public function __construct(
-        private readonly TeamRuleValidator $teamRules,
         private readonly AuditService $audit,
         private readonly ProjectNotifier $notifier,
-        private readonly TeamMatchingInputFingerprint $fingerprint,
     ) {}
 
     public function handle(Project $project, User $actor): void
@@ -37,14 +33,11 @@ class SubmitProposal
                 'title' => 'Judul proposal',
                 'theme' => 'Tema improvement',
                 'background' => 'Latar belakang',
-                'problem_statement' => 'Pernyataan masalah',
-                'current_situation' => 'Kondisi saat ini',
-                'baseline' => 'Baseline',
-                'target' => 'Target',
-                'scope' => 'Ruang lingkup',
-                'rca' => 'Analisis akar masalah',
-                'improvement_plan' => 'Rencana improvement',
-                'business_benefit' => 'Manfaat bisnis',
+                'current_situation' => 'Situasi saat ini & baseline',
+                'improvement_plan' => 'Rencana perbaikan',
+                'target' => 'Target/tujuan',
+                'scope' => 'Ruang lingkup proyek',
+                'cost_projection' => 'Proyeksi kebutuhan biaya proyek',
             ];
             $missing = [];
 
@@ -57,46 +50,22 @@ class SubmitProposal
             $goals = array_filter($project->learning_goals_json ?? [], fn ($goal): bool => filled($goal));
 
             if (count($goals) !== 3) {
-                $missing['learning_goals'] = 'Isi tepat 3 tujuan pembelajaran sebelum proposal diajukan.';
+                $missing['learning_goals'] = 'Isi tepat 3 hal yang akan dipelajari sebelum proposal diajukan.';
+            }
+
+            $plannedSteps = array_filter($project->step_timeline_json ?? [], fn (array $step): bool => filled($step['target_date'] ?? null));
+
+            if (count($plannedSteps) !== count(QccStep::cases())) {
+                $missing['step_timeline'] = 'Isi target tanggal semua step QCC sebelum proposal diajukan.';
+            }
+
+            if (! $project->requirements()->exists()) {
+                $missing['requirements'] = 'Tambahkan minimal satu kebutuhan kompetensi sebelum proposal diajukan.';
             }
 
             if ($missing !== []) {
                 throw ValidationException::withMessages($missing);
             }
-
-            $confirmed = TeamMatchingRun::query()
-                ->where('project_id', $project->id)
-                ->whereNotNull('confirmed_at')
-                ->latest('id')
-                ->first();
-
-            if ($confirmed === null) {
-                throw ValidationException::withMessages(['team' => 'Konfirmasi tim proposal terlebih dahulu.']);
-            }
-
-            if (! $this->fingerprint->matches($project, $confirmed->candidate_snapshot_json['input_fingerprint'] ?? null)) {
-                throw ValidationException::withMessages(['team' => 'Informasi proposal atau kebutuhan kompetensi berubah setelah tim dikonfirmasi. Perbarui rekomendasi dan konfirmasi tim kembali sebelum mengajukan.']);
-            }
-
-            $activeMembers = DB::table('project_members')
-                ->join('users', 'users.id', '=', 'project_members.user_id')
-                ->where('project_members.project_id', $project->id)
-                ->where('project_members.status', 'ACTIVE')
-                ->whereNull('project_members.left_at')
-                ->get(['project_members.user_id', 'users.organization_id', 'users.is_active', 'project_members.role_in_project']);
-
-            if ($activeMembers->contains(fn (object $member): bool => ! $member->is_active)) {
-                throw ValidationException::withMessages(['team' => 'Ada anggota tim yang sudah nonaktif. Konfirmasi ulang tim sebelum mengajukan.']);
-            }
-
-            $members = $activeMembers
-                ->map(fn (object $member): array => [
-                    'user_id' => (int) $member->user_id,
-                    'organization_id' => $member->organization_id === null ? null : (int) $member->organization_id,
-                    'role_in_project' => $member->role_in_project,
-                ])->all();
-
-            $this->teamRules->validate($members);
 
             $previousStatus = $project->proposal_status;
             $project->forceFill([

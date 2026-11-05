@@ -2,7 +2,6 @@
 
 namespace App\Actions\Teams;
 
-use App\Enums\ProposalStatus;
 use App\Enums\TeamMatchingStatus;
 use App\Jobs\RunTeamMatching;
 use App\Models\Project;
@@ -36,8 +35,8 @@ class StartTeamMatching
     {
         $project->refresh();
 
-        if (! in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)) {
-            throw ValidationException::withMessages(['matching' => 'AI Matching hanya tersedia untuk proposal draf atau perlu revisi.']);
+        if (! $project->proposal_status->allowsTeamFormation()) {
+            throw ValidationException::withMessages(['matching' => 'AI Matching hanya tersedia untuk proposal yang diajukan, direview, atau perlu revisi.']);
         }
 
         if (! $this->ai->isReady()) {
@@ -59,8 +58,8 @@ class StartTeamMatching
         $run = DB::transaction(function () use ($project, $requester, $snapshot): TeamMatchingRun {
             $lockedProject = Project::query()->whereKey($project->id)->lockForUpdate()->firstOrFail();
 
-            if (! in_array($lockedProject->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)) {
-                throw ValidationException::withMessages(['matching' => 'AI Matching hanya tersedia untuk proposal draf atau perlu revisi.']);
+            if (! $lockedProject->proposal_status->allowsTeamFormation()) {
+                throw ValidationException::withMessages(['matching' => 'AI Matching hanya tersedia untuk proposal yang diajukan, direview, atau perlu revisi.']);
             }
 
             $latest = TeamMatchingRun::query()->where('project_id', $project->id)->latest('id')->first();

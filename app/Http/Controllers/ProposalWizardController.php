@@ -6,16 +6,14 @@ use App\Actions\Proposals\InspectProposalAttachment;
 use App\Enums\BatchStatus;
 use App\Enums\CompetencyLevel;
 use App\Enums\ProposalStatus;
+use App\Enums\QccStep;
 use App\Http\Requests\SaveProposalDraftRequest;
 use App\Http\Requests\UploadProposalAttachmentsRequest;
 use App\Models\Competency;
 use App\Models\Project;
 use App\Models\ProjectAttachment;
 use App\Models\QccBatch;
-use App\Models\TeamMatchingRun;
 use App\Services\EvidenceFileInspector;
-use App\Services\ProjectNotifier;
-use App\Services\Teams\Matching\TeamMatchingInputFingerprint;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +34,7 @@ class ProposalWizardController extends Controller
         return Inertia::render('proposals/wizard', [
             'project' => null,
             'step' => 1,
+            'qccSteps' => QccStep::catalog(),
             'batches' => $this->batchOptions(),
             'competencyOptions' => $this->competencyOptions(),
             'levelOptions' => CompetencyLevel::options(),
@@ -47,7 +46,7 @@ class ProposalWizardController extends Controller
         ]);
     }
 
-    public function store(SaveProposalDraftRequest $request, ProjectNotifier $notifier): RedirectResponse
+    public function store(SaveProposalDraftRequest $request): RedirectResponse
     {
         $data = $this->draftAttributes($request->validated());
         $advance = (bool) $data['advance'];
@@ -66,18 +65,16 @@ class ProposalWizardController extends Controller
             'proposer_id' => $request->user()->id,
             'pic_id' => $request->user()->id,
             'proposal_status' => 'DRAFT',
-            'wizard_step' => $advance ? min($step + 1, 5) : $step,
+            'wizard_step' => $advance ? min($step + 1, SaveProposalDraftRequest::LAST_STEP) : $step,
         ]);
         $project->save();
-
-        $notifier->notifyTeamCompositionPending($project, $request->user());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Draft proposal berhasil disimpan.']);
 
         return to_route('proposals.edit', $project);
     }
 
-    public function edit(Request $request, Project $project, TeamMatchingInputFingerprint $fingerprint): Response
+    public function edit(Request $request, Project $project): Response
     {
         Gate::authorize('update', $project);
         abort_unless(in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
@@ -86,13 +83,6 @@ class ProposalWizardController extends Controller
             'batch:id,name',
             'attachments' => fn ($query) => $query->latest('created_at'),
         ]);
-        $confirmedRun = TeamMatchingRun::query()
-            ->where('project_id', $project->id)
-            ->whereNotNull('confirmed_at')
-            ->latest('id')
-            ->first();
-        $teamConfirmed = $confirmedRun !== null
-            && $fingerprint->matches($project, $confirmedRun->candidate_snapshot_json['input_fingerprint'] ?? null);
 
         return Inertia::render('proposals/wizard', [
             'project' => [
@@ -101,26 +91,17 @@ class ProposalWizardController extends Controller
                 'title' => $project->title,
                 'theme' => $project->theme,
                 'background' => $project->background,
-                'problem_statement' => $project->problem_statement,
                 'current_situation' => $project->current_situation,
-                'baseline' => $project->baseline,
+                'improvement_plan' => $project->improvement_plan,
                 'target' => $project->target,
                 'scope' => $project->scope,
-                'learning_goals' => $project->learning_goals_json ?? ['', '', ''],
-                'rca' => $project->rca,
-                'improvement_plan' => $project->improvement_plan,
-                'business_benefit' => $project->business_benefit,
                 'supplementary_information' => $project->supplementary_information,
+                'cost_projection' => $project->cost_projection,
+                'learning_goals' => $project->learning_goals_json ?? ['', '', ''],
+                'step_timeline' => $this->timelineDates($project),
                 'wizard_step' => $project->wizard_step,
                 'updated_at' => $project->updated_at?->toIso8601String(),
                 'can_submit' => $request->user()?->can('submit', $project) ?? false,
-                'can_find_candidates' => $request->user()?->can('findCandidates', $project) ?? false,
-                'team_confirmed' => $teamConfirmed,
-                'team_status_message' => $request->user()->can('findCandidates', $project)
-                    ? null
-                    : ($teamConfirmed
-                        ? 'Tim sudah dikonfirmasi. Silakan lanjutkan pengajuan proposal.'
-                        : 'Proposal menunggu Owner QCC menyusun tim. Anda dapat mengajukan proposal setelah tim dikonfirmasi.'),
                 'attachments' => $project->attachments->map(fn (ProjectAttachment $attachment): array => [
                     'id' => $attachment->id,
                     'original_name' => $attachment->original_name,
@@ -133,6 +114,7 @@ class ProposalWizardController extends Controller
                 ]),
             ],
             'step' => $project->wizard_step,
+            'qccSteps' => QccStep::catalog(),
             'batches' => $this->batchOptions($project->batch_id),
             'competencyOptions' => $this->competencyOptions(),
             'requirements' => $project->requirements()->orderBy('competency_id')->get(['competency_id', 'minimum_level'])->map(fn ($requirement): array => [
@@ -148,7 +130,7 @@ class ProposalWizardController extends Controller
         ]);
     }
 
-    public function update(SaveProposalDraftRequest $request, Project $project, ProjectNotifier $notifier): RedirectResponse
+    public function update(SaveProposalDraftRequest $request, Project $project): RedirectResponse
     {
         $data = $this->draftAttributes($request->validated());
         $advance = (bool) $data['advance'];
@@ -168,12 +150,10 @@ class ProposalWizardController extends Controller
             $lockedProject->forceFill([
                 ...$data,
                 'wizard_step' => $advance
-                    ? max($lockedProject->wizard_step, min($step + 1, 5))
+                    ? max($lockedProject->wizard_step, min($step + 1, SaveProposalDraftRequest::LAST_STEP))
                     : $lockedProject->wizard_step,
             ])->save();
         });
-
-        $notifier->notifyTeamCompositionPending($project, $request->user());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Draft proposal berhasil disimpan.']);
 
@@ -332,12 +312,32 @@ class ProposalWizardController extends Controller
     private function draftAttributes(array $validated): array
     {
         $learningGoals = $validated['learning_goals'] ?? null;
-        unset($validated['learning_goals']);
+        $timeline = $validated['step_timeline'] ?? null;
+        unset($validated['learning_goals'], $validated['step_timeline']);
 
         $validated['learning_goals_json'] = is_array($learningGoals)
             ? array_values($learningGoals)
             : null;
 
+        $validated['step_timeline_json'] = is_array($timeline)
+            ? array_map(fn (QccStep $step): array => [
+                'step_number' => $step->value,
+                'target_date' => $timeline[$step->value - 1] ?? null,
+            ], QccStep::cases())
+            : null;
+
         return $validated;
+    }
+
+    /**
+     * Target date per QCC step, in step order, for the wizard form.
+     *
+     * @return list<string>
+     */
+    private function timelineDates(Project $project): array
+    {
+        $dates = collect($project->step_timeline_json ?? [])->pluck('target_date', 'step_number');
+
+        return array_map(fn (QccStep $step): string => (string) ($dates->get($step->value) ?? ''), QccStep::cases());
     }
 }

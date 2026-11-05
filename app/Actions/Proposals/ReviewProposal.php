@@ -2,6 +2,7 @@
 
 namespace App\Actions\Proposals;
 
+use App\Actions\Teams\EnsureConfirmedTeam;
 use App\Enums\ProposalStatus;
 use App\Models\Project;
 use App\Models\ReviewDecision;
@@ -16,6 +17,7 @@ class ReviewProposal
     public function __construct(
         private readonly AuditService $audit,
         private readonly InitializeProjectSteps $initializeProjectSteps,
+        private readonly EnsureConfirmedTeam $ensureConfirmedTeam,
     ) {}
 
     public function start(Project $project, User $actor): void
@@ -49,6 +51,10 @@ class ReviewProposal
 
             if (in_array($decision, ['REQUEST_REVISION', 'REJECT'], true) && blank($reason)) {
                 throw ValidationException::withMessages(['reason' => 'Alasan wajib diisi untuk revisi atau penolakan.']);
+            }
+
+            if ($decision === 'APPROVE') {
+                $this->ensureConfirmedTeam->handle($project);
             }
 
             $this->recordTransition($project, $actor, $decision, $status, $reason);
