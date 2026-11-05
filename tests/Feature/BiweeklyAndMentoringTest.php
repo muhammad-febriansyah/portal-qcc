@@ -120,13 +120,16 @@ it('goes through submit, revision, resubmit and approval with audit and notices'
     $this->actingAs($this->owner)->post(route('projects.biweekly.revision', [$this->project, $report]), ['reason' => ''])->assertSessionHasErrors('reason');
     $this->actingAs($this->owner)->post(route('projects.biweekly.revision', [$this->project, $report]), ['reason' => 'Lengkapi kendala'])->assertSessionHasNoErrors();
     expect($report->fresh()->status)->toBe(ReportStatus::RevisionRequired)->and($report->fresh()->review_note)->toBe('Lengkapi kendala')
-        ->and($this->leader->notifications()->count())->toBe(1);
+        ->and($this->leader->notifications()->count())->toBe(1)
+        ->and($this->leader->notifications()->where('data->decision', 'BIWEEKLY_REVISION')->count())->toBe(1);
 
     $this->actingAs($this->leader)->patch(route('projects.biweekly.update', [$this->project, $report]), reportPayload($this->attendees, ['issues' => 'Responden lambat']))->assertSessionHasNoErrors();
     $this->actingAs($this->leader)->post(route('projects.biweekly.submit', [$this->project, $report]), reportPayload($this->attendees, ['issues' => 'Responden lambat']));
     $this->actingAs($this->owner)->post(route('projects.biweekly.approve', [$this->project, $report]))->assertSessionHasNoErrors();
 
     expect($report->fresh()->status)->toBe(ReportStatus::Approved)->and($report->fresh()->reviewed_by)->toBe($this->owner->id)
+        ->and($this->leader->notifications()->where('data->decision', 'BIWEEKLY_APPROVED')->count())->toBe(1)
+        ->and($this->owner->notifications()->where('data->decision', 'BIWEEKLY_SUBMITTED')->count())->toBe(2)
         ->and(AuditLog::query()->where('event', 'like', 'biweekly.%')->orderBy('id')->pluck('event')->all())
         ->toBe(['biweekly.created', 'biweekly.submitted', 'biweekly.revision_requested', 'biweekly.updated', 'biweekly.submitted', 'biweekly.approved']);
 
@@ -379,7 +382,8 @@ it('walks a mentoring session from draft to the team response', function () {
     $this->actingAs($mentor)->post(route('projects.mentoring.submit', [$this->project, $report]), [...$payload, 'findings' => ''])->assertSessionHasErrors('findings');
     $this->actingAs($mentor)->post(route('projects.mentoring.submit', [$this->project, $report]), $payload)->assertSessionHasNoErrors();
     expect($report->fresh()->status)->toBe(ReportStatus::Submitted)
-        ->and($this->leader->notifications()->count())->toBe(1)->and($this->member->notifications()->count())->toBe(1)->and($mentor->notifications()->count())->toBe(0);
+        ->and($this->leader->notifications()->count())->toBe(1)->and($this->member->notifications()->count())->toBe(1)->and($mentor->notifications()->count())->toBe(0)
+        ->and($this->member->notifications()->where('data->decision', 'MENTORING_SUBMITTED')->count())->toBe(1);
 
     $this->actingAs($mentor)->patch(route('projects.mentoring.update', [$this->project, $report]), $payload)->assertSessionHasErrors('report');
 
@@ -388,6 +392,7 @@ it('walks a mentoring session from draft to the team response', function () {
 
     expect($report->fresh())->status->toBe(ReportStatus::Acknowledged)->team_response->toBe('Sampel akan ditambah')
         ->and($mentor->notifications()->count())->toBe(1)
+        ->and($mentor->notifications()->where('data->decision', 'MENTORING_ACKNOWLEDGED')->count())->toBe(1)
         ->and(AuditLog::query()->where('event', 'like', 'mentoring.%')->orderBy('id')->pluck('event')->all())->toBe(['mentoring.created', 'mentoring.submitted', 'mentoring.acknowledged']);
 });
 

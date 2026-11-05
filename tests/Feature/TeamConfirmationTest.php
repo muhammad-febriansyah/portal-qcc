@@ -120,7 +120,9 @@ it('uses confirmed project roles for access while preserving account roles', fun
 
     expect($this->a->fresh()->getRoleNames()->all())->toBe(['SIMer / Member'])
         ->and(DB::table('project_members')->where('project_id', $this->project->id)->where('user_id', $this->a->id)->value('role_in_project'))->toBe('LEADER')
-        ->and($this->a->notifications()->where('data->decision', 'TEAM_COMPOSITION_CONFIRMED')->count())->toBe(1);
+        // The proposer, who is also on the team, hears once; the other member hears too.
+        ->and($this->a->notifications()->where('data->decision', 'TEAM_COMPOSITION_CONFIRMED')->count())->toBe(1)
+        ->and($this->b->notifications()->where('data->decision', 'TEAM_COMPOSITION_CONFIRMED')->count())->toBe(1);
 });
 
 it('lets Owner QCC form a team manually without an AI run', function () {

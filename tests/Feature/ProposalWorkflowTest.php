@@ -103,6 +103,8 @@ test('proposal can be submitted revised resubmitted and approved with visible hi
 
     $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertRedirect();
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Submitted);
+    $notices = fn (User $user, string $kind): int => $user->notifications()->where('data->decision', $kind)->count();
+    expect($notices($reviewer, 'SUBMITTED'))->toBe(1);
 
     $this->actingAs($reviewer)->post(route('proposals.review.start', $project))->assertRedirect();
     $this->post(route('proposals.review.decide', $project), [
@@ -111,16 +113,19 @@ test('proposal can be submitted revised resubmitted and approved with visible hi
     ])->assertRedirect();
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::RevisionRequired)
+        ->and($notices($proposer, 'REQUEST_REVISION'))->toBe(1)
         ->and(ReviewDecision::query()->where('project_id', $project->id)->latest('id')->value('reason'))->toBe('Perjelas baseline pengukuran.')
         ->and(AuditLog::query()->where('event', 'proposal.request.revision')->where('reason', 'Perjelas baseline pengukuran.')->exists())->toBeTrue();
 
     $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertRedirect();
     expect(ReviewDecision::query()->where('project_id', $project->id)->where('decision', 'RESUBMITTED')->exists())->toBeTrue();
+    expect($notices($reviewer, 'RESUBMITTED'))->toBe(1);
 
     $this->actingAs($reviewer)->post(route('proposals.review.start', $project))->assertRedirect();
     $this->post(route('proposals.review.decide', $project), ['decision' => 'APPROVE'])->assertRedirect();
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Approved)
+        ->and($notices($proposer, 'APPROVE'))->toBe(1)
         ->and($project->fresh()->steps)->toHaveCount(8)
         ->and($project->fresh()->steps->first()->target_date?->toDateString())->toBe(now()->addWeek()->toDateString())
         ->and(ReviewDecision::query()->where('project_id', $project->id)->count())->toBe(6);
@@ -222,4 +227,16 @@ test('a proposal is submitted without a team and cannot be approved until Owner 
         ->assertSessionHasNoErrors();
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::RevisionRequired);
+});
+
+test('the proposer is told when the proposal is rejected', function () {
+    [$project, $proposer, $reviewer] = preparedProposal();
+
+    $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertSessionHasNoErrors();
+    $this->actingAs($reviewer)->post(route('proposals.review.start', $project))->assertRedirect();
+    $this->post(route('proposals.review.decide', $project), ['decision' => 'REJECT', 'reason' => 'Di luar ruang lingkup batch.'])
+        ->assertSessionHasNoErrors();
+
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Rejected)
+        ->and($proposer->notifications()->where('data->decision', 'REJECT')->value('data'))->toContain('Di luar ruang lingkup batch.');
 });

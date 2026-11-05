@@ -93,12 +93,14 @@ class SubmitProposal
             );
 
             if (ProposalWorkflowNotification::enabled()) {
+                $resubmitted = $previousStatus === ProposalStatus::RevisionRequired;
+
                 DB::afterCommit(fn () => $this->notifier->reviewers($project, 'proposal')->each(fn (User $reviewer) => $reviewer->notify(new ProposalWorkflowNotification(
                     $project->id,
-                    'Proposal baru menunggu review',
-                    $project->title.' telah diajukan dan siap direview.',
+                    $resubmitted ? 'Proposal revisi menunggu review' : 'Proposal baru menunggu review',
+                    $resubmitted ? $project->title.' sudah direvisi dan diajukan kembali.' : $project->title.' telah diajukan dan siap direview.',
                     route('proposals.show', $project, false),
-                    'SUBMITTED',
+                    $resubmitted ? 'RESUBMITTED' : 'SUBMITTED',
                 ))));
             }
         });

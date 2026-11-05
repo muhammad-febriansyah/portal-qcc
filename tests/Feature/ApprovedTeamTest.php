@@ -76,7 +76,8 @@ it('lets Owner QCC add a qualified person to an approved team and records who di
         [$this->leader->id, 'LEADER'],
         [$this->member->id, 'MEMBER'],
         [$this->newcomer->id, 'MEMBER'],
-    ])->and(AuditLog::query()->where('event', 'team.member_added')->sole()->actor_id)->toBe($this->owner->id);
+    ])->and(AuditLog::query()->where('event', 'team.member_added')->sole()->actor_id)->toBe($this->owner->id)
+        ->and($this->newcomer->notifications()->where('data->decision', 'TEAM_MEMBER_ADDED')->count())->toBe(1);
 });
 
 it('refuses to add someone without the competency the project needs', function () {
@@ -279,7 +280,8 @@ it('moves the leader role to another member and keeps exactly one leader', funct
         [$this->leader->id, 'MEMBER'],
         [$this->member->id, 'LEADER'],
     ])->and($this->project->fresh()->pic_id)->toBe($this->leader->id)
-        ->and(AuditLog::query()->where('event', 'team.leader_changed')->sole()->after_json['leader_id'])->toBe($this->member->id);
+        ->and(AuditLog::query()->where('event', 'team.leader_changed')->sole()->after_json['leader_id'])->toBe($this->member->id)
+        ->and($this->member->notifications()->where('data->decision', 'TEAM_LEADER_CHANGED')->count())->toBe(1);
 });
 
 it('refuses a new leader who is not a plain member of the team', function (string $who) {

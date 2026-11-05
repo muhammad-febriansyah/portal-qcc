@@ -100,11 +100,12 @@ class ConfirmProjectTeam
                 subjectLabel: 'Proposal PRP-'.sprintf('%04d', $project->id),
             );
 
+            // The proposer and everyone placed on the team hear about it.
             $this->notifier->notify(
-                User::query()->whereKey($lockedProject->proposer_id)->get(),
+                User::query()->whereKey([$lockedProject->proposer_id, ...array_column($members, 'user_id')])->get(),
                 $lockedProject,
                 'Susunan tim proposal sudah dikonfirmasi',
-                'Tim untuk '.$lockedProject->title.' sudah dikonfirmasi. Silakan lanjutkan pengajuan proposal.',
+                'Owner QCC sudah mengonfirmasi tim untuk '.$lockedProject->title.'. Proposal diputuskan setelah review selesai.',
                 route('proposals.show', $lockedProject, false),
                 'TEAM_COMPOSITION_CONFIRMED',
                 $actor,
