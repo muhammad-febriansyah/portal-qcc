@@ -3,6 +3,7 @@
 use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
 use App\Models\Competency;
+use App\Models\MemberCompetency;
 use App\Models\Project;
 use App\Models\ProjectAttachment;
 use App\Models\QccBatch;
@@ -25,6 +26,7 @@ function proposalWizardCreator(): User
         Permission::findOrCreate('projects.create', 'web'),
         Permission::findOrCreate('projects.update', 'web'),
     ]);
+    MemberCompetency::factory()->create(['user_id' => $user->id]);
 
     return $user;
 }
@@ -237,7 +239,10 @@ it('stores the step timeline and refuses a step due before the previous one', fu
         ->patch(route('proposals.update', $project), [...$payload, 'step_timeline' => $outOfOrder])
         ->assertSessionHasErrors(['step_timeline.3']);
 
-    $this->patch(route('proposals.update', $project), [...$payload, 'step_timeline' => $dates])
+    $deliverables = array_fill(0, count(QccStep::cases()), '');
+    $deliverables[0] = '  Tema dan data awal  ';
+
+    $this->patch(route('proposals.update', $project), [...$payload, 'step_timeline' => $dates, 'step_deliverables' => $deliverables])
         ->assertSessionHasNoErrors();
 
     expect($project->fresh())
@@ -245,7 +250,13 @@ it('stores the step timeline and refuses a step due before the previous one', fu
         ->step_timeline_json->toBe(array_map(fn (QccStep $step): array => [
             'step_number' => $step->value,
             'target_date' => $dates[$step->value - 1],
+            'deliverable' => $step === QccStep::Theme ? 'Tema dan data awal' : null,
         ], QccStep::cases()));
+
+    $this->get(route('proposals.edit', $project))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('project.step_deliverables.0', 'Tema dan data awal')
+            ->where('project.step_timeline.7', $dates[7]));
 });
 
 it('requires at least one competency need before advancing to the preview', function () {

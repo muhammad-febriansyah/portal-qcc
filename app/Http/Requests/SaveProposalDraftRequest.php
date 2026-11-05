@@ -50,6 +50,8 @@ class SaveProposalDraftRequest extends FormRequest
             'learning_goals.*' => ['nullable', 'string', 'max:255'],
             'step_timeline' => ['nullable', 'array', "max:{$timelineSize}"],
             'step_timeline.*' => ['nullable', 'date_format:Y-m-d'],
+            'step_deliverables' => ['nullable', 'array', "max:{$timelineSize}"],
+            'step_deliverables.*' => ['nullable', 'string', 'max:500'],
             'wizard_step' => ['required', 'integer', 'between:1,'.self::LAST_STEP],
             'advance' => ['required', 'boolean'],
         ];
@@ -130,6 +132,7 @@ class SaveProposalDraftRequest extends FormRequest
 
         foreach (QccStep::cases() as $index => $step) {
             $attributes["step_timeline.{$index}"] = "target step {$step->value}";
+            $attributes["step_deliverables.{$index}"] = "deliverable step {$step->value}";
         }
 
         return $attributes;

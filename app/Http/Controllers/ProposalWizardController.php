@@ -98,7 +98,8 @@ class ProposalWizardController extends Controller
                 'supplementary_information' => $project->supplementary_information,
                 'cost_projection' => $project->cost_projection,
                 'learning_goals' => $project->learning_goals_json ?? ['', '', ''],
-                'step_timeline' => $this->timelineDates($project),
+                'step_timeline' => $this->timelineValues($project, 'target_date'),
+                'step_deliverables' => $this->timelineValues($project, 'deliverable'),
                 'wizard_step' => $project->wizard_step,
                 'updated_at' => $project->updated_at?->toIso8601String(),
                 'can_submit' => $request->user()?->can('submit', $project) ?? false,
@@ -253,7 +254,7 @@ class ProposalWizardController extends Controller
         ]);
     }
 
-    /** @return list<array{id: int, name: string}> */
+    /** @return list<array{id: int, name: string, starts_on: string}> */
     private function batchOptions(?int $includeBatchId = null): array
     {
         return array_values(QccBatch::query()
@@ -265,8 +266,8 @@ class ProposalWizardController extends Controller
                 }
             })
             ->orderBy('starts_on', 'desc')
-            ->get(['id', 'name'])
-            ->map(fn (QccBatch $batch): array => ['id' => $batch->id, 'name' => $batch->name])
+            ->get(['id', 'name', 'starts_on'])
+            ->map(fn (QccBatch $batch): array => ['id' => $batch->id, 'name' => $batch->name, 'starts_on' => $batch->starts_on->toDateString()])
             ->all());
     }
 
@@ -313,7 +314,8 @@ class ProposalWizardController extends Controller
     {
         $learningGoals = $validated['learning_goals'] ?? null;
         $timeline = $validated['step_timeline'] ?? null;
-        unset($validated['learning_goals'], $validated['step_timeline']);
+        $deliverables = $validated['step_deliverables'] ?? [];
+        unset($validated['learning_goals'], $validated['step_timeline'], $validated['step_deliverables']);
 
         $validated['learning_goals_json'] = is_array($learningGoals)
             ? array_values($learningGoals)
@@ -323,6 +325,7 @@ class ProposalWizardController extends Controller
             ? array_map(fn (QccStep $step): array => [
                 'step_number' => $step->value,
                 'target_date' => $timeline[$step->value - 1] ?? null,
+                'deliverable' => filled($deliverables[$step->value - 1] ?? null) ? trim($deliverables[$step->value - 1]) : null,
             ], QccStep::cases())
             : null;
 
@@ -330,14 +333,14 @@ class ProposalWizardController extends Controller
     }
 
     /**
-     * Target date per QCC step, in step order, for the wizard form.
+     * One value per QCC step, in step order, for the wizard form.
      *
      * @return list<string>
      */
-    private function timelineDates(Project $project): array
+    private function timelineValues(Project $project, string $key): array
     {
-        $dates = collect($project->step_timeline_json ?? [])->pluck('target_date', 'step_number');
+        $values = collect($project->step_timeline_json ?? [])->pluck($key, 'step_number');
 
-        return array_map(fn (QccStep $step): string => (string) ($dates->get($step->value) ?? ''), QccStep::cases());
+        return array_map(fn (QccStep $step): string => (string) ($values->get($step->value) ?? ''), QccStep::cases());
     }
 }

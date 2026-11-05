@@ -162,7 +162,7 @@ class ProposalController extends Controller
         Gate::authorize('view', $project);
 
         $project->load([
-            'batch:id,name',
+            'batch:id,name,starts_on',
             'proposer:id,name,organization_id',
             'proposer.organization:id,name',
             'pic:id,name',
@@ -183,6 +183,7 @@ class ProposalController extends Controller
                 'code' => sprintf('PRP-%04d', $project->id),
                 'title' => $project->title,
                 'batch' => $project->batch?->name,
+                'batch_starts_on' => $project->batch?->starts_on?->toDateString(),
                 'proposer' => $project->proposer?->name,
                 'pic' => $project->pic?->name,
                 'organization' => $project->proposer?->organization?->name,
@@ -348,16 +349,17 @@ class ProposalController extends Controller
     }
 
     /**
-     * @return list<array{step_number: int, name: string, target_date: string|null}>
+     * @return list<array{step_number: int, name: string, target_date: string|null, deliverable: string|null}>
      */
     private function stepTimeline(Project $project): array
     {
-        $dates = collect($project->step_timeline_json ?? [])->pluck('target_date', 'step_number');
+        $planned = collect($project->step_timeline_json ?? [])->keyBy('step_number');
 
         return array_map(fn (QccStep $step): array => [
             'step_number' => $step->value,
             'name' => $step->label(),
-            'target_date' => $dates->get($step->value),
+            'target_date' => $planned->get($step->value)['target_date'] ?? null,
+            'deliverable' => $planned->get($step->value)['deliverable'] ?? null,
         ], QccStep::cases());
     }
 

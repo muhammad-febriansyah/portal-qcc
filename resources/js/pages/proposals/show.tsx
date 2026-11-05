@@ -76,7 +76,9 @@ type Proposal = {
         step_number: number;
         name: string;
         target_date: string | null;
+        deliverable: string | null;
     }[];
+    batch_starts_on: string | null;
     legacy_sections: { label: string; value: string }[];
     updated_at: string | null;
     attachments: ProposalAttachment[];
@@ -501,7 +503,8 @@ export default function ProposalShow({ proposal }: Props) {
                                         Timeline
                                     </CardTitle>
                                     <CardDescription>
-                                        Target tanggal selesai setiap step QCC.
+                                        Rencana waktu, target selesai, dan
+                                        deliverable setiap step QCC.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
@@ -511,8 +514,10 @@ export default function ProposalShow({ proposal }: Props) {
                                                 number: row.step_number,
                                                 name: row.name,
                                                 date: row.target_date,
+                                                deliverable: row.deliverable,
                                             }),
                                         )}
+                                        startDate={proposal.batch_starts_on}
                                     />
                                 </CardContent>
                             </Card>

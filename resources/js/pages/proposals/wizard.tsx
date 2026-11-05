@@ -65,7 +65,7 @@ import {
     store as storeAttachments,
 } from '@/routes/proposals/attachments';
 
-type BatchOption = { id: number; name: string };
+type BatchOption = { id: number; name: string; starts_on: string };
 type DraftOption = {
     id: number;
     title: string;
@@ -101,6 +101,7 @@ type ProjectDraft = {
     cost_projection: string | null;
     learning_goals: string[];
     step_timeline: string[];
+    step_deliverables: string[];
     wizard_step: number;
     updated_at: string | null;
     attachments: ExistingAttachment[];
@@ -131,12 +132,18 @@ type DraftForm = {
     cost_projection: string;
     learning_goals: string[];
     step_timeline: string[];
+    step_deliverables: string[];
     wizard_step: number;
     advance: boolean;
 };
 type DraftField = Exclude<
     keyof DraftForm,
-    'batch_id' | 'learning_goals' | 'step_timeline' | 'wizard_step' | 'advance'
+    | 'batch_id'
+    | 'learning_goals'
+    | 'step_timeline'
+    | 'step_deliverables'
+    | 'wizard_step'
+    | 'advance'
 >;
 type StepDefinition = {
     number: number;
@@ -206,6 +213,7 @@ const fieldSteps: Record<string, { step: number; label: string }> = {
     cost_projection: { step: 4, label: 'Proyeksi Kebutuhan Biaya Proyek' },
     learning_goals: { step: 5, label: 'Tiga Hal yang akan Dipelajari' },
     step_timeline: { step: 5, label: 'Timeline' },
+    step_deliverables: { step: 5, label: 'Deliverable Timeline' },
     requirements: { step: 6, label: 'Kebutuhan Kompetensi' },
 };
 
@@ -245,6 +253,7 @@ function initialData(
     stepCount: number,
 ): DraftForm {
     const timeline = project?.step_timeline ?? [];
+    const deliverables = project?.step_deliverables ?? [];
 
     return {
         batch_id: project ? String(project.batch_id) : '',
@@ -264,6 +273,10 @@ function initialData(
         step_timeline: Array.from(
             { length: stepCount },
             (_, index) => timeline[index] ?? '',
+        ),
+        step_deliverables: Array.from(
+            { length: stepCount },
+            (_, index) => deliverables[index] ?? '',
         ),
         wizard_step: project?.wizard_step ?? step,
         advance: false,
@@ -473,14 +486,25 @@ export default function ProposalWizard({
         );
     }
 
-    function setTimelineDate(index: number, value: string | null): void {
+    function setTimelineValue(
+        field: 'step_timeline' | 'step_deliverables',
+        index: number,
+        value: string | null,
+    ): void {
         form.setData(
-            'step_timeline',
-            form.data.step_timeline.map((date, currentIndex) =>
-                currentIndex === index ? (value ?? '') : date,
+            field,
+            form.data[field].map((current, currentIndex) =>
+                currentIndex === index ? (value ?? '') : current,
             ),
         );
     }
+
+    const timelineRows = qccSteps.map((qccStep, index) => ({
+        number: qccStep.number,
+        name: qccStep.name,
+        date: form.data.step_timeline[index] || null,
+        deliverable: form.data.step_deliverables[index] || null,
+    }));
 
     const competencyNames = new Map(
         competencyOptions.map((option) => [option.id, option.label]),
@@ -488,9 +512,10 @@ export default function ProposalWizard({
     const levelNames = new Map(
         levelOptions.map((option) => [option.value, option.label]),
     );
-    const batchName =
-        batches.find((batch) => String(batch.id) === form.data.batch_id)
-            ?.name ?? '';
+    const selectedBatch = batches.find(
+        (batch) => String(batch.id) === form.data.batch_id,
+    );
+    const batchName = selectedBatch?.name ?? '';
 
     function renderStepFields(stepNumber: number): React.ReactNode {
         if (stepNumber === 1) {
@@ -798,28 +823,63 @@ export default function ProposalWizard({
                     ))}
                     <SectionTitle
                         title="Timeline"
-                        description="Target tanggal selesai untuk setiap step QCC. Tanggal ini menjadi target step saat proyek berjalan."
+                        description="Target tanggal selesai dan hasil (deliverable) setiap step QCC. Tanggal ini menjadi target step saat proyek berjalan."
                     />
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4">
                         {qccSteps.map((qccStep, index) => (
-                            <FormField
+                            <div
                                 key={qccStep.number}
-                                id={`step-timeline-${qccStep.number}`}
-                                label={`${qccStep.number}. ${qccStep.name}`}
-                                required
-                                error={fieldError(`step_timeline.${index}`)}
+                                className="grid gap-3 rounded-lg border border-border/70 p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
                             >
-                                <DatePicker
-                                    value={form.data.step_timeline[index]}
-                                    onValueChange={(value) =>
-                                        setTimelineDate(index, value)
-                                    }
-                                    placeholder="Pilih target tanggal"
-                                    className={controlClassName}
-                                />
-                            </FormField>
+                                <FormField
+                                    id={`step-timeline-${qccStep.number}`}
+                                    label={`${qccStep.number}. ${qccStep.name}`}
+                                    required
+                                    error={fieldError(`step_timeline.${index}`)}
+                                >
+                                    <DatePicker
+                                        value={form.data.step_timeline[index]}
+                                        onValueChange={(value) =>
+                                            setTimelineValue(
+                                                'step_timeline',
+                                                index,
+                                                value,
+                                            )
+                                        }
+                                        placeholder="Pilih target tanggal"
+                                        className={controlClassName}
+                                    />
+                                </FormField>
+                                <FormField
+                                    id={`step-deliverable-${qccStep.number}`}
+                                    label="Deliverable results"
+                                    error={fieldError(
+                                        `step_deliverables.${index}`,
+                                    )}
+                                >
+                                    <Input
+                                        value={
+                                            form.data.step_deliverables[index]
+                                        }
+                                        onChange={(event) =>
+                                            setTimelineValue(
+                                                'step_deliverables',
+                                                index,
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="Contoh: Data baseline dan diagram Pareto"
+                                        maxLength={500}
+                                        className={controlClassName}
+                                    />
+                                </FormField>
+                            </div>
                         ))}
                     </div>
+                    <TimelineTable
+                        rows={timelineRows}
+                        startDate={selectedBatch?.starts_on}
+                    />
                 </div>
             );
         }
@@ -903,11 +963,8 @@ export default function ProposalWizard({
                     </PreviewBlock>
                     <PreviewBlock label="Timeline">
                         <TimelineTable
-                            rows={qccSteps.map((qccStep, index) => ({
-                                number: qccStep.number,
-                                name: qccStep.name,
-                                date: form.data.step_timeline[index] || null,
-                            }))}
+                            rows={timelineRows}
+                            startDate={selectedBatch?.starts_on}
                         />
                     </PreviewBlock>
                     <PreviewBlock label="Kebutuhan Kompetensi">

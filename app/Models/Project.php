@@ -21,7 +21,7 @@ use Illuminate\Support\Carbon;
  * @property array<int, string>|null $learning_goals_json
  * @property string|null $supplementary_information
  * @property string|null $cost_projection
- * @property list<array{step_number: int, target_date: string|null}>|null $step_timeline_json
+ * @property list<array{step_number: int, target_date: string|null, deliverable?: string|null}>|null $step_timeline_json
  * @property int $steps_total
  * @property int $steps_completed
  * @property int $approved_steps_count
