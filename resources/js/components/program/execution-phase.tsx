@@ -1,10 +1,14 @@
-import { AlertCircle, Check, CheckCircle2, Search } from 'lucide-react';
-import { useMemo, useState } from 'react';
 import {
-    DashboardPanel,
-    numberFormat,
-    PanelEmpty,
-} from '@/components/dashboard/dashboard-kit';
+    AlertCircle,
+    CalendarCheck,
+    Check,
+    CheckCircle2,
+    Search,
+    Users,
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { numberFormat, PanelEmpty } from '@/components/dashboard/dashboard-kit';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
@@ -23,10 +27,17 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { Meter, programColors, StatStrip } from './program-kit';
+import {
+    ColumnBars,
+    HighlightCard,
+    Panel,
+    programColors,
+    StatTiles,
+} from './program-kit';
 import type { ExecutionPhaseData, ExecutionProjectRow } from './types';
 
 const ALL = 'all';
+const PAGE_SIZE = 8;
 
 /** Short step names for the eight-step overview. */
 const STEP_SHORT_LABELS = [
@@ -124,6 +135,7 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
     const [organization, setOrganization] = useState(ALL);
     const [step, setStep] = useState(ALL);
     const [status, setStatus] = useState(ALL);
+    const [page, setPage] = useState(0);
 
     const organizations = useMemo(
         () =>
@@ -147,9 +159,19 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
                 String(project.current_step?.number ?? 'done') === step) &&
             (status === ALL || project.status === status),
     );
+    const pageCount = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
+    const currentPage = Math.min(page, pageCount - 1);
+    const firstRow = currentPage * PAGE_SIZE;
+    const pageRows = projects.slice(firstRow, firstRow + PAGE_SIZE);
+    const filterBy =
+        (set: (value: string) => void) =>
+        (value: string): void => {
+            set(value);
+            setPage(0);
+        };
 
     return (
-        <DashboardPanel
+        <Panel
             title={
                 data.projects_scope === 'own'
                     ? `Project Saya (${data.projects.length})`
@@ -170,7 +192,9 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
                         />
                         <Input
                             value={search}
-                            onChange={(event) => setSearch(event.target.value)}
+                            onChange={(event) =>
+                                filterBy(setSearch)(event.target.value)
+                            }
                             placeholder="Cari kode / judul project"
                             aria-label="Cari kode atau judul project"
                             className="h-9 pl-9"
@@ -179,7 +203,7 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
                     <FilterSelect
                         label="Filter LOB/Div"
                         value={organization}
-                        onChange={setOrganization}
+                        onChange={filterBy(setOrganization)}
                         options={[
                             { value: ALL, label: 'Semua LOB/Div' },
                             ...organizations.map((name) => ({
@@ -191,7 +215,7 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
                     <FilterSelect
                         label="Filter step"
                         value={step}
-                        onChange={setStep}
+                        onChange={filterBy(setStep)}
                         options={[
                             { value: ALL, label: 'Semua Step' },
                             ...data.steps.map((item) => ({
@@ -204,7 +228,7 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
                     <FilterSelect
                         label="Filter status waktu"
                         value={status}
-                        onChange={setStatus}
+                        onChange={filterBy(setStatus)}
                         options={[
                             { value: ALL, label: 'Semua Status' },
                             { value: 'on_time', label: 'On-Time' },
@@ -214,57 +238,96 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
                 </div>
 
                 {projects.length > 0 ? (
-                    <div className="overflow-x-auto rounded-lg border">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-10">No</TableHead>
-                                    <TableHead>Kode</TableHead>
-                                    <TableHead className="min-w-44">
-                                        Judul Project
-                                    </TableHead>
-                                    <TableHead>LOB/Div</TableHead>
-                                    <TableHead>Team Leader</TableHead>
-                                    <TableHead>Step Saat Ini</TableHead>
-                                    <TableHead>Progres (Step 1–8)</TableHead>
-                                    <TableHead>Status Waktu</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {projects.map((project, index) => (
-                                    <TableRow key={project.id}>
-                                        <TableCell className="tabular-nums">
-                                            {index + 1}
-                                        </TableCell>
-                                        <TableCell className="font-medium whitespace-nowrap">
-                                            {project.code}
-                                        </TableCell>
-                                        <TableCell className="whitespace-normal">
-                                            {project.title}
-                                        </TableCell>
-                                        <TableCell className="whitespace-nowrap">
-                                            {project.organization ?? '—'}
-                                        </TableCell>
-                                        <TableCell className="min-w-32 whitespace-normal">
-                                            {project.leader ?? '—'}
-                                        </TableCell>
-                                        <TableCell className="min-w-28 whitespace-normal">
-                                            {project.current_step
-                                                ? `Step ${project.current_step.number} · ${STEP_SHORT_LABELS[project.current_step.number - 1] ?? project.current_step.label}`
-                                                : 'Semua step selesai'}
-                                        </TableCell>
-                                        <TableCell>
-                                            <StepDots steps={project.steps} />
-                                        </TableCell>
-                                        <TableCell>
-                                            <StatusBadge
-                                                status={project.status}
-                                            />
-                                        </TableCell>
+                    <div className="grid gap-3">
+                        <div className="overflow-x-auto rounded-lg border">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-10">
+                                            No
+                                        </TableHead>
+                                        <TableHead>Kode</TableHead>
+                                        <TableHead className="min-w-44">
+                                            Judul Project
+                                        </TableHead>
+                                        <TableHead>LOB/Div</TableHead>
+                                        <TableHead>Team Leader</TableHead>
+                                        <TableHead>Step Saat Ini</TableHead>
+                                        <TableHead>
+                                            Progres (Step 1–8)
+                                        </TableHead>
+                                        <TableHead>Status Waktu</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {pageRows.map((project, index) => (
+                                        <TableRow key={project.id}>
+                                            <TableCell className="tabular-nums">
+                                                {firstRow + index + 1}
+                                            </TableCell>
+                                            <TableCell className="font-medium whitespace-nowrap">
+                                                {project.code}
+                                            </TableCell>
+                                            <TableCell className="whitespace-normal">
+                                                {project.title}
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap">
+                                                {project.organization ?? '—'}
+                                            </TableCell>
+                                            <TableCell className="min-w-32 whitespace-normal">
+                                                {project.leader ?? '—'}
+                                            </TableCell>
+                                            <TableCell className="min-w-28 whitespace-normal">
+                                                {project.current_step
+                                                    ? `Step ${project.current_step.number} · ${STEP_SHORT_LABELS[project.current_step.number - 1] ?? project.current_step.label}`
+                                                    : 'Semua step selesai'}
+                                            </TableCell>
+                                            <TableCell>
+                                                <StepDots
+                                                    steps={project.steps}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <StatusBadge
+                                                    status={project.status}
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        {pageCount > 1 && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                                <span className="tabular-nums">
+                                    {firstRow + 1}–{firstRow + pageRows.length}{' '}
+                                    dari {projects.length} project
+                                </span>
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={currentPage === 0}
+                                        onClick={() => setPage(currentPage - 1)}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="px-2 tabular-nums">
+                                        {currentPage + 1} / {pageCount}
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={currentPage >= pageCount - 1}
+                                        onClick={() => setPage(currentPage + 1)}
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <PanelEmpty
@@ -281,160 +344,87 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
                     />
                 )}
             </div>
-        </DashboardPanel>
+        </Panel>
     );
 }
 
 /** Phase 3: step progress of the approved projects and whether reports keep up. */
 export function ExecutionPhase({ data }: { data: ExecutionPhaseData }) {
     return (
-        <div className="grid gap-5">
-            <StatStrip
-                stats={[
-                    {
-                        label: 'Total project aktif',
-                        value: numberFormat.format(data.total),
-                        helper: 'Proposal yang disetujui',
-                    },
-                    {
-                        label: 'Rata-rata progres project',
-                        value: `${data.average_progress}%`,
-                        helper: 'Rata-rata dari 8 step QCC',
-                    },
-                    {
-                        label: 'Kepatuhan bi-weekly',
-                        value: `${data.biweekly.percent}%`,
-                        helper: `${data.biweekly.compliant} dari ${data.total} project tepat waktu`,
-                    },
-                    {
-                        label: 'Kepatuhan mentoring',
-                        value: `${data.mentoring.percent}%`,
-                        helper: `${data.mentoring.compliant} dari ${data.total} sesuai jadwal`,
-                    },
-                    {
-                        label: 'Project on-time',
-                        value: `${data.on_time.percent}%`,
-                        helper: `${data.on_time.overdue} project overdue`,
-                    },
-                ]}
-            />
-
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-                <DashboardPanel
-                    title="Progress 8 step QCC"
-                    description="Rata-rata progres tiap step dan jumlah project yang sudah memulainya."
-                >
-                    <table className="w-full text-sm">
-                        <caption className="sr-only">
-                            Progres rata-rata dan jumlah project per step QCC
-                        </caption>
-                        <thead>
-                            <tr className="text-left text-xs text-muted-foreground">
-                                <th scope="col" className="pb-2 font-medium">
-                                    Step
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="w-2/5 pb-2 font-medium"
-                                >
-                                    <span className="sr-only">
-                                        Grafik progres
-                                    </span>
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="pb-2 text-right font-medium"
-                                >
-                                    Progres
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="pb-2 text-right font-medium"
-                                >
-                                    Project
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/60">
-                            {data.steps.map((step) => (
-                                <tr key={step.number}>
-                                    <th
-                                        scope="row"
-                                        className="py-2 pr-3 text-left font-normal text-foreground"
-                                    >
-                                        <span className="mr-2 text-muted-foreground tabular-nums">
-                                            {step.number}
-                                        </span>
-                                        {STEP_SHORT_LABELS[step.number - 1] ??
-                                            step.label}
-                                    </th>
-                                    <td className="py-2 pr-3">
-                                        <span
-                                            className="block h-1.5 overflow-hidden rounded-full"
-                                            style={{
-                                                backgroundColor:
-                                                    programColors.track,
-                                            }}
-                                        >
-                                            <span
-                                                className="block h-full rounded-full bg-primary"
-                                                style={{
-                                                    width: `${step.average_progress}%`,
-                                                }}
-                                            />
-                                        </span>
-                                    </td>
-                                    <td className="py-2 text-right font-medium text-foreground tabular-nums">
-                                        {step.average_progress}%
-                                    </td>
-                                    <td className="py-2 pl-3 text-right text-muted-foreground tabular-nums">
-                                        {numberFormat.format(
-                                            step.projects_started,
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </DashboardPanel>
-
-                <DashboardPanel
-                    title="Status dan kepatuhan"
-                    description="Overdue bila ada step yang lewat target selesai."
-                    contentClassName="grid gap-6"
-                >
-                    {data.total > 0 ? (
-                        <>
-                            <Meter
-                                percent={data.on_time.percent}
-                                tone="good"
-                                caption="project on-time"
-                                filledLabel={`On-Time ${numberFormat.format(data.on_time.count)}`}
-                                restLabel={`Overdue ${numberFormat.format(data.on_time.overdue)}`}
-                                label="Project on-time"
-                            />
-                            <Meter
-                                percent={data.biweekly.percent}
-                                caption="laporan bi-weekly tepat waktu"
-                                filledLabel={`Tepat waktu ${numberFormat.format(data.biweekly.compliant)}`}
-                                restLabel={`Terlambat ${numberFormat.format(data.biweekly.late)}`}
-                                label="Kepatuhan bi-weekly"
-                            />
-                            <Meter
-                                percent={data.mentoring.percent}
-                                caption="mentoring sesuai jadwal"
-                                filledLabel={`Sesuai jadwal ${numberFormat.format(data.mentoring.compliant)}`}
-                                restLabel={`Tidak sesuai ${numberFormat.format(data.mentoring.late)}`}
-                                label="Kepatuhan mentoring"
-                            />
-                        </>
-                    ) : (
-                        <PanelEmpty
-                            title="Belum ada project"
-                            description="Status tampil setelah proposal disetujui."
+        <div className="grid gap-4">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
+                <HighlightCard
+                    title="Rata-rata progres project"
+                    percent={data.average_progress}
+                    caption="Rata-rata progres 8 step QCC dari semua project aktif."
+                    rows={[
+                        {
+                            label: 'Project aktif',
+                            value: numberFormat.format(data.total),
+                        },
+                        {
+                            label: 'On-Time',
+                            value: numberFormat.format(data.on_time.count),
+                        },
+                        {
+                            label: 'Overdue',
+                            value: numberFormat.format(data.on_time.overdue),
+                        },
+                    ]}
+                />
+                <div className="grid min-w-0 gap-4">
+                    <StatTiles
+                        tiles={[
+                            {
+                                label: 'Project on-time',
+                                value: `${data.on_time.percent}%`,
+                                helper: `${data.on_time.count} dari ${data.total} project`,
+                                icon: CheckCircle2,
+                                color: programColors.green,
+                            },
+                            {
+                                label: 'Kepatuhan bi-weekly',
+                                value: `${data.biweekly.percent}%`,
+                                helper: `${data.biweekly.compliant} project tepat waktu`,
+                                icon: CalendarCheck,
+                                color: programColors.primary,
+                            },
+                            {
+                                label: 'Kepatuhan mentoring',
+                                value: `${data.mentoring.percent}%`,
+                                helper: `${data.mentoring.compliant} project sesuai jadwal`,
+                                icon: Users,
+                                color: programColors.violet,
+                            },
+                            {
+                                label: 'Project overdue',
+                                value: numberFormat.format(
+                                    data.on_time.overdue,
+                                ),
+                                helper: 'Ada step lewat target selesai',
+                                icon: AlertCircle,
+                                color: programColors.critical,
+                            },
+                        ]}
+                    />
+                    <Panel
+                        title="Progress 8 step QCC"
+                        description="Rata-rata progres tiap step. Angka di bawah: project yang sudah memulai step itu."
+                    >
+                        <ColumnBars
+                            label="Rata-rata progres per step QCC"
+                            max={100}
+                            height={96}
+                            columns={data.steps.map((step) => ({
+                                key: String(step.number),
+                                label: `${step.number}. ${STEP_SHORT_LABELS[step.number - 1] ?? step.label} · ${step.projects_started}`,
+                                value: step.average_progress,
+                                display: `${step.average_progress}%`,
+                                title: `${step.label}: ${step.average_progress}% · ${step.projects_started} project`,
+                            }))}
                         />
-                    )}
-                </DashboardPanel>
+                    </Panel>
+                </div>
             </div>
 
             <ProjectList data={data} />
