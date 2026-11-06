@@ -23,6 +23,8 @@ import {
 } from '@/components/dashboard/dashboard-kit';
 import { ProgramDashboard } from '@/components/program/program-dashboard';
 import { Panel } from '@/components/program/program-kit';
+import { DataTable } from '@/components/data-table';
+import type { DataTableColumnDef } from '@/components/data-table';
 import type { ProgramOverview } from '@/components/program/types';
 import type { BadgeVariant } from '@/lib/badge-variants';
 import { Badge } from '@/components/ui/badge';
@@ -220,93 +222,125 @@ function JourneyCard({ journey }: { journey: MemberOverview['journey'] }) {
     );
 }
 
-const TASKS_SHOWN = 5;
+type Task = MemberOverview['tasks'][number];
 
-function TasksPanel({
-    tasks,
-    total,
-}: {
-    tasks: MemberOverview['tasks'];
-    total: number;
-}) {
-    const [showAll, setShowAll] = useState(false);
-    const shown = showAll ? tasks : tasks.slice(0, TASKS_SHOWN);
+const taskColumns: DataTableColumnDef<Task>[] = [
+    {
+        id: 'title',
+        header: 'Tugas',
+        cell: ({ row }) => {
+            const task = row.original;
+
+            return (
+                <Link
+                    href={task.href}
+                    className="group flex min-w-0 items-start gap-2.5 rounded focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                >
+                    <span
+                        aria-hidden="true"
+                        className={cn(
+                            'mt-1.5 size-2 shrink-0 rounded-full',
+                            task.overdue ? 'bg-destructive' : 'bg-primary',
+                        )}
+                    />
+                    <span className="grid min-w-0 gap-0.5 whitespace-normal">
+                        <span className="text-sm font-medium break-words text-foreground group-hover:text-primary">
+                            {task.title}
+                        </span>
+                        <span className="line-clamp-1 text-xs text-muted-foreground">
+                            {task.project} · {task.detail}
+                        </span>
+                    </span>
+                </Link>
+            );
+        },
+    },
+    {
+        id: 'date',
+        header: 'Tenggat',
+        cell: ({ row }) => {
+            const task = row.original;
+
+            return task.date ? (
+                <Badge variant={task.overdue ? 'destructive' : 'secondary'}>
+                    {task.overdue ? 'Lewat ' : ''}
+                    {formatDate(task.date)}
+                </Badge>
+            ) : (
+                <span className="text-xs text-muted-foreground">—</span>
+            );
+        },
+    },
+];
+
+/** Every open task as a small table, most urgent first, searchable and paged. */
+function TasksPanel({ tasks }: { tasks: MemberOverview['tasks'] }) {
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(5);
+    const term = search.trim().toLowerCase();
+    const filtered = term
+        ? tasks.filter((task) =>
+              [task.title, task.project, task.detail]
+                  .join(' ')
+                  .toLowerCase()
+                  .includes(term),
+          )
+        : tasks;
+    const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const currentPage = Math.min(page, pageCount);
+    const rows = filtered.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize,
+    );
     const overdue = tasks.filter((task) => task.overdue).length;
 
     return (
-        <Panel
-            title="Yang perlu dikerjakan"
-            description={
-                total > 0
-                    ? `${total} tugas${overdue > 0 ? ` · ${overdue} lewat tenggat` : ''}`
-                    : 'Tugas yang menunggu Anda.'
-            }
-        >
+        <Card className={cn('min-w-0 gap-0 py-0', surfaceClassName)}>
+            <div className="grid gap-0.5 px-5 pt-4">
+                <h3 className="text-sm font-semibold text-foreground">
+                    Yang perlu dikerjakan
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                    {tasks.length > 0
+                        ? `${tasks.length} tugas${overdue > 0 ? ` · ${overdue} lewat tenggat` : ''}`
+                        : 'Tugas yang menunggu Anda.'}
+                </p>
+            </div>
             {tasks.length === 0 ? (
-                <PanelEmpty
-                    icon={ClipboardList}
-                    title="Tidak ada tugas"
-                    description="Revisi, action item, dan tugas leader akan muncul di sini."
-                />
-            ) : (
-                <div className="grid gap-1">
-                    <ul className="grid divide-y divide-border/60">
-                        {shown.map((task) => (
-                            <li key={task.key}>
-                                <Link
-                                    href={task.href}
-                                    className="group -mx-2 flex items-start justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                                >
-                                    <span className="flex min-w-0 items-start gap-2.5">
-                                        <span
-                                            aria-hidden="true"
-                                            className={cn(
-                                                'mt-1.5 size-2 shrink-0 rounded-full',
-                                                task.overdue
-                                                    ? 'bg-destructive'
-                                                    : 'bg-primary',
-                                            )}
-                                        />
-                                        <span className="grid min-w-0 gap-0.5">
-                                            <span className="text-sm font-medium break-words text-foreground group-hover:text-primary">
-                                                {task.title}
-                                            </span>
-                                            <span className="line-clamp-1 text-xs text-muted-foreground">
-                                                {task.project} · {task.detail}
-                                            </span>
-                                        </span>
-                                    </span>
-                                    {task.date && (
-                                        <Badge
-                                            variant={
-                                                task.overdue
-                                                    ? 'destructive'
-                                                    : 'secondary'
-                                            }
-                                            className="shrink-0"
-                                        >
-                                            {task.overdue ? 'Lewat ' : ''}
-                                            {formatDate(task.date)}
-                                        </Badge>
-                                    )}
-                                </Link>
-                            </li>
-                        ))}
-                    </ul>
-                    {tasks.length > TASKS_SHOWN && (
-                        <button
-                            type="button"
-                            onClick={() => setShowAll((current) => !current)}
-                            className="w-fit rounded text-xs font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                        >
-                            {showAll
-                                ? 'Tampilkan lebih sedikit'
-                                : `Tampilkan ${tasks.length - TASKS_SHOWN} tugas lain`}
-                        </button>
-                    )}
+                <div className="px-5 pt-3 pb-5">
+                    <PanelEmpty
+                        icon={ClipboardList}
+                        title="Tidak ada tugas"
+                        description="Revisi, action item, dan tugas leader akan muncul di sini."
+                    />
                 </div>
+            ) : (
+                <DataTable
+                    embedded
+                    columns={taskColumns}
+                    data={rows}
+                    rowId={(row) => row.key}
+                    page={currentPage}
+                    pageSize={pageSize}
+                    total={filtered.length}
+                    pageSizes={[5, 10, 25]}
+                    onPageChange={setPage}
+                    onPageSizeChange={(size) => {
+                        setPageSize(size);
+                        setPage(1);
+                    }}
+                    search={search}
+                    onSearchChange={(value) => {
+                        setSearch(value);
+                        setPage(1);
+                    }}
+                    searchPlaceholder="Cari tugas atau proyek..."
+                    emptyTitle="Tidak ada tugas yang cocok"
+                    emptyDescription="Ubah kata pencarian untuk melihat tugas lain."
+                />
             )}
-        </Panel>
+        </Card>
     );
 }
 
@@ -535,10 +569,7 @@ export default function MemberDashboard({
                     <JourneyCard journey={overview.journey} />
                     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
                         <div className="grid gap-4">
-                            <TasksPanel
-                                tasks={overview.tasks}
-                                total={overview.task_count}
-                            />
+                            <TasksPanel tasks={overview.tasks} />
                             <ProposalsPanel proposals={overview.proposals} />
                         </div>
                         <div className="grid gap-4">

@@ -165,3 +165,19 @@ test('reviewers and mentors keep the monitoring dashboard even with a member rol
             ->component('dashboard')
             ->missing('roleOverview'));
 })->with(['Owner QCC', 'Mentor']);
+
+test('every open task reaches the dashboard, so the task table can page and search them', function () {
+    $member = memberDashboardUser();
+    MemberCompetency::factory()->create(['user_id' => $member->id]);
+    $project = memberDashboardProject($member, 'MEMBER');
+
+    foreach (range(1, 12) as $number) {
+        ActionItem::query()->create(['project_id' => $project->id, 'created_by' => $member->id, 'pic_id' => $member->id, 'title' => "Tugas {$number}", 'description' => '', 'status' => 'OPEN', 'due_date' => now()->addDays($number)->toDateString()]);
+    }
+
+    $this->actingAs($member)->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('overview.task_count', 12)
+            ->has('overview.tasks', 12)
+            ->where('overview.tasks.0.title', 'Tugas 1'));
+});

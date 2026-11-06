@@ -31,7 +31,8 @@ class MemberDashboardOverview
     /** Steps due within this many days already show up as a task. */
     private const STEP_DUE_SOON_DAYS = 7;
 
-    private const TASK_LIMIT = 8;
+    /** The dashboard pages and searches tasks itself, so all of them are sent, within reason. */
+    private const TASK_LIMIT = 200;
 
     /**
      * @return array{
