@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\QccBatch;
 use App\Services\AdminDashboardOverview;
 use App\Services\MemberDashboardOverview;
+use App\Services\ProgramDashboardOverview;
 use App\Services\RoleDashboardOverview;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -14,13 +15,14 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request, AdminDashboardOverview $overview, RoleDashboardOverview $roleOverview, MemberDashboardOverview $memberOverview): Response
+    public function index(Request $request, AdminDashboardOverview $overview, RoleDashboardOverview $roleOverview, MemberDashboardOverview $memberOverview, ProgramDashboardOverview $programOverview): Response
     {
         $user = $request->user();
 
         if ($user->usesMemberDashboard()) {
             return Inertia::render('member-dashboard', [
                 'overview' => $memberOverview->get($user),
+                'program' => $programOverview->get($user->visibleProgramPhases(), ownProjectsOf: $user->seesAllProgramProjects() ? null : $user->id),
             ]);
         }
 
@@ -35,6 +37,7 @@ class DashboardController extends Controller
 
         return Inertia::render('dashboard', [
             'adminOverview' => $user->can('dashboard.admin') ? $overview->get() : null,
+            'program' => $programOverview->get($user->visibleProgramPhases(), ownProjectsOf: $user->seesAllProgramProjects() ? null : $user->id),
             'roleOverview' => $roleOverview->get($user, $batchId, $periodDays),
             'selectedBatchId' => $batchId,
             'selectedPeriod' => $selectedPeriod,

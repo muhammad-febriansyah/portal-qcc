@@ -12,6 +12,7 @@ use App\Enums\RiskLevel;
 use App\Enums\RiskStatus;
 use App\Enums\RiskType;
 use App\Enums\StepStatus;
+use App\Enums\ThemeCategory;
 use App\Models\ActionItem;
 use App\Models\BiweeklyReport;
 use App\Models\Competency;
@@ -213,6 +214,7 @@ class DemoQccSeeder extends Seeder
                 'proposer_id' => $leader->id,
                 'pic_id' => $leader->id,
                 'theme' => $description['theme'],
+                'theme_category' => ThemeCategory::cases()[$index % count(ThemeCategory::cases())],
                 'background' => $description['background'],
                 'current_situation' => $description['current']."\n\n**Baseline:** ".$description['baseline'],
                 'improvement_plan' => "- Petakan proses dan validasi penyebab dominan bersama unit terkait\n- Uji coba perbaikan bertahap dan bandingkan dengan baseline\n- Perbarui prosedur bila hasilnya efektif",

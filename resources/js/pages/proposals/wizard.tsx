@@ -65,6 +65,7 @@ import {
     destroy as destroyAttachment,
     store as storeAttachments,
 } from '@/routes/proposals/attachments';
+import { randomId } from '@/lib/utils';
 
 type BatchOption = { id: number; name: string; starts_on: string };
 type DraftOption = {
@@ -93,6 +94,7 @@ type ProjectDraft = {
     batch_id: number;
     title: string;
     theme: string | null;
+    theme_category: string | null;
     background: string | null;
     current_situation: string | null;
     improvement_plan: string | null;
@@ -116,6 +118,7 @@ type Props = {
     batches: BatchOption[];
     drafts: DraftOption[];
     qccSteps: QccStepOption[];
+    themeCategories?: { value: string; label: string }[];
     competencyOptions?: RequirementCompetencyOption[];
     requirements?: ProjectRequirement[];
     levelOptions?: { value: number; label: string }[];
@@ -125,6 +128,7 @@ type DraftForm = {
     batch_id: string;
     title: string;
     theme: string;
+    theme_category: string;
     background: string;
     current_situation: string;
     improvement_plan: string;
@@ -204,6 +208,7 @@ const steps: StepDefinition[] = [
 const fieldSteps: Record<string, { step: number; label: string }> = {
     title: { step: 1, label: 'Judul Proposal' },
     batch_id: { step: 1, label: 'Batch QCC' },
+    theme_category: { step: 1, label: 'Kategori Tema' },
     theme: { step: 1, label: 'Tema Improvement' },
     background: { step: 2, label: 'Latar Belakang' },
     current_situation: { step: 2, label: 'Situasi Saat Ini & Baseline' },
@@ -266,6 +271,7 @@ function initialData(
         batch_id: project ? String(project.batch_id) : defaultBatchId,
         title: project?.title ?? '',
         theme: project?.theme ?? '',
+        theme_category: project?.theme_category ?? '',
         background: project?.background ?? '',
         current_situation: project?.current_situation ?? '',
         improvement_plan: project?.improvement_plan ?? '',
@@ -312,6 +318,7 @@ export default function ProposalWizard({
     batches,
     drafts: _drafts,
     qccSteps,
+    themeCategories = [],
     competencyOptions = [],
     requirements = [],
     levelOptions = [],
@@ -437,7 +444,7 @@ export default function ProposalWizard({
         setPendingFiles((current) => [
             ...current,
             ...files.map((file) => ({
-                id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+                id: `${file.name}-${file.size}-${file.lastModified}-${randomId()}`,
                 file,
                 status: 'queued' as const,
             })),
@@ -608,6 +615,43 @@ export default function ProposalWizard({
                                 </SelectContent>
                             </Select>
                         </FormField>
+                        <FormField
+                            id="proposal-theme-category"
+                            label="Kategori Tema"
+                            hint="Jenis improvement yang dituju proposal ini."
+                            required
+                            error={fieldError('theme_category')}
+                        >
+                            <Select
+                                value={form.data.theme_category}
+                                onValueChange={(value) =>
+                                    form.setData('theme_category', value ?? '')
+                                }
+                                items={themeCategories}
+                            >
+                                <SelectTrigger
+                                    id="proposal-theme-category"
+                                    className={selectTriggerClassName}
+                                    aria-invalid={Boolean(
+                                        fieldError('theme_category'),
+                                    )}
+                                >
+                                    <SelectValue placeholder="Pilih kategori tema" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        {themeCategories.map((category) => (
+                                            <SelectItem
+                                                key={category.value}
+                                                value={category.value}
+                                            >
+                                                {category.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        </FormField>
                     </div>
                     <FormField
                         id="proposal-theme"
@@ -636,14 +680,14 @@ export default function ProposalWizard({
                     <FormField
                         id="proposal-background"
                         label="Latar Belakang"
-                        hint="Apa yang terjadi, dan mengapa perlu diperbaiki sekarang?"
+                        hint="Mengapa proyek ini penting dilakukan, apa masalah utama/tantangan yang dihadapi tim atau divisi saat ini, dan dampak jika masalah tidak segera diperbaiki."
                         required
                         error={fieldError('background')}
                     >
                         <RichTextarea
                             value={form.data.background}
                             onChange={(value) => setField('background', value)}
-                            placeholder="Jelaskan kondisi yang mendorong improvement"
+                            placeholder="Contoh: Proyek ini penting karena ... Masalah utama tim saat ini adalah ... Jika tidak segera diperbaiki, dampaknya ..."
                         />
                     </FormField>
                     <FormField
@@ -732,6 +776,20 @@ export default function ProposalWizard({
                             placeholder="Tambahkan data atau konteks pendukung"
                         />
                     </FormField>
+                    <FormField
+                        id="proposal-cost-projection"
+                        label="Proyeksi Kebutuhan Biaya Proyek"
+                        hint="Opsional. Perkiraan biaya yang dibutuhkan beserta rinciannya. Kosongkan bila proyek tidak memerlukan biaya."
+                        error={fieldError('cost_projection')}
+                    >
+                        <RichTextarea
+                            value={form.data.cost_projection}
+                            onChange={(value) =>
+                                setField('cost_projection', value)
+                            }
+                            placeholder="Contoh: - Lisensi tools: Rp 5.000.000"
+                        />
+                    </FormField>
                     {project ? (
                         <>
                             <FormField
@@ -789,21 +847,6 @@ export default function ProposalWizard({
                             </EmptyHeader>
                         </Empty>
                     )}
-                    <FormField
-                        id="proposal-cost-projection"
-                        label="Proyeksi Kebutuhan Biaya Proyek"
-                        hint="Perkiraan biaya yang dibutuhkan beserta rinciannya. Tulis 'Tidak ada biaya' bila proyek tidak memerlukan biaya."
-                        required
-                        error={fieldError('cost_projection')}
-                    >
-                        <RichTextarea
-                            value={form.data.cost_projection}
-                            onChange={(value) =>
-                                setField('cost_projection', value)
-                            }
-                            placeholder="Contoh: - Lisensi tools: Rp 5.000.000"
-                        />
-                    </FormField>
                 </div>
             );
         }
@@ -968,6 +1011,16 @@ export default function ProposalWizard({
                 <dl className="grid gap-3">
                     <PreviewValue label="Judul" value={form.data.title} plain />
                     <PreviewValue label="Batch QCC" value={batchName} plain />
+                    <PreviewValue
+                        label="Kategori Tema"
+                        value={
+                            themeCategories.find(
+                                (category) =>
+                                    category.value === form.data.theme_category,
+                            )?.label ?? ''
+                        }
+                        plain
+                    />
                     <PreviewValue
                         label="Tema Improvement"
                         value={form.data.theme}

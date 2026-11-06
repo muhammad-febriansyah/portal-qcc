@@ -3,6 +3,7 @@
 use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
 use App\Enums\TeamMatchingStatus;
+use App\Enums\ThemeCategory;
 use App\Models\AuditLog;
 use App\Models\Competency;
 use App\Models\Organization;
@@ -37,6 +38,7 @@ function preparedProposal(): array
         'proposer_id' => $proposer->id,
         'title' => 'Kurangi waktu proses',
         'theme' => 'Efisiensi',
+        'theme_category' => ThemeCategory::Efficiency,
         'background' => 'Latar belakang',
         'current_situation' => 'Kondisi saat ini, baseline 10 jam',
         'target' => 'Target 5 jam',
@@ -216,14 +218,15 @@ test('proposal submission blocks a timeline without start dates', function () {
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Draft);
 });
 
-test('proposal submission blocks missing content, timeline and competency needs', function () {
+test('proposal submission blocks a missing timeline and competency needs but not a missing cost projection', function () {
     [$project, $proposer] = preparedProposal();
     $project->forceFill(['cost_projection' => null, 'step_timeline_json' => null])->save();
     DB::table('project_requirements')->where('project_id', $project->id)->delete();
 
     $this->actingAs($proposer)
         ->post(route('proposals.submit', $project))
-        ->assertSessionHasErrors(['cost_projection', 'step_timeline', 'requirements']);
+        ->assertSessionHasErrors(['step_timeline', 'requirements'])
+        ->assertSessionDoesntHaveErrors(['cost_projection']);
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Draft)
         ->and(ReviewDecision::query()->where('project_id', $project->id)->count())->toBe(0);

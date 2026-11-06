@@ -9,6 +9,7 @@ import {
     FileText,
     FolderKanban,
     GraduationCap,
+    X,
 } from 'lucide-react';
 import {
     DashboardPanel,
@@ -17,6 +18,8 @@ import {
     surfaceClassName,
 } from '@/components/dashboard/dashboard-kit';
 import { PageHeader } from '@/components/page-header';
+import { ProgramDashboard } from '@/components/program/program-dashboard';
+import type { ProgramOverview } from '@/components/program/types';
 import type { BadgeVariant } from '@/lib/badge-variants';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,7 +30,8 @@ import { dashboard } from '@/routes';
 type JourneyStep = {
     key: string;
     label: string;
-    state: 'done' | 'current' | 'todo';
+    /** `rejected` marks the last step when the proposal did not pass. */
+    state: 'done' | 'current' | 'todo' | 'rejected';
 };
 
 type MemberOverview = {
@@ -153,10 +157,17 @@ function JourneyCard({
                                             'border-primary bg-primary text-primary-foreground ring-4 ring-primary/15',
                                         step.state === 'todo' &&
                                             'border-border bg-muted text-muted-foreground',
+                                        step.state === 'rejected' &&
+                                            'border-destructive bg-destructive/10 text-destructive',
                                     )}
                                 >
                                     {step.state === 'done' ? (
                                         <Check
+                                            className="size-4"
+                                            aria-hidden="true"
+                                        />
+                                    ) : step.state === 'rejected' ? (
+                                        <X
                                             className="size-4"
                                             aria-hidden="true"
                                         />
@@ -169,9 +180,11 @@ function JourneyCard({
                                         'text-xs leading-snug sm:text-sm',
                                         step.state === 'current'
                                             ? 'font-semibold text-primary'
-                                            : step.state === 'done'
-                                              ? 'font-medium text-foreground'
-                                              : 'text-muted-foreground',
+                                            : step.state === 'rejected'
+                                              ? 'font-semibold text-destructive'
+                                              : step.state === 'done'
+                                                ? 'font-medium text-foreground'
+                                                : 'text-muted-foreground',
                                     )}
                                 >
                                     {step.label}
@@ -465,8 +478,10 @@ function CompetenciesPanel({
 
 export default function MemberDashboard({
     overview,
+    program,
 }: {
     overview: MemberOverview;
+    program: ProgramOverview | null;
 }) {
     const { auth } = usePage<{ auth: { user: { name: string } | null } }>()
         .props;
@@ -500,6 +515,11 @@ export default function MemberDashboard({
                         />
                     </div>
                 </div>
+                {program && (
+                    <section className="mt-8">
+                        <ProgramDashboard overview={program} />
+                    </section>
+                )}
             </main>
         </>
     );

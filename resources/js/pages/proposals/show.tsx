@@ -64,6 +64,7 @@ type Proposal = {
     status: string;
     status_label: string;
     theme: string | null;
+    theme_category: string | null;
     background: string | null;
     current_situation: string | null;
     improvement_plan: string | null;
@@ -396,6 +397,10 @@ export default function ProposalShow({ proposal }: Props) {
                                         <DetailField
                                             label="LOB / Divisi"
                                             value={proposal.organization}
+                                        />
+                                        <DetailField
+                                            label="Kategori Tema"
+                                            value={proposal.theme_category}
                                         />
                                         <DetailField
                                             label="Tema Improvement"

@@ -100,35 +100,50 @@ class MemberDashboardOverview
     }
 
     /**
+     * Isi kompetensi > Ajukan Proposal > Seleksi Proposal > Proposal Lolos/Tidak Lolos. The last
+     * step names the outcome once there is one: an approved proposal (or a project the person
+     * already works on) wins over a rejected one, and a proposal still in selection keeps the
+     * person at the selection step.
+     *
      * @param  Collection<int, Project>  $memberships
      * @param  Collection<int, Project>  $proposals
      * @return array{steps: list<array{key: string, label: string, state: string}>, next_action: array{label: string, description: string, href: string}|null}
      */
     private function journey(User $user, int $competencyCount, Collection $memberships, Collection $proposals): array
     {
-        $inProject = $memberships->isNotEmpty();
+        $hasStatus = fn (ProposalStatus ...$statuses): bool => $proposals->contains(fn (Project $project): bool => in_array($project->proposal_status, $statuses, true));
         $hasCompetency = $competencyCount > 0;
-        $submitted = $proposals->contains(fn (Project $project): bool => $project->proposal_status !== ProposalStatus::Draft);
-        $approved = $proposals->contains(fn (Project $project): bool => $project->proposal_status === ProposalStatus::Approved);
+        $passed = $memberships->isNotEmpty() || $hasStatus(ProposalStatus::Approved);
+        $inSelection = ! $passed && $hasStatus(ProposalStatus::Submitted, ProposalStatus::UnderReview, ProposalStatus::RevisionRequired);
+        $failed = ! $passed && ! $inSelection && $hasStatus(ProposalStatus::Rejected);
 
         $done = [
             'competencies' => $hasCompetency,
-            'proposal' => $submitted || $inProject,
-            'selection' => $approved || $inProject,
-            'project' => false,
+            'proposal' => $passed || $inSelection || $failed,
+            'selection' => $passed || $failed,
+            'result' => $passed,
         ];
         $labels = [
             'competencies' => 'Isi kompetensi',
-            'proposal' => 'Ajukan proposal',
-            'selection' => 'Seleksi Owner QCC',
-            'project' => 'Proyek berjalan',
+            'proposal' => 'Ajukan Proposal',
+            'selection' => 'Seleksi Proposal',
+            'result' => match (true) {
+                $passed => 'Proposal Lolos',
+                $failed => 'Proposal Tidak Lolos',
+                default => 'Proposal Lolos/Tidak Lolos',
+            },
         ];
-        $current = $inProject ? 'project' : collect(array_keys($done))->first(fn (string $key): bool => ! $done[$key]);
+        $current = collect(array_keys($done))->first(fn (string $key): bool => ! $done[$key]);
 
         $steps = array_map(fn (string $key): array => [
             'key' => $key,
             'label' => $labels[$key],
-            'state' => $done[$key] ? 'done' : ($key === $current ? 'current' : 'todo'),
+            'state' => match (true) {
+                $done[$key] => 'done',
+                $key === 'result' && $failed => 'rejected',
+                $key === $current => 'current',
+                default => 'todo',
+            },
         ], array_keys($labels));
 
         return ['steps' => $steps, 'next_action' => $this->nextAction($user, $hasCompetency, $memberships, $proposals)];

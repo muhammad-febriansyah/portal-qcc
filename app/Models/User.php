@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Concerns\Auditable;
 use App\Notifications\VerifyEmailNotification;
+use App\Services\ProgramDashboardOverview;
 use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -39,6 +40,7 @@ use Throwable;
  * @property string|null $availability_status
  * @property list<string>|null $qcc_experience_batches
  * @property bool $needs_profile_setup
+ * @property Carbon|null $profile_completed_at
  * @property int|null $organization_id
  * @property bool $is_active
  * @property Carbon|null $created_at
@@ -79,7 +81,20 @@ class User extends Authenticatable implements MustVerifyEmail
             'is_active' => 'boolean',
             'qcc_experience_batches' => 'array',
             'needs_profile_setup' => 'boolean',
+            'profile_completed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Remember the moment a profile first becomes complete, however it was filled in.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (User $user): void {
+            if ($user->profile_completed_at === null && $user->hasCompleteProfile()) {
+                $user->profile_completed_at = now();
+            }
+        });
     }
 
     /**
@@ -149,6 +164,29 @@ class User extends Authenticatable implements MustVerifyEmail
             && ! $this->hasAnyRole(['Owner QCC', 'Mentor', 'Super Admin'])
             && ! $this->can('projects.viewAny')
             && ! $this->can('dashboard.admin');
+    }
+
+    /**
+     * Program dashboard phases this person may open: Owner QCC, Mentors and admins follow the
+     * whole program, Team Leaders only the project execution phase, other SIMers none.
+     *
+     * @return list<string>
+     */
+    public function visibleProgramPhases(): array
+    {
+        if ($this->hasAnyRole(['Owner QCC', 'Mentor']) || $this->can('dashboard.admin')) {
+            return ProgramDashboardOverview::PHASES;
+        }
+
+        return $this->hasRole('Team Leader') ? ['execution'] : [];
+    }
+
+    /**
+     * Team Leaders see the program figures of every project but list only their own projects.
+     */
+    public function seesAllProgramProjects(): bool
+    {
+        return $this->hasAnyRole(['Owner QCC', 'Mentor']) || $this->can('dashboard.admin');
     }
 
     public function isInTalentPool(): bool

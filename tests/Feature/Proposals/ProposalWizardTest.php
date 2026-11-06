@@ -2,6 +2,7 @@
 
 use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
+use App\Enums\ThemeCategory;
 use App\Models\Competency;
 use App\Models\MemberCompetency;
 use App\Models\Project;
@@ -38,6 +39,7 @@ function proposalDraftPayload(QccBatch $batch, array $overrides = []): array
         'batch_id' => $batch->id,
         'title' => 'Mengurangi waktu tunggu proses',
         'theme' => 'Efisiensi proses',
+        'theme_category' => ThemeCategory::Efficiency->value,
         'background' => '',
         'current_situation' => '',
         'improvement_plan' => '',
@@ -148,8 +150,11 @@ it('requires every field in the current stage before advancing', function () {
     $batch = QccBatch::factory()->active()->create();
 
     $this->actingAs($user)
-        ->post(route('proposals.store'), proposalDraftPayload($batch, ['theme' => '', 'advance' => true]))
-        ->assertSessionHasErrors(['theme']);
+        ->post(route('proposals.store'), proposalDraftPayload($batch, ['theme' => '', 'theme_category' => '', 'advance' => true]))
+        ->assertSessionHasErrors(['theme', 'theme_category']);
+
+    $this->post(route('proposals.store'), proposalDraftPayload($batch, ['theme_category' => 'BUKAN_KATEGORI', 'advance' => true]))
+        ->assertSessionHasErrors(['theme_category' => 'Pilih kategori tema dari daftar.']);
 
     expect(Project::query()->count())->toBe(0);
 });
@@ -195,7 +200,7 @@ it('requires the improvement plan, target and scope before advancing', function 
     expect($project->fresh()->wizard_step)->toBe(3);
 });
 
-it('requires the project cost projection before advancing', function () {
+it('advances past supplementary data and cost without either being filled in', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 4]);
 
@@ -204,10 +209,9 @@ it('requires the project cost projection before advancing', function () {
             'wizard_step' => 4,
             'advance' => true,
         ]))
-        ->assertSessionHasErrors(['cost_projection'])
-        ->assertSessionDoesntHaveErrors(['supplementary_information']);
+        ->assertSessionHasNoErrors();
 
-    expect($project->fresh()->wizard_step)->toBe(4);
+    expect($project->fresh()->wizard_step)->toBe(5);
 });
 
 it('requires three learning goals and a start and target date for every QCC step before advancing', function () {
@@ -397,6 +401,7 @@ it('lets SIMer submit without a team and tells them Owner QCC will form it', fun
         'proposal_status' => ProposalStatus::Draft,
         'title' => 'Perbaikan waktu proses',
         'theme' => 'Efisiensi',
+        'theme_category' => ThemeCategory::Efficiency,
         'background' => 'Latar belakang',
         'current_situation' => 'Situasi saat ini dan baseline',
         'improvement_plan' => 'Rencana',

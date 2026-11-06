@@ -7,6 +7,7 @@ use App\Enums\BatchStatus;
 use App\Enums\CompetencyLevel;
 use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
+use App\Enums\ThemeCategory;
 use App\Http\Requests\SaveProposalDraftRequest;
 use App\Http\Requests\UploadProposalAttachmentsRequest;
 use App\Models\Competency;
@@ -35,6 +36,7 @@ class ProposalWizardController extends Controller
             'project' => null,
             'step' => 1,
             'qccSteps' => QccStep::catalog(),
+            'themeCategories' => ThemeCategory::options(),
             'batches' => $this->batchOptions(),
             'competencyOptions' => $this->competencyOptions(),
             'levelOptions' => CompetencyLevel::options(),
@@ -90,6 +92,7 @@ class ProposalWizardController extends Controller
                 'batch_id' => $project->batch_id,
                 'title' => $project->title,
                 'theme' => $project->theme,
+                'theme_category' => $project->theme_category?->value,
                 'background' => $project->background,
                 'current_situation' => $project->current_situation,
                 'improvement_plan' => $project->improvement_plan,
@@ -117,6 +120,7 @@ class ProposalWizardController extends Controller
             ],
             'step' => $project->wizard_step,
             'qccSteps' => QccStep::catalog(),
+            'themeCategories' => ThemeCategory::options(),
             'batches' => $this->batchOptions($project->batch_id),
             'competencyOptions' => $this->competencyOptions(),
             'requirements' => $project->requirements()->orderBy('competency_id')->get(['competency_id', 'minimum_level'])->map(fn ($requirement): array => [

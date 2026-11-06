@@ -190,6 +190,7 @@ class ProposalController extends Controller
                 'status' => $project->proposal_status->value,
                 'status_label' => $project->proposal_status->label(),
                 'theme' => $project->theme,
+                'theme_category' => $project->theme_category?->label(),
                 'background' => $project->background,
                 'current_situation' => $project->current_situation,
                 'improvement_plan' => $project->improvement_plan,

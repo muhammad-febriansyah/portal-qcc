@@ -50,7 +50,7 @@ test('a new member starts at the competencies step and is sent to fill them in',
             ->has('overview.projects', 0));
 });
 
-test('the next action follows the member flow from proposal to Owner QCC selection', function () {
+test('the next action follows the member flow from proposal to proposal selection', function () {
     $member = memberDashboardUser();
     MemberCompetency::factory()->create(['user_id' => $member->id]);
 
@@ -74,6 +74,9 @@ test('the next action follows the member flow from proposal to Owner QCC selecti
         ->assertInertia(fn (Assert $page) => $page
             ->where('overview.journey.steps.1.state', 'done')
             ->where('overview.journey.steps.2.state', 'current')
+            ->where('overview.journey.steps.2.label', 'Seleksi Proposal')
+            ->where('overview.journey.steps.3.label', 'Proposal Lolos/Tidak Lolos')
+            ->where('overview.journey.steps.3.state', 'todo')
             ->where('overview.journey.next_action.label', 'Lihat status proposal')
             ->where('overview.proposals.0.status_label', 'Diajukan')
             ->where('overview.proposals.0.action_label', 'Lihat'));
@@ -85,6 +88,25 @@ test('the next action follows the member flow from proposal to Owner QCC selecti
             ->where('overview.journey.next_action.label', 'Perbaiki revisi proposal')
             ->where('overview.tasks.0.title', 'Perbaiki revisi proposal')
             ->where('overview.tasks.0.href', route('proposals.edit', $proposal)));
+});
+
+test('the last journey step tells whether the proposal passed selection', function () {
+    $member = memberDashboardUser();
+    MemberCompetency::factory()->create(['user_id' => $member->id]);
+    $proposal = Project::factory()->status(ProposalStatus::Rejected)->create(['proposer_id' => $member->id]);
+
+    $this->actingAs($member)->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('overview.journey.steps.2.state', 'done')
+            ->where('overview.journey.steps.3.label', 'Proposal Tidak Lolos')
+            ->where('overview.journey.steps.3.state', 'rejected'));
+
+    $proposal->forceFill(['proposal_status' => ProposalStatus::Approved])->save();
+
+    $this->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('overview.journey.steps.3.label', 'Proposal Lolos')
+            ->where('overview.journey.steps.3.state', 'done'));
 });
 
 test('a team member sees the current step of their project and only their own action items', function () {
@@ -100,7 +122,8 @@ test('a team member sees the current step of their project and only their own ac
 
     $this->actingAs($member)->get(route('dashboard'))
         ->assertInertia(fn (Assert $page) => $page
-            ->where('overview.journey.steps.3.state', 'current')
+            ->where('overview.journey.steps.3.state', 'done')
+            ->where('overview.journey.steps.3.label', 'Proposal Lolos')
             ->where('overview.journey.next_action.label', 'Buka proyek')
             ->where('overview.projects.0.role', 'Anggota')
             ->where('overview.projects.0.steps_completed', 1)

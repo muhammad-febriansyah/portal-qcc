@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\BatchStatus;
 use App\Enums\QccStep;
+use App\Enums\ThemeCategory;
 use App\Models\Project;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -39,6 +40,7 @@ class SaveProposalDraftRequest extends FormRequest
             'batch_id' => ['required', 'integer'],
             'title' => ['required', 'string', 'max:255'],
             'theme' => ['nullable', 'string', 'max:5000'],
+            'theme_category' => ['nullable', Rule::enum(ThemeCategory::class)],
             'background' => ['nullable', 'string', 'max:20000'],
             'current_situation' => ['nullable', 'string', 'max:20000'],
             'improvement_plan' => ['nullable', 'string', 'max:20000'],
@@ -72,6 +74,7 @@ class SaveProposalDraftRequest extends FormRequest
                 1 => [
                     'title' => ['required', 'string', 'max:255'],
                     'theme' => ['required', 'string', 'max:5000'],
+                    'theme_category' => ['required', Rule::enum(ThemeCategory::class)],
                     'batch_id' => ['required', 'integer', Rule::exists('qcc_batches', 'id')->where('status', BatchStatus::Active->value)],
                 ],
                 2 => [
@@ -82,9 +85,6 @@ class SaveProposalDraftRequest extends FormRequest
                     'improvement_plan' => ['required', 'string', 'max:20000'],
                     'target' => ['required', 'string', 'max:20000'],
                     'scope' => ['required', 'string', 'max:5000'],
-                ],
-                4 => [
-                    'cost_projection' => ['required', 'string', 'max:20000'],
                 ],
                 5 => [
                     'learning_goals' => ['required', 'array', 'size:3'],
@@ -123,6 +123,7 @@ class SaveProposalDraftRequest extends FormRequest
             'batch_id' => 'batch',
             'title' => 'judul proposal',
             'theme' => 'tema improvement',
+            'theme_category' => 'kategori tema',
             'background' => 'latar belakang',
             'current_situation' => 'situasi saat ini & baseline',
             'improvement_plan' => 'rencana perbaikan',
@@ -152,6 +153,7 @@ class SaveProposalDraftRequest extends FormRequest
             'exists' => 'Pilihan :attribute tidak valid atau sudah tidak aktif.',
             'max' => ':Attribute maksimal :max karakter.',
             'date_format' => ':Attribute harus berupa tanggal yang valid.',
+            'theme_category.enum' => 'Pilih kategori tema dari daftar.',
             'learning_goals.size' => 'Isi tepat 3 hal yang akan dipelajari.',
             'learning_goals.*.required' => 'Semua hal yang akan dipelajari wajib diisi.',
             'step_start_dates.size' => 'Isi tanggal mulai untuk semua 8 step QCC.',

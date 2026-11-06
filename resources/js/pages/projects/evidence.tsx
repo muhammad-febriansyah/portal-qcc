@@ -38,6 +38,7 @@ import {
     index as evidenceIndex,
     store as evidenceStore,
 } from '@/routes/projects/evidence';
+import { randomId } from '@/lib/utils';
 
 type StepOption = { id: number; number: number; name: string };
 type EvidenceTargetType =
@@ -833,7 +834,7 @@ export default function ProjectEvidencePage({
                                                         file
                                                             ? [
                                                                   {
-                                                                      id: crypto.randomUUID(),
+                                                                      id: randomId(),
                                                                       file,
                                                                   },
                                                               ]

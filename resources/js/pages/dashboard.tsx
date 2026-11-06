@@ -33,6 +33,8 @@ import {
     useMounted,
 } from '@/components/dashboard/dashboard-kit';
 import { PageHeader } from '@/components/page-header';
+import { ProgramDashboard } from '@/components/program/program-dashboard';
+import type { ProgramOverview } from '@/components/program/types';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -767,12 +769,14 @@ function RoleOverview({
 export default function Dashboard({
     adminOverview,
     roleOverview,
+    program,
     batches,
     selectedBatchId,
     selectedPeriod,
 }: {
     adminOverview: AdminOverviewData | null;
     roleOverview: RoleDashboardData | null;
+    program: ProgramOverview | null;
     batches: { id: number; name: string }[];
     selectedBatchId: number | null;
     selectedPeriod: 'all' | '30' | '90' | '365';
@@ -789,6 +793,68 @@ export default function Dashboard({
           ? 'proyek Anda'
           : 'proyek yang dapat Anda akses';
 
+    const filters = (
+        <div
+            className={cn(
+                'mb-6 flex flex-col gap-4 rounded-xl border bg-card p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between',
+                surfaceClassName,
+            )}
+        >
+            <DashboardFilters
+                batches={batches}
+                selectedBatchId={selectedBatchId}
+                selectedPeriod={selectedPeriod}
+            />
+            <div className="flex flex-col gap-2 lg:max-w-md lg:items-end">
+                {roleNames.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                        {roleNames.map((role) => (
+                            <Badge
+                                key={role}
+                                variant="outline"
+                                className="font-medium"
+                            >
+                                {role}
+                            </Badge>
+                        ))}
+                    </div>
+                )}
+                <p className="text-xs text-muted-foreground lg:text-right">
+                    Periode proyek dihitung dari tanggal dibuat; laporan dari
+                    tanggal periode/sesi. Tugas tertunda tetap mencakup semua
+                    tenggat.
+                </p>
+            </div>
+        </div>
+    );
+    const roleContent = roleOverview ? (
+        <>
+            {filters}
+            <RoleOverview overview={roleOverview} scopeLabel={scopeLabel} />
+        </>
+    ) : null;
+    const tabs = [
+        program && {
+            value: 'program',
+            label: `Program ${program.batch.name}`,
+            content: <ProgramDashboard overview={program} />,
+        },
+        adminOverview && {
+            value: 'system',
+            label: 'Ringkasan sistem',
+            content: <AdminOverview overview={adminOverview} />,
+        },
+        roleContent && {
+            value: 'role',
+            label: 'Ringkasan QCC Anda',
+            content: roleContent,
+        },
+    ].filter((tab) => Boolean(tab)) as {
+        value: string;
+        label: string;
+        content: React.ReactNode;
+    }[];
+
     return (
         <>
             <Head title="Dashboard" />
@@ -799,70 +865,28 @@ export default function Dashboard({
                     description={`Selamat datang, ${firstName}. Berikut ringkasan kerja QCC Anda.`}
                 />
 
-                <div
-                    className={cn(
-                        'mb-8 flex flex-col gap-4 rounded-xl border bg-card p-4 sm:p-5 lg:flex-row lg:items-end lg:justify-between',
-                        surfaceClassName,
-                    )}
-                >
-                    <DashboardFilters
-                        batches={batches}
-                        selectedBatchId={selectedBatchId}
-                        selectedPeriod={selectedPeriod}
-                    />
-                    <div className="flex flex-col gap-2 lg:max-w-md lg:items-end">
-                        {roleNames.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 lg:justify-end">
-                                {roleNames.map((role) => (
-                                    <Badge
-                                        key={role}
-                                        variant="outline"
-                                        className="font-medium"
-                                    >
-                                        {role}
-                                    </Badge>
-                                ))}
-                            </div>
-                        )}
-                        <p className="text-xs text-muted-foreground lg:text-right">
-                            Periode proyek dihitung dari tanggal dibuat; laporan
-                            dari tanggal periode/sesi. Tugas tertunda tetap
-                            mencakup semua tenggat.
-                        </p>
-                    </div>
-                </div>
-
-                {adminOverview && roleOverview ? (
-                    <Tabs defaultValue="system" className="gap-6">
+                {tabs.length > 1 ? (
+                    <Tabs defaultValue={tabs[0].value} className="gap-6">
                         <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
-                            <TabsTrigger
-                                value="system"
-                                className="px-3 sm:px-4"
-                            >
-                                Ringkasan sistem
-                            </TabsTrigger>
-                            <TabsTrigger value="role" className="px-3 sm:px-4">
-                                Ringkasan QCC Anda
-                            </TabsTrigger>
+                            {tabs.map((tab) => (
+                                <TabsTrigger
+                                    key={tab.value}
+                                    value={tab.value}
+                                    className="px-3 sm:px-4"
+                                >
+                                    {tab.label}
+                                </TabsTrigger>
+                            ))}
                         </TabsList>
-                        <TabsContent value="system">
-                            <AdminOverview overview={adminOverview} />
-                        </TabsContent>
-                        <TabsContent value="role">
-                            <RoleOverview
-                                overview={roleOverview}
-                                scopeLabel={scopeLabel}
-                            />
-                        </TabsContent>
+                        {tabs.map((tab) => (
+                            <TabsContent key={tab.value} value={tab.value}>
+                                {tab.content}
+                            </TabsContent>
+                        ))}
                     </Tabs>
-                ) : adminOverview ? (
-                    <AdminOverview overview={adminOverview} />
-                ) : roleOverview ? (
-                    <RoleOverview
-                        overview={roleOverview}
-                        scopeLabel={scopeLabel}
-                    />
-                ) : null}
+                ) : (
+                    tabs[0]?.content
+                )}
             </main>
         </>
     );

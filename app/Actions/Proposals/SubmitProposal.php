@@ -32,12 +32,12 @@ class SubmitProposal
             $requiredFields = [
                 'title' => 'Judul proposal',
                 'theme' => 'Tema improvement',
+                'theme_category' => 'Kategori tema',
                 'background' => 'Latar belakang',
                 'current_situation' => 'Situasi saat ini & baseline',
                 'improvement_plan' => 'Rencana perbaikan',
                 'target' => 'Target/tujuan',
                 'scope' => 'Ruang lingkup proyek',
-                'cost_projection' => 'Proyeksi kebutuhan biaya proyek',
             ];
             $missing = [];
 

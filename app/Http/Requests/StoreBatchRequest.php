@@ -37,6 +37,13 @@ class StoreBatchRequest extends FormRequest
             'starts_on' => ['required', 'date_format:Y-m-d'],
             'ends_on' => ['required', 'date_format:Y-m-d', 'after_or_equal:starts_on'],
             'status' => ['required', Rule::enum(BatchStatus::class)],
+            'participant_target' => ['nullable', 'integer', 'min:1', 'max:100000'],
+            'registration_starts_on' => ['nullable', 'date_format:Y-m-d', 'required_with:registration_ends_on'],
+            'registration_ends_on' => ['nullable', 'date_format:Y-m-d', 'required_with:registration_starts_on', 'after_or_equal:registration_starts_on'],
+            'selection_starts_on' => ['nullable', 'date_format:Y-m-d', 'required_with:selection_ends_on'],
+            'selection_ends_on' => ['nullable', 'date_format:Y-m-d', 'required_with:selection_starts_on', 'after_or_equal:selection_starts_on'],
+            'execution_starts_on' => ['nullable', 'date_format:Y-m-d', 'required_with:execution_ends_on'],
+            'execution_ends_on' => ['nullable', 'date_format:Y-m-d', 'required_with:execution_starts_on', 'after_or_equal:execution_starts_on'],
         ];
     }
 
@@ -51,6 +58,13 @@ class StoreBatchRequest extends FormRequest
             'starts_on' => 'tanggal mulai',
             'ends_on' => 'tanggal selesai',
             'status' => 'status',
+            'participant_target' => 'target peserta',
+            'registration_starts_on' => 'mulai fase 1',
+            'registration_ends_on' => 'selesai fase 1',
+            'selection_starts_on' => 'mulai fase 2',
+            'selection_ends_on' => 'selesai fase 2',
+            'execution_starts_on' => 'mulai fase 3',
+            'execution_ends_on' => 'selesai fase 3',
         ];
     }
 
@@ -67,6 +81,13 @@ class StoreBatchRequest extends FormRequest
             'date_format' => 'Format :attribute tidak valid.',
             'ends_on.after_or_equal' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
             'status.enum' => 'Status yang dipilih tidak valid.',
+            'required_with' => ':Attribute wajib diisi bila tanggal pasangannya diisi.',
+            'integer' => ':Attribute harus berupa angka.',
+            'participant_target.min' => 'Target peserta minimal 1.',
+            'participant_target.max' => 'Target peserta terlalu besar.',
+            'registration_ends_on.after_or_equal' => 'Selesai fase 1 tidak boleh sebelum tanggal mulainya.',
+            'selection_ends_on.after_or_equal' => 'Selesai fase 2 tidak boleh sebelum tanggal mulainya.',
+            'execution_ends_on.after_or_equal' => 'Selesai fase 3 tidak boleh sebelum tanggal mulainya.',
         ];
     }
 }

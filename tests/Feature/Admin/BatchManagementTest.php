@@ -207,3 +207,32 @@ test('a batch used by a project cannot be deleted', function () {
 
     expect(QccBatch::query()->whereKey($batch->id)->exists())->toBeTrue();
 });
+
+test('batch managers set the participant target and the three program phases', function () {
+    $this->actingAs(batchManager())
+        ->post(route('admin.batches.store'), validBatchPayload([
+            'participant_target' => 290,
+            'registration_starts_on' => '2026-01-05',
+            'registration_ends_on' => '2026-01-30',
+            'selection_starts_on' => '2026-02-01',
+            'selection_ends_on' => '2026-02-28',
+            'execution_starts_on' => '2026-03-01',
+            'execution_ends_on' => '2026-06-30',
+        ]))
+        ->assertSessionHasNoErrors();
+
+    expect(QccBatch::query()->sole())
+        ->participant_target->toBe(290)
+        ->selection_starts_on->toDateString()->toBe('2026-02-01')
+        ->execution_ends_on->toDateString()->toBe('2026-06-30');
+
+    $this->post(route('admin.batches.store'), validBatchPayload([
+        'code' => 'BATCH-2027',
+        'selection_starts_on' => '2026-02-10',
+        'selection_ends_on' => '2026-02-01',
+        'execution_starts_on' => '2026-03-01',
+    ]))->assertSessionHasErrors([
+        'selection_ends_on' => 'Selesai fase 2 tidak boleh sebelum tanggal mulainya.',
+        'execution_ends_on',
+    ]);
+});
