@@ -11,21 +11,24 @@ import {
     GraduationCap,
     X,
 } from 'lucide-react';
+import { useState } from 'react';
 import {
-    DashboardPanel,
+    DashboardGreeting,
+    GreetingChip,
+} from '@/components/dashboard/dashboard-greeting';
+import {
     PanelEmpty,
     ProgressBar,
     surfaceClassName,
 } from '@/components/dashboard/dashboard-kit';
-import { PageHeader } from '@/components/page-header';
 import { ProgramDashboard } from '@/components/program/program-dashboard';
+import { Panel } from '@/components/program/program-kit';
 import type { ProgramOverview } from '@/components/program/types';
 import type { BadgeVariant } from '@/lib/badge-variants';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { dashboard } from '@/routes';
 
 type JourneyStep = {
     key: string;
@@ -102,25 +105,20 @@ function formatDate(value: string | null): string | null {
 }
 
 /** The four stages of the member flow, with the next thing to do. */
-function JourneyCard({
-    firstName,
-    journey,
-}: {
-    firstName: string;
-    journey: MemberOverview['journey'];
-}) {
+function JourneyCard({ journey }: { journey: MemberOverview['journey'] }) {
     const action = journey.next_action;
 
     return (
         <Card className={cn('gap-0 py-0', surfaceClassName)}>
-            <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-10">
+            <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-8">
                 <div className="grid gap-5">
-                    <div className="grid gap-1">
-                        <h2 className="text-lg font-semibold tracking-tight">
-                            Halo, {firstName}
+                    <div className="grid gap-0.5">
+                        <h2 className="text-sm font-semibold text-foreground">
+                            Posisi Anda di alur QCC
                         </h2>
-                        <p className="text-sm text-muted-foreground">
-                            Posisi Anda di alur QCC saat ini.
+                        <p className="text-xs text-muted-foreground">
+                            Dari mengisi kompetensi sampai hasil seleksi
+                            proposal.
                         </p>
                     </div>
                     <ol
@@ -199,19 +197,18 @@ function JourneyCard({
                     </ol>
                 </div>
                 {action && (
-                    <div className="grid gap-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-4 lg:w-80">
+                    <div className="grid gap-3 rounded-xl bg-primary p-4 text-primary-foreground lg:w-80">
                         <div className="grid gap-1">
-                            <p className="text-xs font-semibold tracking-wide text-primary uppercase">
+                            <p className="text-xs font-semibold tracking-wide text-primary-foreground/80 uppercase">
                                 Langkah berikutnya
                             </p>
-                            <p className="text-sm text-foreground">
-                                {action.description}
-                            </p>
+                            <p className="text-sm">{action.description}</p>
                         </div>
                         <Button
                             render={<Link href={action.href} />}
                             nativeButton={false}
-                            className="h-10 w-full sm:w-fit lg:w-full"
+                            variant="secondary"
+                            className="h-10 w-full bg-white text-primary hover:bg-white/90 sm:w-fit lg:w-full"
                         >
                             {action.label}
                             <ArrowRight data-icon="inline-end" />
@@ -223,6 +220,8 @@ function JourneyCard({
     );
 }
 
+const TASKS_SHOWN = 5;
+
 function TasksPanel({
     tasks,
     total,
@@ -230,12 +229,16 @@ function TasksPanel({
     tasks: MemberOverview['tasks'];
     total: number;
 }) {
+    const [showAll, setShowAll] = useState(false);
+    const shown = showAll ? tasks : tasks.slice(0, TASKS_SHOWN);
+    const overdue = tasks.filter((task) => task.overdue).length;
+
     return (
-        <DashboardPanel
+        <Panel
             title="Yang perlu dikerjakan"
             description={
-                total > tasks.length
-                    ? `${tasks.length} dari ${total} tugas terdekat.`
+                total > 0
+                    ? `${total} tugas${overdue > 0 ? ` · ${overdue} lewat tenggat` : ''}`
                     : 'Tugas yang menunggu Anda.'
             }
         >
@@ -246,46 +249,70 @@ function TasksPanel({
                     description="Revisi, action item, dan tugas leader akan muncul di sini."
                 />
             ) : (
-                <ul className="grid gap-2.5">
-                    {tasks.map((task) => (
-                        <li key={task.key}>
-                            <Link
-                                href={task.href}
-                                className="group flex items-start justify-between gap-3 rounded-xl border border-border/60 p-3.5 transition-colors hover:border-primary/30 hover:bg-primary/[0.03] focus-visible:border-ring focus-visible:outline-none"
-                            >
-                                <div className="grid min-w-0 gap-0.5">
-                                    <span className="text-sm font-medium break-words text-foreground">
-                                        {task.title}
+                <div className="grid gap-1">
+                    <ul className="grid divide-y divide-border/60">
+                        {shown.map((task) => (
+                            <li key={task.key}>
+                                <Link
+                                    href={task.href}
+                                    className="group -mx-2 flex items-start justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                >
+                                    <span className="flex min-w-0 items-start gap-2.5">
+                                        <span
+                                            aria-hidden="true"
+                                            className={cn(
+                                                'mt-1.5 size-2 shrink-0 rounded-full',
+                                                task.overdue
+                                                    ? 'bg-destructive'
+                                                    : 'bg-primary',
+                                            )}
+                                        />
+                                        <span className="grid min-w-0 gap-0.5">
+                                            <span className="text-sm font-medium break-words text-foreground group-hover:text-primary">
+                                                {task.title}
+                                            </span>
+                                            <span className="line-clamp-1 text-xs text-muted-foreground">
+                                                {task.project} · {task.detail}
+                                            </span>
+                                        </span>
                                     </span>
-                                    <span className="text-xs break-words text-muted-foreground">
-                                        {task.project} · {task.detail}
-                                    </span>
-                                </div>
-                                {task.date && (
-                                    <Badge
-                                        variant={
-                                            task.overdue
-                                                ? 'destructive'
-                                                : 'secondary'
-                                        }
-                                        className="shrink-0"
-                                    >
-                                        {task.overdue ? 'Lewat ' : ''}
-                                        {formatDate(task.date)}
-                                    </Badge>
-                                )}
-                            </Link>
-                        </li>
-                    ))}
-                </ul>
+                                    {task.date && (
+                                        <Badge
+                                            variant={
+                                                task.overdue
+                                                    ? 'destructive'
+                                                    : 'secondary'
+                                            }
+                                            className="shrink-0"
+                                        >
+                                            {task.overdue ? 'Lewat ' : ''}
+                                            {formatDate(task.date)}
+                                        </Badge>
+                                    )}
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                    {tasks.length > TASKS_SHOWN && (
+                        <button
+                            type="button"
+                            onClick={() => setShowAll((current) => !current)}
+                            className="w-fit rounded text-xs font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        >
+                            {showAll
+                                ? 'Tampilkan lebih sedikit'
+                                : `Tampilkan ${tasks.length - TASKS_SHOWN} tugas lain`}
+                        </button>
+                    )}
+                </div>
             )}
-        </DashboardPanel>
+        </Panel>
     );
 }
 
 function ProjectsPanel({ projects }: { projects: MemberOverview['projects'] }) {
     return (
-        <DashboardPanel
+        <Panel
             title="Proyek saya"
             description="Proyek QCC yang sedang Anda kerjakan."
         >
@@ -303,7 +330,7 @@ function ProjectsPanel({ projects }: { projects: MemberOverview['projects'] }) {
                         return (
                             <li
                                 key={project.id}
-                                className="grid gap-3 rounded-xl border border-border/60 p-4"
+                                className="grid gap-3 border-b border-border/60 pb-4 last:border-b-0 last:pb-0"
                             >
                                 <div className="flex flex-wrap items-start justify-between gap-2">
                                     <p className="min-w-0 flex-1 text-sm font-semibold break-words">
@@ -357,7 +384,7 @@ function ProjectsPanel({ projects }: { projects: MemberOverview['projects'] }) {
                     })}
                 </ul>
             )}
-        </DashboardPanel>
+        </Panel>
     );
 }
 
@@ -367,10 +394,7 @@ function ProposalsPanel({
     proposals: MemberOverview['proposals'];
 }) {
     return (
-        <DashboardPanel
-            title="Proposal saya"
-            description="Proposal yang Anda ajukan."
-        >
+        <Panel title="Proposal saya" description="Proposal yang Anda ajukan.">
             {proposals.length === 0 ? (
                 <PanelEmpty
                     icon={FileText}
@@ -417,7 +441,7 @@ function ProposalsPanel({
                     ))}
                 </ul>
             )}
-        </DashboardPanel>
+        </Panel>
     );
 }
 
@@ -429,7 +453,7 @@ function CompetenciesPanel({
     const inPool = competencies.count > 0;
 
     return (
-        <DashboardPanel
+        <Panel
             title="Kompetensi saya"
             description="Dipakai Owner QCC untuk menyusun tim."
         >
@@ -472,7 +496,7 @@ function CompetenciesPanel({
                     Kelola kompetensi
                 </Button>
             </div>
-        </DashboardPanel>
+        </Panel>
     );
 }
 
@@ -491,28 +515,38 @@ export default function MemberDashboard({
         <>
             <Head title="Dashboard" />
             <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 md:px-6 md:py-8">
-                <PageHeader
-                    breadcrumbs={[{ title: 'Dashboard', href: dashboard() }]}
-                    title="Dashboard"
-                    description="Ringkasan kerja QCC Anda."
+                <DashboardGreeting
+                    name={firstName}
+                    description="Ringkasan kerja QCC Anda hari ini."
+                    aside={
+                        <>
+                            <GreetingChip
+                                label="Tugas"
+                                value={String(overview.task_count)}
+                            />
+                            <GreetingChip
+                                label="Kompetensi"
+                                value={`${overview.competencies.count}/${overview.competencies.limit}`}
+                            />
+                        </>
+                    }
                 />
-                <div className="grid gap-5">
-                    <JourneyCard
-                        firstName={firstName}
-                        journey={overview.journey}
-                    />
-                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-                        <TasksPanel
-                            tasks={overview.tasks}
-                            total={overview.task_count}
-                        />
-                        <ProjectsPanel projects={overview.projects} />
-                    </div>
-                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-                        <ProposalsPanel proposals={overview.proposals} />
-                        <CompetenciesPanel
-                            competencies={overview.competencies}
-                        />
+                <div className="grid gap-4">
+                    <JourneyCard journey={overview.journey} />
+                    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+                        <div className="grid gap-4">
+                            <TasksPanel
+                                tasks={overview.tasks}
+                                total={overview.task_count}
+                            />
+                            <ProposalsPanel proposals={overview.proposals} />
+                        </div>
+                        <div className="grid gap-4">
+                            <ProjectsPanel projects={overview.projects} />
+                            <CompetenciesPanel
+                                competencies={overview.competencies}
+                            />
+                        </div>
                     </div>
                 </div>
                 {program && (

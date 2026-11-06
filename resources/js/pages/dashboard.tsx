@@ -2,12 +2,14 @@ import { Head, usePage } from '@inertiajs/react';
 import { CalendarOff } from 'lucide-react';
 import { AdminOverview } from '@/components/dashboard/admin-overview';
 import type { AdminOverviewData } from '@/components/dashboard/admin-overview';
+import {
+    DashboardGreeting,
+    GreetingChip,
+} from '@/components/dashboard/dashboard-greeting';
 import { PanelEmpty } from '@/components/dashboard/dashboard-kit';
-import { PageHeader } from '@/components/page-header';
 import { ProgramDashboard } from '@/components/program/program-dashboard';
 import type { ProgramOverview } from '@/components/program/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { dashboard } from '@/routes';
 
 /**
  * Dashboard of Owner QCC, Mentors and admins: the program of the running batch,
@@ -23,6 +25,12 @@ export default function Dashboard({
     const { auth } = usePage<{ auth: { user: { name: string } | null } }>()
         .props;
     const firstName = auth.user?.name.split(' ')[0] ?? '';
+    const currentPhase =
+        program?.phases.find((phase) => phase.state === 'active') ??
+        program?.phases.find((phase) => phase.state === 'upcoming');
+    const phaseStatus = currentPhase
+        ? `Fase ${currentPhase.number} · ${currentPhase.state === 'active' ? 'Aktif' : 'Segera dimulai'}`
+        : 'Semua fase selesai';
     const programContent = program ? (
         <ProgramDashboard overview={program} />
     ) : (
@@ -37,10 +45,23 @@ export default function Dashboard({
         <>
             <Head title="Dashboard" />
             <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 md:px-6 md:py-8">
-                <PageHeader
-                    breadcrumbs={[{ title: 'Dashboard', href: dashboard() }]}
-                    title="Dashboard"
-                    description={`Selamat datang, ${firstName}. Berikut progres program QCC.`}
+                <DashboardGreeting
+                    name={firstName}
+                    description="Berikut progres program QCC hari ini."
+                    aside={
+                        program && (
+                            <>
+                                <GreetingChip
+                                    label="Batch"
+                                    value={program.batch.name}
+                                />
+                                <GreetingChip
+                                    label="Program"
+                                    value={phaseStatus}
+                                />
+                            </>
+                        )
+                    }
                 />
 
                 {adminOverview ? (
