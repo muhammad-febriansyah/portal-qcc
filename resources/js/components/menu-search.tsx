@@ -143,7 +143,7 @@ export function MenuSearch() {
             <Dialog open={open} onOpenChange={handleOpenChange}>
                 <DialogContent
                     showCloseButton={false}
-                    className="top-[12vh] max-w-[calc(100%-2rem)] translate-y-0 gap-0 overflow-hidden rounded-2xl bg-white/75 p-0 shadow-[0_24px_60px_-16px_rgba(24,35,55,0.3)] ring-1 ring-white/70 backdrop-blur-xl backdrop-saturate-150 sm:max-w-xl"
+                    className="top-[12vh] max-w-[calc(100%-2rem)] translate-y-0 gap-0 overflow-hidden rounded-2xl bg-white/75 p-0 shadow-[0_16px_40px_-24px_rgba(24,35,55,0.28)] ring-1 ring-white/70 backdrop-blur-xl backdrop-saturate-150 sm:max-w-xl"
                 >
                     <DialogTitle className="sr-only">Cari menu</DialogTitle>
                     <DialogDescription className="sr-only">

@@ -46,7 +46,7 @@ export default function VerifyEmail({ status }: Props) {
                     {({ processing }) => (
                         <Button
                             type="submit"
-                            className="h-12 w-full rounded-[10px] text-base font-semibold shadow-[0_6px_14px_rgba(1,145,194,0.18)]"
+                            className="h-12 w-full rounded-[10px] text-base font-semibold"
                             disabled={processing}
                             data-test="resend-verification-button"
                         >

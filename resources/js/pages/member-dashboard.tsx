@@ -150,11 +150,11 @@ function JourneyCard({
                                 )}
                                 <span
                                     className={cn(
-                                        'relative flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold',
+                                        'relative flex size-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold',
                                         step.state === 'done' &&
                                             'border-primary bg-primary/10 text-primary',
                                         step.state === 'current' &&
-                                            'border-primary bg-primary text-primary-foreground ring-4 ring-primary/15',
+                                            'border-primary bg-primary text-primary-foreground',
                                         step.state === 'todo' &&
                                             'border-border bg-muted text-muted-foreground',
                                         step.state === 'rejected' &&

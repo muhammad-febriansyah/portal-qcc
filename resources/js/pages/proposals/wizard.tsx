@@ -1142,7 +1142,7 @@ export default function ProposalWizard({
                 </Card>
             ) : (
                 <div className="grid gap-5">
-                    <Card className="overflow-hidden border-border/60 shadow-xs">
+                    <Card className="overflow-hidden border-border/70">
                         <CardHeader className="gap-2 border-b bg-muted/25 px-5 py-5 sm:px-7">
                             <div className="flex items-start justify-between gap-4">
                                 <div className="grid gap-1.5">

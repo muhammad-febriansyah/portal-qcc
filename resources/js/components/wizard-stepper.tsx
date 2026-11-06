@@ -62,9 +62,9 @@ export function WizardStepper({
                             >
                                 <span
                                     className={cn(
-                                        'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors',
+                                        'flex size-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition-colors',
                                         isCurrent &&
-                                            'border-primary bg-primary text-primary-foreground shadow-sm ring-4 ring-primary/15',
+                                            'border-primary bg-primary text-primary-foreground',
                                         isDone &&
                                             !isCurrent &&
                                             'border-primary bg-primary/10 text-primary group-hover:bg-primary/20',

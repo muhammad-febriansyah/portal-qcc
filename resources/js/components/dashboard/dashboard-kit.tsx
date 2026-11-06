@@ -6,9 +6,8 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-/** Hairline border and a soft two-layer shadow. Used by every dashboard panel. */
-export const surfaceClassName =
-    'border-border/60 shadow-[0_1px_2px_rgba(24,35,55,0.03),0_8px_24px_-12px_rgba(24,35,55,0.10)]';
+/** One hairline border and no shadow. Used by every dashboard panel. */
+export const surfaceClassName = 'border-border/70 shadow-none';
 
 export const numberFormat = new Intl.NumberFormat('id-ID');
 

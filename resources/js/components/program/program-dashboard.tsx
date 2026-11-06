@@ -1,15 +1,21 @@
-import { Building2, FileText, ListChecks, Target, Users } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 import {
     ChartFallback,
     DashboardPanel,
-    KpiCard,
     numberFormat,
     PanelEmpty,
     useMounted,
 } from '@/components/dashboard/dashboard-kit';
 import { ExecutionPhase } from './execution-phase';
-import { BarList, LegendRow } from './program-kit';
+import {
+    BarList,
+    categoryColors,
+    Meter,
+    percentOf,
+    programColors,
+    StackedBar,
+    StatStrip,
+} from './program-kit';
 import { phasePeriod, ProgramPhases } from './program-phases';
 import { SelectionPhase } from './selection-phase';
 import type {
@@ -18,147 +24,123 @@ import type {
     RegistrationPhaseData,
 } from './types';
 
-const ProgramDonutChart = lazy(
-    () => import('@/components/charts/program-donut-chart'),
-);
 const ProgramTrendChart = lazy(
     () => import('@/components/charts/program-trend-chart'),
 );
-
-/** Same validated order as the other portal charts; gray is "not categorized". */
-const THEME_COLORS: Record<string, string> = {
-    EFFICIENCY: '#0191C2',
-    PRODUCTIVITY: '#C4844F',
-    REVENUE_GM: '#7A5AF8',
-    QUALITY_CUSTOMER_EXPERIENCE: '#16834A',
-    RISK_COMPLIANCE_PROCESS_CONTROL: '#F79009',
-    UNCATEGORIZED: '#98A2B3',
-};
-const SUBMITTED_COLOR = '#0191C2';
-const REMAINING_COLOR = '#D0D5DD';
 
 function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
     const isMounted = useMounted();
     const target = data.participant_target;
     const goal = target ?? data.participants;
     const remaining = Math.max(goal - data.submitters, 0);
-    const submittersPercent =
-        goal > 0 ? Math.round((data.submitters / goal) * 100) : 0;
     const activeOrganizations = data.submissions_by_organization.filter(
         (row) => row.count > 0,
     ).length;
-    const themes = data.themes.filter(
-        (theme) => theme.key !== 'UNCATEGORIZED' || theme.count > 0,
+    const categorized = data.themes.filter(
+        (theme) => theme.key !== 'UNCATEGORIZED',
+    );
+    const uncategorized = data.themes.find(
+        (theme) => theme.key === 'UNCATEGORIZED',
     );
     const hasTrend = data.trend.some(
         (point) => point.registered > 0 || point.submitted > 0,
     );
 
     return (
-        <div className="grid gap-6">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                <KpiCard
-                    label="Target Partisipasi"
-                    value={target === null ? '–' : numberFormat.format(target)}
-                    helper={
-                        target === null
-                            ? 'Belum diatur di data batch'
-                            : 'SIMers yang mengajukan proposal'
-                    }
-                    icon={Target}
-                    tone="bg-[#C4844F]/12 text-[#8F5A2E]"
-                />
-                <KpiCard
-                    label="Total Registered"
-                    value={numberFormat.format(data.registered)}
-                    helper={`Profil lengkap dari ${numberFormat.format(data.participants)} akun SIMers`}
-                    icon={Users}
-                    tone="bg-primary/10 text-primary"
-                />
-                <KpiCard
-                    label="Proposal Submitted"
-                    value={numberFormat.format(data.proposals_submitted)}
-                    helper={`Dari ${numberFormat.format(data.submitters)} SIMers pengusul`}
-                    icon={FileText}
-                    tone="bg-[#C4844F]/12 text-[#8F5A2E]"
-                />
-                <KpiCard
-                    label="Completion Profil Kompetensi"
-                    value={`${data.competency_completed_percent}%`}
-                    helper={`${numberFormat.format(data.competency_completed)} SIMers sudah mengisi kompetensi`}
-                    icon={ListChecks}
-                    tone="bg-[#16834A]/10 text-[#16834A]"
-                />
-                <KpiCard
-                    label="Total LOB/Div"
-                    value={numberFormat.format(data.organizations_count)}
-                    helper={`${activeOrganizations} LOB/Div sudah mengirim proposal`}
-                    icon={Building2}
-                    tone="bg-[#7A5AF8]/10 text-[#5B3FD6]"
-                />
-            </div>
+        <div className="grid gap-5">
+            <StatStrip
+                stats={[
+                    {
+                        label: 'Target partisipasi',
+                        value:
+                            target === null ? '–' : numberFormat.format(target),
+                        helper:
+                            target === null
+                                ? 'Belum diatur di data batch'
+                                : 'SIMers mengajukan proposal',
+                    },
+                    {
+                        label: 'Total registered',
+                        value: numberFormat.format(data.registered),
+                        helper: `Profil lengkap dari ${numberFormat.format(data.participants)} akun`,
+                    },
+                    {
+                        label: 'Proposal submitted',
+                        value: numberFormat.format(data.proposals_submitted),
+                        helper: `Dari ${numberFormat.format(data.submitters)} SIMers pengusul`,
+                    },
+                    {
+                        label: 'Completion profil kompetensi',
+                        value: `${data.competency_completed_percent}%`,
+                        helper: `${numberFormat.format(data.competency_completed)} SIMers`,
+                    },
+                    {
+                        label: 'Total LOB/Div',
+                        value: numberFormat.format(data.organizations_count),
+                        helper: `${activeOrganizations} sudah mengirim proposal`,
+                    },
+                ]}
+            />
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
                 <DashboardPanel
-                    title="Participation Overview"
+                    title="Participation overview"
                     description={
                         target === null
-                            ? 'SIMers yang sudah mengajukan proposal dibanding semua akun SIMers. Atur target peserta di data batch.'
+                            ? 'SIMers pengusul dibanding semua akun SIMers. Atur target peserta di data batch.'
                             : 'Realisasi SIMers yang mengajukan proposal terhadap target.'
                     }
                 >
-                    <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                        <div
-                            role="img"
-                            aria-label={`${data.submitters} dari ${goal} SIMers sudah mengajukan proposal (${submittersPercent}%).`}
-                        >
-                            {isMounted ? (
-                                <Suspense
-                                    fallback={<ChartFallback height={220} />}
-                                >
-                                    <ProgramDonutChart
-                                        centerLabel={`${data.submitters} / ${goal} SIMers`}
-                                        centerValue={`${submittersPercent}%`}
-                                        unit="SIMers"
-                                        slices={[
-                                            {
-                                                label: 'Sudah submit',
-                                                value: data.submitters,
-                                                color: SUBMITTED_COLOR,
-                                            },
-                                            {
-                                                label: 'Belum submit',
-                                                value: remaining,
-                                                color: REMAINING_COLOR,
-                                            },
-                                        ]}
-                                    />
-                                </Suspense>
-                            ) : (
-                                <ChartFallback height={220} />
-                            )}
-                        </div>
-                        <ul className="grid gap-3">
-                            <LegendRow
-                                color={SUBMITTED_COLOR}
-                                label="Sudah submit"
-                                value={`${numberFormat.format(data.submitters)} (${submittersPercent}%)`}
-                            />
-                            <LegendRow
-                                color={REMAINING_COLOR}
-                                label="Belum submit"
-                                value={`${numberFormat.format(remaining)} (${goal > 0 ? 100 - submittersPercent : 0}%)`}
-                            />
-                        </ul>
-                    </div>
+                    <Meter
+                        percent={percentOf(data.submitters, goal)}
+                        caption={`${numberFormat.format(data.submitters)} dari ${numberFormat.format(goal)} SIMers`}
+                        filledLabel={`Sudah submit ${numberFormat.format(data.submitters)}`}
+                        restLabel={`Belum submit ${numberFormat.format(remaining)}`}
+                        label="Realisasi submit proposal terhadap target"
+                    />
+                    <dl className="mt-5 grid divide-y divide-border/60 border-t border-border/70 text-sm">
+                        {[
+                            [
+                                'Target peserta',
+                                target === null
+                                    ? 'Belum diatur'
+                                    : numberFormat.format(target),
+                            ],
+                            [
+                                'Akun SIMers',
+                                numberFormat.format(data.participants),
+                            ],
+                            [
+                                'Profil lengkap',
+                                numberFormat.format(data.registered),
+                            ],
+                            [
+                                'SIMers pengusul',
+                                numberFormat.format(data.submitters),
+                            ],
+                        ].map(([term, value]) => (
+                            <div
+                                key={term}
+                                className="flex items-center justify-between gap-3 py-2"
+                            >
+                                <dt className="text-muted-foreground">
+                                    {term}
+                                </dt>
+                                <dd className="font-medium text-foreground tabular-nums">
+                                    {value}
+                                </dd>
+                            </div>
+                        ))}
+                    </dl>
                 </DashboardPanel>
 
                 <DashboardPanel
-                    title="Sebaran Submit Proposal per LOB/Div"
-                    description={`${data.organizations_count} LOB/Div, menurut LOB/Div pengusul.`}
+                    title="Sebaran submit proposal per LOB/Div"
+                    description="Menurut LOB/Div pengusul, terbanyak di atas."
                 >
                     <BarList
                         label="Jumlah proposal per LOB/Div"
+                        emptyLabel="LOB/Div belum ada proposal"
                         rows={data.submissions_by_organization.map((row) => ({
                             name: row.name,
                             value: row.count,
@@ -168,18 +150,19 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                 </DashboardPanel>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-2">
+            <div className="grid gap-5 xl:grid-cols-2">
                 <DashboardPanel
-                    title="Competency Profile SIMers"
-                    description={`${numberFormat.format(data.competency_completed)} dari ${numberFormat.format(data.registered)} SIMers terdaftar sudah melengkapi profil kompetensi (${data.competency_completed_percent}%).`}
+                    title="Competency profile SIMers"
+                    description={`SIMers terdaftar yang punya kompetensi di tiap kelompok. ${numberFormat.format(data.competency_completed)} dari ${numberFormat.format(data.registered)} sudah mengisi (${data.competency_completed_percent}%).`}
                 >
                     {data.competency_groups.length > 0 ? (
                         <BarList
                             label="SIMers per kelompok kompetensi"
+                            emptyLabel="kelompok belum terisi"
                             rows={data.competency_groups.map((group) => ({
                                 name: group.name,
                                 value: group.count,
-                                display: `${numberFormat.format(group.count)} (${group.percent}%)`,
+                                display: `${numberFormat.format(group.count)} · ${group.percent}%`,
                             }))}
                         />
                     ) : (
@@ -191,54 +174,33 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                 </DashboardPanel>
 
                 <DashboardPanel
-                    title="Sebaran Tema Improvement"
-                    description="Proposal yang sudah diajukan menurut kategori tema."
+                    title="Sebaran tema improvement"
+                    description={`Kategori tema dari ${numberFormat.format(data.proposals_submitted)} proposal yang diajukan.`}
                 >
                     {data.proposals_submitted > 0 ? (
-                        <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] xl:grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
-                            <div
-                                role="img"
-                                aria-label={`Sebaran tema dari ${data.proposals_submitted} proposal.`}
-                            >
-                                {isMounted ? (
-                                    <Suspense
-                                        fallback={
-                                            <ChartFallback height={220} />
-                                        }
-                                    >
-                                        <ProgramDonutChart
-                                            centerLabel="Proposal"
-                                            centerValue={numberFormat.format(
-                                                data.proposals_submitted,
-                                            )}
-                                            unit="proposal"
-                                            slices={themes.map((theme) => ({
-                                                label: theme.label,
-                                                value: theme.count,
-                                                color:
-                                                    THEME_COLORS[theme.key] ??
-                                                    REMAINING_COLOR,
-                                            }))}
-                                        />
-                                    </Suspense>
-                                ) : (
-                                    <ChartFallback height={220} />
-                                )}
-                            </div>
-                            <ul className="grid gap-3">
-                                {themes.map((theme) => (
-                                    <LegendRow
-                                        key={theme.key}
-                                        color={
-                                            THEME_COLORS[theme.key] ??
-                                            REMAINING_COLOR
-                                        }
-                                        label={theme.label}
-                                        value={`${numberFormat.format(theme.count)} (${theme.percent}%)`}
-                                    />
-                                ))}
-                            </ul>
-                        </div>
+                        <StackedBar
+                            label={`Sebaran kategori tema dari ${data.proposals_submitted} proposal.`}
+                            segments={[
+                                ...categorized.map((theme, index) => ({
+                                    key: theme.key,
+                                    label: theme.label,
+                                    count: theme.count,
+                                    color:
+                                        categoryColors[index] ??
+                                        programColors.rest,
+                                })),
+                                ...(uncategorized
+                                    ? [
+                                          {
+                                              key: uncategorized.key,
+                                              label: uncategorized.label,
+                                              count: uncategorized.count,
+                                              color: programColors.rest,
+                                          },
+                                      ]
+                                    : []),
+                            ]}
+                        />
                     ) : (
                         <PanelEmpty
                             title="Belum ada proposal"
@@ -249,7 +211,7 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
             </div>
 
             <DashboardPanel
-                title="Tren Registrasi & Submit Proposal"
+                title="Tren registrasi dan submit proposal"
                 description="Jumlah akumulasi per hari selama fase registrasi."
             >
                 {hasTrend ? (
@@ -259,11 +221,11 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                         aria-label={`Tren akumulasi: ${data.registered} SIMers terdaftar dan ${data.proposals_submitted} proposal diajukan.`}
                     >
                         {isMounted ? (
-                            <Suspense fallback={<ChartFallback height={300} />}>
+                            <Suspense fallback={<ChartFallback height={280} />}>
                                 <ProgramTrendChart points={data.trend} />
                             </Suspense>
                         ) : (
-                            <ChartFallback height={300} />
+                            <ChartFallback height={280} />
                         )}
                     </div>
                 ) : (
@@ -298,18 +260,16 @@ export function ProgramDashboard({ overview }: { overview: ProgramOverview }) {
     const phase = overview.phases.find((item) => item.key === selected);
 
     return (
-        <div className="grid gap-6">
-            <div className="grid gap-4">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                    <div className="grid gap-1">
-                        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                            {overview.batch.name} · Program Monitoring
-                        </h2>
-                        <p className="text-sm text-muted-foreground">
-                            Progres program per fase. Fase berikutnya terbuka
-                            otomatis pada tanggal mulainya.
-                        </p>
-                    </div>
+        <div className="grid gap-5">
+            <div className="grid gap-3">
+                <div className="grid gap-1">
+                    <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                        {overview.batch.name} · Program Monitoring
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                        Progres program per fase. Fase berikutnya terbuka
+                        otomatis pada tanggal mulainya.
+                    </p>
                 </div>
                 <ProgramPhases
                     phases={overview.phases}

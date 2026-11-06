@@ -86,8 +86,8 @@ function PhaseDates({
     );
 
     return (
-        <fieldset className="grid gap-3 rounded-lg border border-border/70 p-4">
-            <legend className="px-1 text-sm font-semibold text-foreground">
+        <fieldset className="grid gap-3 border-t border-border/70 pt-4 first-of-type:border-t-0 first-of-type:pt-0">
+            <legend className="float-left mb-3 w-full text-sm font-medium text-foreground">
                 Fase {phase.number} · {phase.label}
             </legend>
             <div className="grid gap-4 sm:grid-cols-2">

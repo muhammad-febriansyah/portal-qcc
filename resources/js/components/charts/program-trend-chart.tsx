@@ -12,7 +12,7 @@ export type ProgramTrendPoint = {
 /** Running totals of registrations and submitted proposals, one point per day. */
 export default function ProgramTrendChart({
     points,
-    height = 300,
+    height = 280,
 }: {
     points: ProgramTrendPoint[];
     height?: number;
@@ -34,13 +34,13 @@ export default function ProgramTrendChart({
         stroke: { curve: 'straight', width: 2, lineCap: 'round' },
         dataLabels: { enabled: false },
         markers: {
-            size: points.length <= 31 ? 4 : 0,
+            size: points.length <= 14 ? 3 : 0,
             strokeWidth: 2,
             strokeColors: '#ffffff',
             hover: { size: 6 },
         },
         grid: {
-            borderColor: '#E2EAEF',
+            borderColor: '#EEF2F5',
             strokeDashArray: 4,
             padding: { left: 8, right: 16 },
         },
@@ -72,7 +72,7 @@ export default function ProgramTrendChart({
         },
         legend: {
             position: 'top',
-            horizontalAlign: 'right',
+            horizontalAlign: 'left',
             fontSize: '13px',
             markers: { size: 6, shape: 'circle' },
             itemMargin: { horizontal: 10 },

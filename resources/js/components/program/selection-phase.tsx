@@ -1,109 +1,95 @@
-import {
-    ChevronRight,
-    FileText,
-    FileX2,
-    UserPlus,
-    Users,
-    UserCheck,
-} from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import {
     DashboardPanel,
-    KpiCard,
     numberFormat,
     PanelEmpty,
-    ProgressBar,
 } from '@/components/dashboard/dashboard-kit';
-import { BarList, DonutWithLegend, programColors } from './program-kit';
+import {
+    BarList,
+    Meter,
+    programColors,
+    StackedBar,
+    StatStrip,
+} from './program-kit';
 import type { SelectionPhaseData } from './types';
 
 const MATCHING_COLORS: Record<string, string> = {
     fit: programColors.primary,
     partial: programColors.tan,
-    gap: programColors.neutral,
+    gap: programColors.rest,
 };
 
 /** Phase 2: selection results and how far the teams of passed proposals are formed. */
 export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
-    const matchedTeams = data.matching.reduce(
-        (sum, band) => sum + band.count,
-        0,
-    );
     const formedTeams = data.team_sizes.reduce(
         (sum, size) => sum + size.count,
         0,
     );
 
     return (
-        <div className="grid gap-6">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                <KpiCard
-                    label="Total Proposal"
-                    value={numberFormat.format(data.total)}
-                    helper={`${numberFormat.format(data.in_selection)} masih dalam seleksi`}
-                    icon={FileText}
-                    tone="bg-[#C4844F]/12 text-[#8F5A2E]"
-                />
-                <KpiCard
-                    label="Proposal Lolos Seleksi"
-                    value={`${numberFormat.format(data.passed)} (${data.passed_percent}%)`}
-                    helper="Disetujui Owner QCC"
-                    icon={UserCheck}
-                    tone="bg-[#16834A]/10 text-[#16834A]"
-                />
-                <KpiCard
-                    label="Proposal Tidak Lolos"
-                    value={`${numberFormat.format(data.failed)} (${data.failed_percent}%)`}
-                    helper="Ditolak pada seleksi"
-                    icon={FileX2}
-                    tone="bg-[#D92D20]/10 text-[#B42318]"
-                />
-                <KpiCard
-                    label="Proposal Sudah Terbentuk Tim"
-                    value={`${numberFormat.format(data.teams_formed)} (${data.teams_formed_percent}%)`}
-                    helper="Dari proposal yang lolos"
-                    icon={Users}
-                    tone="bg-primary/10 text-primary"
-                />
-                <KpiCard
-                    label="Proposal Belum Terbentuk Tim"
-                    value={`${numberFormat.format(data.teams_pending)} (${data.teams_pending_percent}%)`}
-                    helper="Tim masih disusun"
-                    icon={UserPlus}
-                    tone="bg-[#7A5AF8]/10 text-[#5B3FD6]"
-                />
-            </div>
+        <div className="grid gap-5">
+            <StatStrip
+                stats={[
+                    {
+                        label: 'Total proposal',
+                        value: numberFormat.format(data.total),
+                        helper: `${numberFormat.format(data.in_selection)} masih dalam seleksi`,
+                    },
+                    {
+                        label: 'Proposal lolos seleksi',
+                        value: numberFormat.format(data.passed),
+                        suffix: `${data.passed_percent}%`,
+                        helper: 'Disetujui Owner QCC',
+                    },
+                    {
+                        label: 'Proposal tidak lolos',
+                        value: numberFormat.format(data.failed),
+                        suffix: `${data.failed_percent}%`,
+                        helper: 'Ditolak pada seleksi',
+                    },
+                    {
+                        label: 'Sudah terbentuk tim',
+                        value: numberFormat.format(data.teams_formed),
+                        suffix: `${data.teams_formed_percent}%`,
+                        helper: 'Dari proposal yang lolos',
+                    },
+                    {
+                        label: 'Belum terbentuk tim',
+                        value: numberFormat.format(data.teams_pending),
+                        suffix: `${data.teams_pending_percent}%`,
+                        helper: 'Tim masih disusun',
+                    },
+                ]}
+            />
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <div className="grid gap-5 xl:grid-cols-2">
                 <DashboardPanel
-                    title="Hasil Seleksi Proposal"
+                    title="Hasil seleksi proposal"
                     description="Proposal yang diajukan menurut hasil seleksinya."
                 >
                     {data.total > 0 ? (
-                        <DonutWithLegend
-                            label={`${data.passed} lolos, ${data.failed} tidak lolos, ${data.in_selection} dalam seleksi dari ${data.total} proposal.`}
-                            centerLabel="Proposal"
-                            centerValue={numberFormat.format(data.total)}
-                            unit="proposal"
-                            slices={[
+                        <StackedBar
+                            label={`${data.passed} lolos, ${data.in_selection} dalam seleksi, ${data.failed} tidak lolos dari ${data.total} proposal.`}
+                            segments={[
                                 {
+                                    key: 'passed',
                                     label: 'Lolos seleksi',
-                                    value: data.passed,
+                                    count: data.passed,
                                     color: programColors.primary,
                                 },
                                 {
-                                    label: 'Tidak lolos',
-                                    value: data.failed,
-                                    color: programColors.muted,
-                                },
-                                {
+                                    key: 'in_selection',
                                     label: 'Dalam seleksi',
-                                    value: data.in_selection,
+                                    count: data.in_selection,
                                     color: programColors.tan,
                                 },
+                                {
+                                    key: 'failed',
+                                    label: 'Tidak lolos',
+                                    count: data.failed,
+                                    color: programColors.rest,
+                                },
                             ]}
-                            formatValue={(slice) =>
-                                `${numberFormat.format(slice.value)} (${data.total > 0 ? Math.round((slice.value / data.total) * 100) : 0}%)`
-                            }
                         />
                     ) : (
                         <PanelEmpty
@@ -114,47 +100,33 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                 </DashboardPanel>
 
                 <DashboardPanel
-                    title="Progress Pembentukan Tim"
+                    title="Progress pembentukan tim"
                     description="Dari proposal yang lolos sampai tim terbentuk. Tim juga bisa disusun manual tanpa matching AI."
-                    action={
-                        <span className="text-sm font-medium text-foreground tabular-nums">
-                            {numberFormat.format(data.teams_formed)} /{' '}
-                            {numberFormat.format(data.passed)} proposal
-                        </span>
-                    }
                 >
                     <div className="grid gap-5">
-                        <div className="grid gap-2">
-                            <div className="flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">
-                                    Tim terbentuk
-                                </span>
-                                <span className="font-semibold text-foreground tabular-nums">
-                                    {data.teams_formed_percent}%
-                                </span>
-                            </div>
-                            <ProgressBar
-                                value={data.teams_formed_percent}
-                                label="Persentase tim terbentuk"
-                                className="h-2.5"
-                            />
-                        </div>
-                        <ol className="grid gap-3 sm:grid-cols-3">
+                        <Meter
+                            percent={data.teams_formed_percent}
+                            caption={`${numberFormat.format(data.teams_formed)} dari ${numberFormat.format(data.passed)} proposal lolos`}
+                            filledLabel={`Tim terbentuk ${numberFormat.format(data.teams_formed)}`}
+                            restLabel={`Belum ${numberFormat.format(data.teams_pending)}`}
+                            label="Persentase tim terbentuk"
+                        />
+                        <ol className="flex flex-wrap items-center gap-x-2 gap-y-2 border-t border-border/70 pt-4 text-sm">
                             {data.funnel.map((stage, index) => (
                                 <li
                                     key={stage.key}
-                                    className="relative grid gap-1 rounded-xl border border-border/70 bg-muted/20 px-4 py-3"
+                                    className="flex items-center gap-2"
                                 >
-                                    <span className="text-xs font-medium text-muted-foreground">
+                                    <span className="text-muted-foreground">
                                         {stage.label}
                                     </span>
-                                    <span className="text-2xl font-semibold text-foreground tabular-nums">
+                                    <span className="font-semibold text-foreground tabular-nums">
                                         {numberFormat.format(stage.count)}
                                     </span>
                                     {index < data.funnel.length - 1 && (
                                         <ChevronRight
                                             aria-hidden="true"
-                                            className="absolute top-1/2 -right-3 hidden size-4 -translate-y-1/2 text-muted-foreground sm:block"
+                                            className="size-4 text-muted-foreground/70"
                                         />
                                     )}
                                 </li>
@@ -164,13 +136,14 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                 </DashboardPanel>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-3">
+            <div className="grid gap-5 xl:grid-cols-3">
                 <DashboardPanel
-                    title="Sebaran Proposal Lolos per LOB/Div"
+                    title="Sebaran proposal lolos per LOB/Div"
                     description="Menurut LOB/Div pengusul."
                 >
                     <BarList
                         label="Proposal lolos per LOB/Div"
+                        emptyLabel="LOB/Div belum ada yang lolos"
                         rows={data.passed_by_organization.map((row) => ({
                             name: row.name,
                             value: row.count,
@@ -180,29 +153,20 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                 </DashboardPanel>
 
                 <DashboardPanel
-                    title="Status Matching Kompetensi"
-                    description="Seberapa banyak kebutuhan kompetensi proyek yang dipenuhi anggota tim."
+                    title="Status matching kompetensi"
+                    description="Bagian kebutuhan kompetensi proyek yang dipenuhi anggota tim."
                 >
-                    {matchedTeams > 0 ? (
-                        <DonutWithLegend
-                            label={`Kecocokan kompetensi ${matchedTeams} tim.`}
-                            centerLabel="Tim"
-                            centerValue={numberFormat.format(matchedTeams)}
-                            unit="tim"
-                            slices={data.matching.map((band) => ({
+                    {formedTeams > 0 ? (
+                        <StackedBar
+                            label={`Kecocokan kompetensi ${formedTeams} tim.`}
+                            segments={data.matching.map((band) => ({
+                                key: band.key,
                                 label: band.label,
-                                value: band.count,
+                                count: band.count,
                                 color:
                                     MATCHING_COLORS[band.key] ??
-                                    programColors.neutral,
+                                    programColors.rest,
                             }))}
-                            formatValue={(slice) => {
-                                const band = data.matching.find(
-                                    (item) => item.label === slice.label,
-                                );
-
-                                return `${numberFormat.format(slice.value)} (${band?.percent ?? 0}%)`;
-                            }}
                         />
                     ) : (
                         <PanelEmpty
@@ -213,8 +177,8 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                 </DashboardPanel>
 
                 <DashboardPanel
-                    title="Sebaran Jumlah Anggota Tim"
-                    description="Jumlah anggota aktif per tim yang sudah terbentuk."
+                    title="Sebaran jumlah anggota tim"
+                    description="Anggota aktif per tim yang sudah terbentuk."
                 >
                     {formedTeams > 0 ? (
                         <BarList
@@ -222,7 +186,7 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                             rows={data.team_sizes.map((size) => ({
                                 name: size.label,
                                 value: size.count,
-                                display: `${numberFormat.format(size.count)} (${size.percent}%)`,
+                                display: `${numberFormat.format(size.count)} · ${size.percent}%`,
                             }))}
                         />
                     ) : (

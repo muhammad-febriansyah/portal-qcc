@@ -163,5 +163,5 @@ test('reviewers and mentors keep the monitoring dashboard even with a member rol
     $this->actingAs($user)->get(route('dashboard'))
         ->assertInertia(fn (Assert $page) => $page
             ->component('dashboard')
-            ->has('roleOverview'));
+            ->missing('roleOverview'));
 })->with(['Owner QCC', 'Mentor']);

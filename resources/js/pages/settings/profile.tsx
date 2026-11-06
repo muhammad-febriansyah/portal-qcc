@@ -88,10 +88,7 @@ export default function Profile() {
             <Head title="Profil Saya" />
 
             {!profileComplete && missingFields.length > 0 && (
-                <Alert
-                    variant="warning"
-                    className="mb-6 rounded-xl px-4 py-4 shadow-sm"
-                >
+                <Alert variant="warning" className="mb-6 rounded-xl px-4 py-4">
                     <div className="flex items-start gap-4">
                         <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#ffe1bd] text-warning">
                             <UserRoundCheck

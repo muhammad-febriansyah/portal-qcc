@@ -10,6 +10,8 @@ use App\Models\ProjectMentor;
 use App\Models\QccBatch;
 use App\Models\TeamMatchingRun;
 use App\Models\User;
+use App\Services\RoleDashboardOverview;
+use Illuminate\Testing\Fluent\AssertableJson;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -21,6 +23,14 @@ function roleDashboardUser(string $role, string ...$permissions): User
     $user->givePermissionTo(array_map(fn (string $permission) => Permission::findOrCreate($permission, 'web'), $permissions));
 
     return $user;
+}
+
+/**
+ * The dashboard no longer shows this overview, so the counts are checked on the service itself.
+ */
+function roleOverviewOf(User $user, ?int $batchId = null, ?int $periodDays = null): AssertableJson
+{
+    return AssertableJson::fromArray(['roleOverview' => app(RoleDashboardOverview::class)->get($user, $batchId, $periodDays)]);
 }
 
 function roleDashboardProject(User $proposer, string $title, ProposalStatus $status = ProposalStatus::Approved): Project
@@ -74,13 +84,10 @@ test('mentor dashboard scopes projects to active mentor assignments', function (
         'assigned_at' => now(),
     ]);
 
-    $this->actingAs($mentor)
-        ->get(route('dashboard'))
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('roleOverview.summary.active_projects', 1)
-            ->has('roleOverview.projects', 1)
-            ->where('roleOverview.projects.0.title', 'Proyek mentoring aktif'));
+    roleOverviewOf($mentor)
+        ->where('roleOverview.summary.active_projects', 1)
+        ->has('roleOverview.projects', 1)
+        ->where('roleOverview.projects.0.title', 'Proyek mentoring aktif');
 });
 
 test('reviewer dashboard shows submitted proposals as pending tasks', function () {
@@ -95,14 +102,11 @@ test('reviewer dashboard shows submitted proposals as pending tasks', function (
         'submitted_at' => now(),
     ])->save();
 
-    $this->actingAs($reviewer)
-        ->get(route('dashboard'))
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
+    roleOverviewOf($reviewer)
             // The submitted proposal also waits for its team.
-            ->where('roleOverview.summary.pending_tasks', 3)
-            ->where('roleOverview.tasks', fn ($tasks) => collect($tasks)->pluck('title')->sort()->values()->all()
-                === ['Proposal menunggu penyusunan tim', 'Review Step 1', 'Review proposal']));
+        ->where('roleOverview.summary.pending_tasks', 3)
+        ->where('roleOverview.tasks', fn ($tasks) => collect($tasks)->pluck('title')->sort()->values()->all()
+            === ['Proposal menunggu penyusunan tim', 'Review Step 1', 'Review proposal']);
 });
 
 test('owner dashboard shows proposals waiting for team composition until team is confirmed', function () {
@@ -114,13 +118,12 @@ test('owner dashboard shows proposals waiting for team composition until team is
     $teamTask = fn (array $tasks): ?array => collect($tasks)->firstWhere('title', 'Proposal menunggu penyusunan tim');
 
     // A submitted proposal is both waiting for review and for its team; the draft is neither.
-    $this->actingAs($owner)->get(route('dashboard'))
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('roleOverview.summary.pending_tasks', 2)
-            ->where('roleOverview.tasks', fn ($tasks) => $teamTask(collect($tasks)->toArray()) !== null
-                && $teamTask(collect($tasks)->toArray())['project'] === 'Menunggu penyusunan tim'
-                && $teamTask(collect($tasks)->toArray())['href'] === route('proposals.candidates', $project)
-                && $teamTask(collect($tasks)->toArray())['detail'] === 'Susun dan konfirmasi tim sebelum proposal disetujui.'));
+    roleOverviewOf($owner)
+        ->where('roleOverview.summary.pending_tasks', 2)
+        ->where('roleOverview.tasks', fn ($tasks) => $teamTask(collect($tasks)->toArray()) !== null
+            && $teamTask(collect($tasks)->toArray())['project'] === 'Menunggu penyusunan tim'
+            && $teamTask(collect($tasks)->toArray())['href'] === route('proposals.candidates', $project)
+            && $teamTask(collect($tasks)->toArray())['detail'] === 'Susun dan konfirmasi tim sebelum proposal disetujui.');
 
     $run = TeamMatchingRun::query()->create([
         'project_id' => $project->id,
@@ -130,10 +133,9 @@ test('owner dashboard shows proposals waiting for team composition until team is
     ]);
     $run->forceFill(['confirmed_by' => $owner->id, 'confirmed_at' => now()])->save();
 
-    $this->get(route('dashboard'))
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('roleOverview.summary.pending_tasks', 1)
-            ->where('roleOverview.tasks', fn ($tasks) => $teamTask(collect($tasks)->toArray()) === null));
+    roleOverviewOf($owner)
+        ->where('roleOverview.summary.pending_tasks', 1)
+        ->where('roleOverview.tasks', fn ($tasks) => $teamTask(collect($tasks)->toArray()) === null);
 });
 
 test('role dashboard summarizes submitted report punctuality and mentoring feedback', function () {
@@ -193,17 +195,16 @@ test('role dashboard summarizes submitted report punctuality and mentoring feedb
         'created_by' => $assignment->mentor_id,
     ]);
 
-    $this->actingAs($owner)->get(route('dashboard'))
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('roleOverview.summary.biweekly_on_time', 1)
-            ->where('roleOverview.summary.biweekly_late', 1)
-            ->where('roleOverview.summary.biweekly_overdue', 1)
-            ->where('roleOverview.status_counts.4.count', 1)
-            ->where('roleOverview.summary.mentoring_sessions', 2)
-            ->where('roleOverview.summary.mentoring_feedback_pending', 1));
+    roleOverviewOf($owner)
+        ->where('roleOverview.summary.biweekly_on_time', 1)
+        ->where('roleOverview.summary.biweekly_late', 1)
+        ->where('roleOverview.summary.biweekly_overdue', 1)
+        ->where('roleOverview.status_counts.4.count', 1)
+        ->where('roleOverview.summary.mentoring_sessions', 2)
+        ->where('roleOverview.summary.mentoring_feedback_pending', 1);
 });
 
-test('dashboard batch filter scopes every QCC count and keeps hidden batches out of options', function () {
+test('the batch filter scopes every QCC count', function () {
     $user = roleDashboardUser('Mentor', 'projects.view');
     $first = roleDashboardProject(User::factory()->create(), 'Batch terlihat A');
     $second = roleDashboardProject(User::factory()->create(), 'Batch terlihat B', ProposalStatus::Submitted);
@@ -213,15 +214,12 @@ test('dashboard batch filter scopes every QCC count and keeps hidden batches out
         $project->members()->attach($user->id, ['role_in_project' => 'LEADER', 'status' => 'ACTIVE', 'joined_at' => now()]);
     }
 
-    $this->actingAs($user)->get(route('dashboard', ['batch_id' => $first->batch_id]))
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('selectedBatchId', $first->batch_id)
-            ->has('batches', 2)
-            ->where('roleOverview.summary.active_projects', 1)
-            ->where('roleOverview.status_counts.4.count', 1)
-            ->where('roleOverview.status_counts.1.count', 0)
-            ->has('roleOverview.projects', 1)
-            ->where('roleOverview.projects.0.title', 'Batch terlihat A'));
+    roleOverviewOf($user, batchId: $first->batch_id)
+        ->where('roleOverview.summary.active_projects', 1)
+        ->where('roleOverview.status_counts.4.count', 1)
+        ->where('roleOverview.status_counts.1.count', 0)
+        ->has('roleOverview.projects', 1)
+        ->where('roleOverview.projects.0.title', 'Batch terlihat A');
 });
 
 test('dashboard period filters projects by creation date and reports by reporting period', function () {
@@ -268,24 +266,23 @@ test('dashboard period filters projects by creation date and reports by reportin
         'created_by' => $mentor->id,
     ]);
 
-    $this->actingAs($leader)->get(route('dashboard', ['period' => '30']))
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('selectedPeriod', '30')
-            ->where('roleOverview.summary.active_projects', 1)
-            ->where('roleOverview.status_counts.4.count', 1)
-            ->has('roleOverview.projects', 1)
-            ->where('roleOverview.projects.0.title', 'Proyek baru')
-            ->where('roleOverview.summary.biweekly_late', 2)
-            ->where('roleOverview.summary.mentoring_sessions', 1));
+    roleOverviewOf($leader, periodDays: 30)
+        ->where('roleOverview.summary.active_projects', 1)
+        ->where('roleOverview.status_counts.4.count', 1)
+        ->has('roleOverview.projects', 1)
+        ->where('roleOverview.projects.0.title', 'Proyek baru')
+        ->where('roleOverview.summary.biweekly_late', 2)
+        ->where('roleOverview.summary.mentoring_sessions', 1);
 });
 
-test('Super Admin sees QCC project metrics alongside system overview', function () {
+test('Super Admin QCC project metrics still count every project', function () {
     $admin = roleDashboardUser('Super Admin', 'dashboard.admin', 'projects.view', 'projects.viewAny');
     roleDashboardProject(User::factory()->create(), 'Proyek QCC global');
 
     $this->actingAs($admin)->get(route('dashboard'))
-        ->assertInertia(fn (Assert $page) => $page
-            ->has('adminOverview')
-            ->where('roleOverview.summary.active_projects', 1)
-            ->where('roleOverview.status_counts.4.count', 1));
+        ->assertInertia(fn (Assert $page) => $page->has('adminOverview')->missing('roleOverview'));
+
+    roleOverviewOf($admin)
+        ->where('roleOverview.summary.active_projects', 1)
+        ->where('roleOverview.status_counts.4.count', 1);
 });

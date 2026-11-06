@@ -1,16 +1,7 @@
-import {
-    AlertCircle,
-    CalendarCheck,
-    CheckCircle2,
-    Flag,
-    FolderKanban,
-    Search,
-    Users,
-} from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
     DashboardPanel,
-    KpiCard,
     numberFormat,
     PanelEmpty,
 } from '@/components/dashboard/dashboard-kit';
@@ -32,7 +23,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { BarList, DonutWithLegend, programColors } from './program-kit';
+import { Meter, programColors, StatStrip } from './program-kit';
 import type { ExecutionPhaseData, ExecutionProjectRow } from './types';
 
 const ALL = 'all';
@@ -49,10 +40,6 @@ const STEP_SHORT_LABELS = [
     'Standardisasi',
 ];
 
-function percentOf(value: number, total: number): number {
-    return total > 0 ? Math.round((value / total) * 100) : 0;
-}
-
 function StepDots({ steps }: { steps: ExecutionProjectRow['steps'] }) {
     return (
         <ol className="flex items-center gap-1" aria-label="Progres 8 step">
@@ -60,17 +47,17 @@ function StepDots({ steps }: { steps: ExecutionProjectRow['steps'] }) {
                 <li
                     key={index}
                     className={cn(
-                        'flex size-6 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums',
+                        'flex size-5 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums',
                         state === 'done' &&
                             'bg-primary text-primary-foreground',
                         state === 'current' &&
-                            'border-2 border-primary bg-card text-primary',
+                            'border border-primary bg-card text-primary',
                         state === 'todo' && 'bg-muted text-muted-foreground',
                     )}
                     title={`Step ${index + 1}: ${state === 'done' ? 'selesai' : state === 'current' ? 'berjalan' : 'belum mulai'}`}
                 >
                     {state === 'done' ? (
-                        <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                        <Check className="size-3" aria-hidden="true" />
                     ) : (
                         index + 1
                     )}
@@ -233,7 +220,7 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
                                 <TableRow>
                                     <TableHead className="w-10">No</TableHead>
                                     <TableHead>Kode</TableHead>
-                                    <TableHead className="min-w-56">
+                                    <TableHead className="min-w-44">
                                         Judul Project
                                     </TableHead>
                                     <TableHead>LOB/Div</TableHead>
@@ -258,12 +245,12 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
                                         <TableCell className="whitespace-nowrap">
                                             {project.organization ?? '—'}
                                         </TableCell>
-                                        <TableCell className="whitespace-nowrap">
+                                        <TableCell className="min-w-32 whitespace-normal">
                                             {project.leader ?? '—'}
                                         </TableCell>
-                                        <TableCell className="whitespace-nowrap">
+                                        <TableCell className="min-w-28 whitespace-normal">
                                             {project.current_step
-                                                ? `Step ${project.current_step.number} – ${project.current_step.label}`
+                                                ? `Step ${project.current_step.number} · ${STEP_SHORT_LABELS[project.current_step.number - 1] ?? project.current_step.label}`
                                                 : 'Semua step selesai'}
                                         </TableCell>
                                         <TableCell>
@@ -301,98 +288,146 @@ function ProjectList({ data }: { data: ExecutionPhaseData }) {
 /** Phase 3: step progress of the approved projects and whether reports keep up. */
 export function ExecutionPhase({ data }: { data: ExecutionPhaseData }) {
     return (
-        <div className="grid gap-6">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                <KpiCard
-                    label="Total Project Aktif"
-                    value={numberFormat.format(data.total)}
-                    helper="Proposal yang disetujui"
-                    icon={FolderKanban}
-                    tone="bg-[#C4844F]/12 text-[#8F5A2E]"
-                />
-                <KpiCard
-                    label="Rata-rata Progres Project"
-                    value={`${data.average_progress}%`}
-                    helper="Rata-rata dari 8 step QCC"
-                    icon={Flag}
-                    tone="bg-[#16834A]/10 text-[#16834A]"
-                />
-                <KpiCard
-                    label="Kepatuhan Bi-Weekly"
-                    value={`${data.biweekly.percent}%`}
-                    helper={`${data.biweekly.compliant} dari ${data.total} project tepat waktu`}
-                    icon={CalendarCheck}
-                    tone="bg-primary/10 text-primary"
-                />
-                <KpiCard
-                    label="Kepatuhan Mentoring"
-                    value={`${data.mentoring.percent}%`}
-                    helper={`${data.mentoring.compliant} dari ${data.total} project sesuai jadwal`}
-                    icon={Users}
-                    tone="bg-[#7A5AF8]/10 text-[#5B3FD6]"
-                />
-                <KpiCard
-                    label="Project On-Time"
-                    value={`${data.on_time.percent}%`}
-                    helper={`${data.on_time.count} dari ${data.total} project`}
-                    icon={CheckCircle2}
-                    tone="bg-[#16834A]/10 text-[#16834A]"
-                />
-            </div>
+        <div className="grid gap-5">
+            <StatStrip
+                stats={[
+                    {
+                        label: 'Total project aktif',
+                        value: numberFormat.format(data.total),
+                        helper: 'Proposal yang disetujui',
+                    },
+                    {
+                        label: 'Rata-rata progres project',
+                        value: `${data.average_progress}%`,
+                        helper: 'Rata-rata dari 8 step QCC',
+                    },
+                    {
+                        label: 'Kepatuhan bi-weekly',
+                        value: `${data.biweekly.percent}%`,
+                        helper: `${data.biweekly.compliant} dari ${data.total} project tepat waktu`,
+                    },
+                    {
+                        label: 'Kepatuhan mentoring',
+                        value: `${data.mentoring.percent}%`,
+                        helper: `${data.mentoring.compliant} dari ${data.total} sesuai jadwal`,
+                    },
+                    {
+                        label: 'Project on-time',
+                        value: `${data.on_time.percent}%`,
+                        helper: `${data.on_time.overdue} project overdue`,
+                    },
+                ]}
+            />
 
-            <DashboardPanel
-                title="Progress 8 Step QCC"
-                description="Rata-rata progres setiap step dari seluruh project."
-            >
-                <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
-                    {data.steps.map((step) => (
-                        <li
-                            key={step.number}
-                            className="grid gap-1 rounded-xl border border-border/70 bg-muted/20 px-3 py-3 text-center"
-                            title={step.label}
-                        >
-                            <span className="mx-auto flex size-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground tabular-nums">
-                                {step.number}
-                            </span>
-                            <span className="text-xs leading-snug text-muted-foreground">
-                                {STEP_SHORT_LABELS[step.number - 1] ??
-                                    step.label}
-                            </span>
-                            <span className="text-lg font-semibold text-foreground tabular-nums">
-                                {step.average_progress}%
-                            </span>
-                        </li>
-                    ))}
-                </ol>
-            </DashboardPanel>
-
-            <div className="grid gap-6 xl:grid-cols-3">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
                 <DashboardPanel
-                    title="Status Project"
+                    title="Progress 8 step QCC"
+                    description="Rata-rata progres tiap step dan jumlah project yang sudah memulainya."
+                >
+                    <table className="w-full text-sm">
+                        <caption className="sr-only">
+                            Progres rata-rata dan jumlah project per step QCC
+                        </caption>
+                        <thead>
+                            <tr className="text-left text-xs text-muted-foreground">
+                                <th scope="col" className="pb-2 font-medium">
+                                    Step
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="w-2/5 pb-2 font-medium"
+                                >
+                                    <span className="sr-only">
+                                        Grafik progres
+                                    </span>
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="pb-2 text-right font-medium"
+                                >
+                                    Progres
+                                </th>
+                                <th
+                                    scope="col"
+                                    className="pb-2 text-right font-medium"
+                                >
+                                    Project
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                            {data.steps.map((step) => (
+                                <tr key={step.number}>
+                                    <th
+                                        scope="row"
+                                        className="py-2 pr-3 text-left font-normal text-foreground"
+                                    >
+                                        <span className="mr-2 text-muted-foreground tabular-nums">
+                                            {step.number}
+                                        </span>
+                                        {STEP_SHORT_LABELS[step.number - 1] ??
+                                            step.label}
+                                    </th>
+                                    <td className="py-2 pr-3">
+                                        <span
+                                            className="block h-1.5 overflow-hidden rounded-full"
+                                            style={{
+                                                backgroundColor:
+                                                    programColors.track,
+                                            }}
+                                        >
+                                            <span
+                                                className="block h-full rounded-full bg-primary"
+                                                style={{
+                                                    width: `${step.average_progress}%`,
+                                                }}
+                                            />
+                                        </span>
+                                    </td>
+                                    <td className="py-2 text-right font-medium text-foreground tabular-nums">
+                                        {step.average_progress}%
+                                    </td>
+                                    <td className="py-2 pl-3 text-right text-muted-foreground tabular-nums">
+                                        {numberFormat.format(
+                                            step.projects_started,
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </DashboardPanel>
+
+                <DashboardPanel
+                    title="Status dan kepatuhan"
                     description="Overdue bila ada step yang lewat target selesai."
+                    contentClassName="grid gap-6"
                 >
                     {data.total > 0 ? (
-                        <DonutWithLegend
-                            label={`${data.on_time.count} project on-time dan ${data.on_time.overdue} overdue.`}
-                            centerLabel="Project"
-                            centerValue={numberFormat.format(data.total)}
-                            unit="project"
-                            slices={[
-                                {
-                                    label: 'On-Time',
-                                    value: data.on_time.count,
-                                    color: programColors.good,
-                                },
-                                {
-                                    label: 'Overdue',
-                                    value: data.on_time.overdue,
-                                    color: programColors.critical,
-                                },
-                            ]}
-                            formatValue={(slice) =>
-                                `${numberFormat.format(slice.value)} (${percentOf(slice.value, data.total)}%)`
-                            }
-                        />
+                        <>
+                            <Meter
+                                percent={data.on_time.percent}
+                                tone="good"
+                                caption="project on-time"
+                                filledLabel={`On-Time ${numberFormat.format(data.on_time.count)}`}
+                                restLabel={`Overdue ${numberFormat.format(data.on_time.overdue)}`}
+                                label="Project on-time"
+                            />
+                            <Meter
+                                percent={data.biweekly.percent}
+                                caption="laporan bi-weekly tepat waktu"
+                                filledLabel={`Tepat waktu ${numberFormat.format(data.biweekly.compliant)}`}
+                                restLabel={`Terlambat ${numberFormat.format(data.biweekly.late)}`}
+                                label="Kepatuhan bi-weekly"
+                            />
+                            <Meter
+                                percent={data.mentoring.percent}
+                                caption="mentoring sesuai jadwal"
+                                filledLabel={`Sesuai jadwal ${numberFormat.format(data.mentoring.compliant)}`}
+                                restLabel={`Tidak sesuai ${numberFormat.format(data.mentoring.late)}`}
+                                label="Kepatuhan mentoring"
+                            />
+                        </>
                     ) : (
                         <PanelEmpty
                             title="Belum ada project"
@@ -400,87 +435,7 @@ export function ExecutionPhase({ data }: { data: ExecutionPhaseData }) {
                         />
                     )}
                 </DashboardPanel>
-                <DashboardPanel
-                    title="Kepatuhan Bi-Weekly"
-                    description="Tepat waktu bila semua laporan yang jatuh tempo dikirim sebelum periode berakhir."
-                >
-                    {data.total > 0 ? (
-                        <DonutWithLegend
-                            label={`${data.biweekly.compliant} project tepat waktu, ${data.biweekly.late} terlambat.`}
-                            centerLabel={`${data.biweekly.compliant} / ${data.total}`}
-                            centerValue={`${data.biweekly.percent}%`}
-                            unit="project"
-                            slices={[
-                                {
-                                    label: 'Tepat waktu',
-                                    value: data.biweekly.compliant,
-                                    color: programColors.primary,
-                                },
-                                {
-                                    label: 'Terlambat',
-                                    value: data.biweekly.late,
-                                    color: programColors.muted,
-                                },
-                            ]}
-                            formatValue={(slice) =>
-                                `${numberFormat.format(slice.value)} (${percentOf(slice.value, data.total)}%)`
-                            }
-                        />
-                    ) : (
-                        <PanelEmpty
-                            title="Belum ada project"
-                            description="Kepatuhan tampil setelah proposal disetujui."
-                        />
-                    )}
-                </DashboardPanel>
-                <DashboardPanel
-                    title="Kepatuhan Mentoring"
-                    description="Sesuai jadwal bila jumlah sesi mentoring mengikuti jadwal batch."
-                >
-                    {data.total > 0 ? (
-                        <DonutWithLegend
-                            label={`${data.mentoring.compliant} project sesuai jadwal, ${data.mentoring.late} tidak sesuai.`}
-                            centerLabel={`${data.mentoring.compliant} / ${data.total}`}
-                            centerValue={`${data.mentoring.percent}%`}
-                            unit="project"
-                            slices={[
-                                {
-                                    label: 'Sesuai jadwal',
-                                    value: data.mentoring.compliant,
-                                    color: programColors.primary,
-                                },
-                                {
-                                    label: 'Tidak sesuai',
-                                    value: data.mentoring.late,
-                                    color: programColors.muted,
-                                },
-                            ]}
-                            formatValue={(slice) =>
-                                `${numberFormat.format(slice.value)} (${percentOf(slice.value, data.total)}%)`
-                            }
-                        />
-                    ) : (
-                        <PanelEmpty
-                            title="Belum ada project"
-                            description="Kepatuhan tampil setelah proposal disetujui."
-                        />
-                    )}
-                </DashboardPanel>
             </div>
-
-            <DashboardPanel
-                title="Progress Project per Step"
-                description="Jumlah project yang sudah memulai setiap step."
-            >
-                <BarList
-                    label="Jumlah project per step"
-                    rows={data.steps.map((step) => ({
-                        name: `Step ${step.number} · ${STEP_SHORT_LABELS[step.number - 1] ?? step.label}`,
-                        value: step.projects_started,
-                        display: numberFormat.format(step.projects_started),
-                    }))}
-                />
-            </DashboardPanel>
 
             <ProjectList data={data} />
         </div>

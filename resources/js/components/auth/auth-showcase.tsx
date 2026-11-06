@@ -150,7 +150,7 @@ export default function AuthShowcase({ title, children }: Props) {
                     </div>
 
                     <div className="flex justify-center lg:justify-end">
-                        <div className="w-full max-w-[520px] rounded-[28px] bg-white/95 px-6 py-9 shadow-[0_20px_50px_-20px_rgba(1,145,194,0.35)] ring-1 ring-white sm:px-12 sm:py-12">
+                        <div className="w-full max-w-[520px] rounded-[28px] bg-white/95 px-6 py-9 shadow-[0_12px_32px_-24px_rgba(24,35,55,0.25)] ring-1 ring-border/60 sm:px-12 sm:py-12">
                             {children}
                         </div>
                     </div>

@@ -316,7 +316,7 @@ export default function ReviewerAssignmentsIndex({
                     }
                 />
 
-                <Card className="gap-0 overflow-hidden p-0 shadow-sm">
+                <Card className="gap-0 overflow-hidden p-0">
                     <CardHeader className="border-b bg-muted/20 px-5 py-4 md:px-6">
                         <CardTitle className="text-base">
                             Daftar penugasan
