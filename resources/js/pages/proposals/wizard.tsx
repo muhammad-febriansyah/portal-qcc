@@ -10,6 +10,7 @@ import {
     TriangleAlert,
     UsersRound,
 } from 'lucide-react';
+import { isValid, parseISO } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DatePicker } from '@/components/date-picker';
 import { FileUploader, type UploadItem } from '@/components/file-uploader';
@@ -100,6 +101,7 @@ type ProjectDraft = {
     supplementary_information: string | null;
     cost_projection: string | null;
     learning_goals: string[];
+    step_start_dates: string[];
     step_timeline: string[];
     step_deliverables: string[];
     wizard_step: number;
@@ -131,6 +133,7 @@ type DraftForm = {
     supplementary_information: string;
     cost_projection: string;
     learning_goals: string[];
+    step_start_dates: string[];
     step_timeline: string[];
     step_deliverables: string[];
     wizard_step: number;
@@ -140,6 +143,7 @@ type DraftField = Exclude<
     keyof DraftForm,
     | 'batch_id'
     | 'learning_goals'
+    | 'step_start_dates'
     | 'step_timeline'
     | 'step_deliverables'
     | 'wizard_step'
@@ -180,7 +184,7 @@ const steps: StepDefinition[] = [
         number: 5,
         label: 'Pembelajaran & Timeline',
         description:
-            'Tulis tiga hal yang akan dipelajari dan target tanggal setiap step QCC.',
+            'Tulis tiga hal yang akan dipelajari serta tanggal mulai dan target selesai setiap step QCC.',
     },
     {
         number: 6,
@@ -212,7 +216,8 @@ const fieldSteps: Record<string, { step: number; label: string }> = {
     },
     cost_projection: { step: 4, label: 'Proyeksi Kebutuhan Biaya Proyek' },
     learning_goals: { step: 5, label: 'Tiga Hal yang akan Dipelajari' },
-    step_timeline: { step: 5, label: 'Timeline' },
+    step_start_dates: { step: 5, label: 'Tanggal Mulai Timeline' },
+    step_timeline: { step: 5, label: 'Target Selesai Timeline' },
     step_deliverables: { step: 5, label: 'Deliverable Timeline' },
     requirements: { step: 6, label: 'Kebutuhan Kompetensi' },
 };
@@ -253,6 +258,7 @@ function initialData(
     stepCount: number,
     defaultBatchId = '',
 ): DraftForm {
+    const startDates = project?.step_start_dates ?? [];
     const timeline = project?.step_timeline ?? [];
     const deliverables = project?.step_deliverables ?? [];
 
@@ -271,6 +277,10 @@ function initialData(
             project?.learning_goals?.length === 3
                 ? project.learning_goals.map((goal) => goal ?? '')
                 : ['', '', ''],
+        step_start_dates: Array.from(
+            { length: stepCount },
+            (_, index) => startDates[index] ?? '',
+        ),
         step_timeline: Array.from(
             { length: stepCount },
             (_, index) => timeline[index] ?? '',
@@ -282,6 +292,13 @@ function initialData(
         wizard_step: project?.wizard_step ?? step,
         advance: false,
     };
+}
+
+/** Days before a step starts cannot be its target finish date. */
+function startDateMatcher(startDate: string): { before: Date } | undefined {
+    const date = startDate ? parseISO(startDate) : null;
+
+    return date && isValid(date) ? { before: date } : undefined;
 }
 
 function fileSize(bytes: number): string {
@@ -490,7 +507,7 @@ export default function ProposalWizard({
     }
 
     function setTimelineValue(
-        field: 'step_timeline' | 'step_deliverables',
+        field: 'step_start_dates' | 'step_timeline' | 'step_deliverables',
         index: number,
         value: string | null,
     ): void {
@@ -505,6 +522,7 @@ export default function ProposalWizard({
     const timelineRows = qccSteps.map((qccStep, index) => ({
         number: qccStep.number,
         name: qccStep.name,
+        startDate: form.data.step_start_dates[index] || null,
         date: form.data.step_timeline[index] || null,
         deliverable: form.data.step_deliverables[index] || null,
     }));
@@ -826,17 +844,46 @@ export default function ProposalWizard({
                     ))}
                     <SectionTitle
                         title="Timeline"
-                        description="Target tanggal selesai dan hasil (deliverable) setiap step QCC. Tanggal ini menjadi target step saat proyek berjalan."
+                        description="Tanggal mulai, target selesai, dan hasil (deliverable) setiap step QCC. Step boleh berjalan bersamaan, jadi tanggalnya boleh tumpang tindih. Target selesai menjadi target step saat proyek berjalan."
                     />
                     <div className="grid gap-4">
                         {qccSteps.map((qccStep, index) => (
-                            <div
+                            <fieldset
                                 key={qccStep.number}
-                                className="grid gap-3 rounded-lg border border-border/70 p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
+                                className="grid gap-3 rounded-lg border border-border/70 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)]"
                             >
+                                <legend className="sr-only">
+                                    {`${qccStep.number}. ${qccStep.name}`}
+                                </legend>
+                                <p className="text-sm font-semibold text-foreground md:col-span-2 xl:col-span-3">
+                                    {qccStep.number}. {qccStep.name}
+                                </p>
+                                <FormField
+                                    id={`step-start-${qccStep.number}`}
+                                    label="Tanggal mulai"
+                                    required
+                                    error={fieldError(
+                                        `step_start_dates.${index}`,
+                                    )}
+                                >
+                                    <DatePicker
+                                        value={
+                                            form.data.step_start_dates[index]
+                                        }
+                                        onValueChange={(value) =>
+                                            setTimelineValue(
+                                                'step_start_dates',
+                                                index,
+                                                value,
+                                            )
+                                        }
+                                        placeholder="Pilih tanggal mulai"
+                                        className={controlClassName}
+                                    />
+                                </FormField>
                                 <FormField
                                     id={`step-timeline-${qccStep.number}`}
-                                    label={`${qccStep.number}. ${qccStep.name}`}
+                                    label="Target selesai"
                                     required
                                     error={fieldError(`step_timeline.${index}`)}
                                 >
@@ -849,7 +896,10 @@ export default function ProposalWizard({
                                                 value,
                                             )
                                         }
-                                        placeholder="Pilih target tanggal"
+                                        placeholder="Pilih target selesai"
+                                        disabledDates={startDateMatcher(
+                                            form.data.step_start_dates[index],
+                                        )}
                                         className={controlClassName}
                                     />
                                 </FormField>
@@ -876,7 +926,7 @@ export default function ProposalWizard({
                                         className={controlClassName}
                                     />
                                 </FormField>
-                            </div>
+                            </fieldset>
                         ))}
                     </div>
                     <TimelineTable

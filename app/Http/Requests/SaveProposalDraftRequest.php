@@ -48,6 +48,8 @@ class SaveProposalDraftRequest extends FormRequest
             'cost_projection' => ['nullable', 'string', 'max:20000'],
             'learning_goals' => ['nullable', 'array', 'max:3'],
             'learning_goals.*' => ['nullable', 'string', 'max:255'],
+            'step_start_dates' => ['nullable', 'array', "max:{$timelineSize}"],
+            'step_start_dates.*' => ['nullable', 'date_format:Y-m-d'],
             'step_timeline' => ['nullable', 'array', "max:{$timelineSize}"],
             'step_timeline.*' => ['nullable', 'date_format:Y-m-d'],
             'step_deliverables' => ['nullable', 'array', "max:{$timelineSize}"],
@@ -87,6 +89,8 @@ class SaveProposalDraftRequest extends FormRequest
                 5 => [
                     'learning_goals' => ['required', 'array', 'size:3'],
                     'learning_goals.*' => ['required', 'string', 'max:255'],
+                    'step_start_dates' => ['required', 'array', "size:{$timelineSize}"],
+                    'step_start_dates.*' => ['required', 'date_format:Y-m-d'],
                     'step_timeline' => ['required', 'array', "size:{$timelineSize}"],
                     'step_timeline.*' => ['required', 'date_format:Y-m-d'],
                 ],
@@ -127,11 +131,13 @@ class SaveProposalDraftRequest extends FormRequest
             'supplementary_information' => 'informasi dan data pelengkap',
             'cost_projection' => 'proyeksi kebutuhan biaya proyek',
             'learning_goals' => 'tiga hal yang akan dipelajari',
+            'step_start_dates' => 'tanggal mulai timeline',
             'step_timeline' => 'timeline',
         ];
 
         foreach (QccStep::cases() as $index => $step) {
-            $attributes["step_timeline.{$index}"] = "target step {$step->value}";
+            $attributes["step_start_dates.{$index}"] = "tanggal mulai step {$step->value}";
+            $attributes["step_timeline.{$index}"] = "target selesai step {$step->value}";
             $attributes["step_deliverables.{$index}"] = "deliverable step {$step->value}";
         }
 
@@ -148,37 +154,46 @@ class SaveProposalDraftRequest extends FormRequest
             'date_format' => ':Attribute harus berupa tanggal yang valid.',
             'learning_goals.size' => 'Isi tepat 3 hal yang akan dipelajari.',
             'learning_goals.*.required' => 'Semua hal yang akan dipelajari wajib diisi.',
-            'step_timeline.size' => 'Isi target tanggal untuk semua 8 step QCC.',
+            'step_start_dates.size' => 'Isi tanggal mulai untuk semua 8 step QCC.',
+            'step_start_dates.*.required' => ':Attribute wajib diisi.',
+            'step_timeline.size' => 'Isi target selesai untuk semua 8 step QCC.',
             'step_timeline.*.required' => ':Attribute wajib diisi.',
             'wizard_step.between' => 'Langkah proposal tidak valid.',
         ];
     }
 
     /**
-     * A later QCC step cannot be due before the step it follows.
+     * Each QCC step must finish on or after the day it starts. Steps may overlap,
+     * since several steps can run at the same time.
      */
     private function validateTimelineOrder(Validator $validator): void
     {
-        $dates = $this->input('step_timeline');
+        $startDates = $this->input('step_start_dates');
+        $targetDates = $this->input('step_timeline');
 
-        if (! is_array($dates)) {
+        if (! is_array($startDates) || ! is_array($targetDates)) {
             return;
         }
 
-        $previous = null;
+        $startDates = array_values($startDates);
 
-        foreach (array_values($dates) as $index => $date) {
-            if (! is_string($date) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+        foreach (array_values($targetDates) as $index => $targetDate) {
+            $startDate = $startDates[$index] ?? null;
+
+            if (! $this->isDateValue($startDate) || ! $this->isDateValue($targetDate)) {
                 continue;
             }
 
-            if ($previous !== null && $date < $previous) {
+            if ($targetDate < $startDate) {
                 $step = $index + 1;
-                $validator->errors()->add("step_timeline.{$index}", "Target step {$step} tidak boleh lebih awal dari step sebelumnya.");
+                $validator->errors()->add("step_timeline.{$index}", "Target selesai step {$step} tidak boleh lebih awal dari tanggal mulainya.");
             }
-
-            $previous = $date;
         }
+    }
+
+    private function isDateValue(mixed $value): bool
+    {
+        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1;
     }
 
     private function validateRequirementsBeforeAdvancing(Validator $validator): void

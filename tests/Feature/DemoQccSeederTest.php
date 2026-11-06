@@ -82,5 +82,6 @@ it('fills demo proposals with the current proposal sections', function () {
         ->rca->toBeNull()
         ->business_benefit->toBeNull()
         ->requirements_count->toBe(2))
-        ->and($proposals->first()->step_timeline_json[0]['deliverable'])->toBe('Tema dan data awal disepakati');
+        ->and($proposals->first()->step_timeline_json[0]['deliverable'])->toBe('Tema dan data awal disepakati')
+        ->and($proposals->first()->step_timeline_json[0]['start_date'])->not->toBeNull();
 });

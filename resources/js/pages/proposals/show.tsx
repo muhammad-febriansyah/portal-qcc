@@ -75,6 +75,7 @@ type Proposal = {
     step_timeline: {
         step_number: number;
         name: string;
+        start_date: string | null;
         target_date: string | null;
         deliverable: string | null;
     }[];
@@ -513,6 +514,7 @@ export default function ProposalShow({ proposal }: Props) {
                                             (row) => ({
                                                 number: row.step_number,
                                                 name: row.name,
+                                                startDate: row.start_date,
                                                 date: row.target_date,
                                                 deliverable: row.deliverable,
                                             }),

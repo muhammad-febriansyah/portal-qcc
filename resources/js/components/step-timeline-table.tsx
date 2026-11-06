@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 export type StepTimelineRow = {
     number: number;
     name: string;
+    startDate?: string | null;
     date: string | null;
     deliverable?: string | null;
 };
@@ -39,8 +40,9 @@ function formatDate(value: string | null): string {
 }
 
 /**
- * A step runs from the day after the previous step's target (the batch start for
- * step 1) until its own target date.
+ * A step runs from its own start date until its target date, so steps may overlap.
+ * Older proposals have no start date: those steps start the day after the previous
+ * step's target (the batch start for step 1).
  */
 function stepRanges(
     rows: StepTimelineRow[],
@@ -54,7 +56,9 @@ function stepRanges(
 
         if (!end) return null;
 
-        let start = previousEnd ? addDays(previousEnd, 1) : (batchStart ?? end);
+        let start =
+            parseDate(row.startDate) ??
+            (previousEnd ? addDays(previousEnd, 1) : (batchStart ?? end));
 
         if (start > end) start = end;
 
@@ -75,7 +79,7 @@ function weekRange(month: Date, week: number): { start: Date; end: Date } {
     return { start, end };
 }
 
-/** Planned QCC steps as a week-by-week chart with their target date and deliverable. */
+/** Planned QCC steps as a week-by-week chart with their dates and deliverable. */
 export function TimelineTable({
     rows,
     startDate,
@@ -132,6 +136,13 @@ export function TimelineTable({
                                 })}
                             </th>
                         ))}
+                        <th
+                            scope="col"
+                            rowSpan={2}
+                            className="min-w-28 border-r px-3 py-2 text-left font-semibold"
+                        >
+                            Mulai
+                        </th>
                         <th
                             scope="col"
                             rowSpan={2}
@@ -212,6 +223,15 @@ export function TimelineTable({
                                 <td
                                     className={cn(
                                         'border-r px-3 py-2 whitespace-nowrap tabular-nums',
+                                        !row.startDate &&
+                                            'text-muted-foreground',
+                                    )}
+                                >
+                                    {formatDate(row.startDate ?? null)}
+                                </td>
+                                <td
+                                    className={cn(
+                                        'border-r px-3 py-2 whitespace-nowrap tabular-nums',
                                         !row.date && 'text-muted-foreground',
                                     )}
                                 >
@@ -233,7 +253,8 @@ export function TimelineTable({
             </table>
             {months.length === 0 && (
                 <p className="border-t px-3 py-3 text-xs text-muted-foreground">
-                    Isi target tanggal step untuk melihat grafik timeline.
+                    Isi tanggal mulai dan target selesai step untuk melihat
+                    grafik timeline.
                 </p>
             )}
         </div>

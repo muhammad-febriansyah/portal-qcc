@@ -98,6 +98,7 @@ class ProposalWizardController extends Controller
                 'supplementary_information' => $project->supplementary_information,
                 'cost_projection' => $project->cost_projection,
                 'learning_goals' => $project->learning_goals_json ?? ['', '', ''],
+                'step_start_dates' => $this->timelineValues($project, 'start_date'),
                 'step_timeline' => $this->timelineValues($project, 'target_date'),
                 'step_deliverables' => $this->timelineValues($project, 'deliverable'),
                 'wizard_step' => $project->wizard_step,
@@ -314,8 +315,9 @@ class ProposalWizardController extends Controller
     {
         $learningGoals = $validated['learning_goals'] ?? null;
         $timeline = $validated['step_timeline'] ?? null;
+        $startDates = array_values($validated['step_start_dates'] ?? []);
         $deliverables = $validated['step_deliverables'] ?? [];
-        unset($validated['learning_goals'], $validated['step_timeline'], $validated['step_deliverables']);
+        unset($validated['learning_goals'], $validated['step_start_dates'], $validated['step_timeline'], $validated['step_deliverables']);
 
         $validated['learning_goals_json'] = is_array($learningGoals)
             ? array_values($learningGoals)
@@ -324,6 +326,7 @@ class ProposalWizardController extends Controller
         $validated['step_timeline_json'] = is_array($timeline)
             ? array_map(fn (QccStep $step): array => [
                 'step_number' => $step->value,
+                'start_date' => $startDates[$step->value - 1] ?? null,
                 'target_date' => $timeline[$step->value - 1] ?? null,
                 'deliverable' => filled($deliverables[$step->value - 1] ?? null) ? trim($deliverables[$step->value - 1]) : null,
             ], QccStep::cases())

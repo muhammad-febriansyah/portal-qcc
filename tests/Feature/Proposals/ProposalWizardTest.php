@@ -46,6 +46,7 @@ function proposalDraftPayload(QccBatch $batch, array $overrides = []): array
         'supplementary_information' => '',
         'cost_projection' => '',
         'learning_goals' => ['', '', ''],
+        'step_start_dates' => array_fill(0, count(QccStep::cases()), ''),
         'step_timeline' => array_fill(0, count(QccStep::cases()), ''),
         'wizard_step' => 1,
         'advance' => false,
@@ -209,7 +210,7 @@ it('requires the project cost projection before advancing', function () {
     expect($project->fresh()->wizard_step)->toBe(4);
 });
 
-it('requires three learning goals and a target date for every QCC step before advancing', function () {
+it('requires three learning goals and a start and target date for every QCC step before advancing', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 5]);
 
@@ -218,26 +219,31 @@ it('requires three learning goals and a target date for every QCC step before ad
             'wizard_step' => 5,
             'advance' => true,
         ]))
-        ->assertSessionHasErrors(['learning_goals.0', 'learning_goals.1', 'learning_goals.2', 'step_timeline.0', 'step_timeline.7']);
+        ->assertSessionHasErrors(['learning_goals.0', 'learning_goals.1', 'learning_goals.2', 'step_start_dates.0', 'step_start_dates.7', 'step_timeline.0', 'step_timeline.7']);
 
     expect($project->fresh()->wizard_step)->toBe(5);
 });
 
-it('stores the step timeline and refuses a step due before the previous one', function () {
+it('stores overlapping step timelines and refuses a step that finishes before it starts', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 5]);
+    $startDates = array_map(fn (QccStep $step): string => now()->addWeeks($step->value - 1)->toDateString(), QccStep::cases());
     $dates = array_map(fn (QccStep $step): string => now()->addWeeks($step->value)->toDateString(), QccStep::cases());
+    // Steps 3 and 4 run at the same time, which is allowed.
+    $startDates[3] = $startDates[2];
+    $dates[3] = $dates[2];
     $payload = proposalDraftPayload($project->batch, [
         'wizard_step' => 5,
         'advance' => true,
         'learning_goals' => ['Satu', 'Dua', 'Tiga'],
+        'step_start_dates' => $startDates,
     ]);
 
-    $outOfOrder = $dates;
-    $outOfOrder[3] = now()->toDateString();
+    $finishesBeforeStart = $dates;
+    $finishesBeforeStart[5] = now()->toDateString();
     $this->actingAs($user)
-        ->patch(route('proposals.update', $project), [...$payload, 'step_timeline' => $outOfOrder])
-        ->assertSessionHasErrors(['step_timeline.3']);
+        ->patch(route('proposals.update', $project), [...$payload, 'step_timeline' => $finishesBeforeStart])
+        ->assertSessionHasErrors(['step_timeline.5' => 'Target selesai step 6 tidak boleh lebih awal dari tanggal mulainya.']);
 
     $deliverables = array_fill(0, count(QccStep::cases()), '');
     $deliverables[0] = '  Tema dan data awal  ';
@@ -249,6 +255,7 @@ it('stores the step timeline and refuses a step due before the previous one', fu
         ->wizard_step->toBe(6)
         ->step_timeline_json->toBe(array_map(fn (QccStep $step): array => [
             'step_number' => $step->value,
+            'start_date' => $startDates[$step->value - 1],
             'target_date' => $dates[$step->value - 1],
             'deliverable' => $step === QccStep::Theme ? 'Tema dan data awal' : null,
         ], QccStep::cases()));
@@ -256,6 +263,7 @@ it('stores the step timeline and refuses a step due before the previous one', fu
     $this->get(route('proposals.edit', $project))
         ->assertInertia(fn (Assert $page) => $page
             ->where('project.step_deliverables.0', 'Tema dan data awal')
+            ->where('project.step_start_dates.3', $startDates[3])
             ->where('project.step_timeline.7', $dates[7]));
 });
 
@@ -398,6 +406,7 @@ it('lets SIMer submit without a team and tells them Owner QCC will form it', fun
         'learning_goals_json' => ['Tujuan satu', 'Tujuan dua', 'Tujuan tiga'],
         'step_timeline_json' => array_map(fn (QccStep $step): array => [
             'step_number' => $step->value,
+            'start_date' => now()->addWeeks($step->value - 1)->toDateString(),
             'target_date' => now()->addWeeks($step->value)->toDateString(),
         ], QccStep::cases()),
     ]);

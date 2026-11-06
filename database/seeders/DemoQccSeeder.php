@@ -264,6 +264,7 @@ class DemoQccSeeder extends Seeder
 
         return array_map(fn (QccStep $step): array => [
             'step_number' => $step->value,
+            'start_date' => $batch->starts_on->copy()->addWeeks(($step->value - 1) * 2)->toDateString(),
             'target_date' => $batch->starts_on->copy()->addWeeks($step->value * 2)->toDateString(),
             'deliverable' => $deliverables[$step->value],
         ], QccStep::cases());

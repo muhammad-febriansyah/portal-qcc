@@ -349,7 +349,7 @@ class ProposalController extends Controller
     }
 
     /**
-     * @return list<array{step_number: int, name: string, target_date: string|null, deliverable: string|null}>
+     * @return list<array{step_number: int, name: string, start_date: string|null, target_date: string|null, deliverable: string|null}>
      */
     private function stepTimeline(Project $project): array
     {
@@ -358,6 +358,7 @@ class ProposalController extends Controller
         return array_map(fn (QccStep $step): array => [
             'step_number' => $step->value,
             'name' => $step->label(),
+            'start_date' => $planned->get($step->value)['start_date'] ?? null,
             'target_date' => $planned->get($step->value)['target_date'] ?? null,
             'deliverable' => $planned->get($step->value)['deliverable'] ?? null,
         ], QccStep::cases());

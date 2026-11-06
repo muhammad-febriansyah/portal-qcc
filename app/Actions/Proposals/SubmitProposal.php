@@ -53,10 +53,13 @@ class SubmitProposal
                 $missing['learning_goals'] = 'Isi tepat 3 hal yang akan dipelajari sebelum proposal diajukan.';
             }
 
-            $plannedSteps = array_filter($project->step_timeline_json ?? [], fn (array $step): bool => filled($step['target_date'] ?? null));
+            $plannedSteps = array_filter(
+                $project->step_timeline_json ?? [],
+                fn (array $step): bool => filled($step['start_date'] ?? null) && filled($step['target_date'] ?? null),
+            );
 
             if (count($plannedSteps) !== count(QccStep::cases())) {
-                $missing['step_timeline'] = 'Isi target tanggal semua step QCC sebelum proposal diajukan.';
+                $missing['step_timeline'] = 'Isi tanggal mulai dan target selesai semua step QCC sebelum proposal diajukan.';
             }
 
             if (! $project->requirements()->exists()) {

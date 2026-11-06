@@ -46,6 +46,7 @@ function preparedProposal(): array
         'cost_projection' => 'Tidak ada biaya',
         'step_timeline_json' => array_map(fn (QccStep $step): array => [
             'step_number' => $step->value,
+            'start_date' => now()->addWeeks($step->value - 1)->toDateString(),
             'target_date' => now()->addWeeks($step->value)->toDateString(),
         ], QccStep::cases()),
     ]);
@@ -199,6 +200,20 @@ test('an active team leader cannot change a proposal once it is submitted', func
     $project->forceFill(['proposal_status' => ProposalStatus::Submitted])->save();
 
     expect($proposer->fresh()->can('update', $project->fresh()))->toBeFalse();
+});
+
+test('proposal submission blocks a timeline without start dates', function () {
+    [$project, $proposer] = preparedProposal();
+    $project->forceFill(['step_timeline_json' => array_map(fn (QccStep $step): array => [
+        'step_number' => $step->value,
+        'target_date' => now()->addWeeks($step->value)->toDateString(),
+    ], QccStep::cases())])->save();
+
+    $this->actingAs($proposer)
+        ->post(route('proposals.submit', $project))
+        ->assertSessionHasErrors(['step_timeline' => 'Isi tanggal mulai dan target selesai semua step QCC sebelum proposal diajukan.']);
+
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Draft);
 });
 
 test('proposal submission blocks missing content, timeline and competency needs', function () {
