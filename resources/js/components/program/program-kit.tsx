@@ -12,6 +12,7 @@ export const programColors = {
     violet: '#7A5AF8',
     green: '#16834A',
     orange: '#F79009',
+    magenta: '#C11574',
     rest: '#98A2B3',
     track: '#E8EEF2',
     good: '#16834A',
@@ -24,6 +25,7 @@ export const categoryColors = [
     programColors.violet,
     programColors.green,
     programColors.orange,
+    programColors.magenta,
 ];
 
 export function percentOf(value: number, total: number): number {

@@ -91,7 +91,7 @@ test('owner QCC sees phase 1 figures while phases 2 and 3 stay locked', function
     MemberCompetency::factory()->create(['user_id' => $first->id, 'competency_id' => $competency->id]);
     MemberCompetency::factory()->create(['user_id' => $second->id, 'competency_id' => $competency->id]);
 
-    foreach ([[$first, ThemeCategory::Efficiency], [$second, ThemeCategory::Efficiency]] as [$proposer, $category]) {
+    foreach ([[$first, ThemeCategory::CostEfficiency], [$second, ThemeCategory::CostEfficiency]] as [$proposer, $category]) {
         Project::factory()->status(ProposalStatus::Submitted)->create([
             'batch_id' => $batch->id,
             'proposer_id' => $proposer->id,
@@ -120,7 +120,7 @@ test('owner QCC sees phase 1 figures while phases 2 and 3 stay locked', function
             ->where('program.registration.submitters', 2)
             ->where('program.registration.submitters_percent', 50)
             ->where('program.registration.submissions_by_organization.0', ['name' => 'DIV FINANCE', 'count' => 2])
-            ->where('program.registration.themes.0', ['key' => ThemeCategory::Efficiency->value, 'label' => 'Efficiency', 'count' => 2, 'percent' => 100])
+            ->where('program.registration.themes.2', ['key' => ThemeCategory::CostEfficiency->value, 'label' => 'Cost & Efficiency', 'count' => 2, 'percent' => 100])
             ->where('program.registration.trend.0.date', '2026-11-09')
             ->where('program.registration.trend.9', ['date' => '2026-11-18', 'registered' => 0, 'submitted' => 2])
             ->where('program.registration.trend.11', ['date' => '2026-11-20', 'registered' => 3, 'submitted' => 2])
@@ -313,4 +313,18 @@ test('a switched-off LOB/Div keeps its proposals on the chart', function () {
         ->assertInertia(fn (Assert $page) => $page
             ->where('program.registration.submissions_by_organization.0', ['name' => 'DIV LAMA', 'count' => 1])
             ->where('program.registration.submissions_by_organization', fn ($rows) => collect($rows)->doesntContain('name', 'DIV NONAKTIF TANPA PROPOSAL')));
+});
+
+test('proposals saved with the first theme categories move to the new ones', function () {
+    $projects = collect(['REVENUE_GM', 'EFFICIENCY', 'RISK_COMPLIANCE_PROCESS_CONTROL', 'PRODUCTIVITY'])
+        ->map(fn (string $old) => tap(Project::factory()->create(), fn (Project $project) => DB::table('projects')->where('id', $project->id)->update(['theme_category' => $old])));
+
+    (require database_path('migrations/2026_11_06_134057_rename_theme_categories_on_projects_table.php'))->up();
+
+    expect($projects->map(fn (Project $project) => $project->fresh()->theme_category)->all())->toBe([
+        ThemeCategory::NewRevenueStream,
+        ThemeCategory::CostEfficiency,
+        ThemeCategory::SafetyRiskCompliance,
+        ThemeCategory::Productivity,
+    ]);
 });

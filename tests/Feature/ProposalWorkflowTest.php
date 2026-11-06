@@ -38,7 +38,7 @@ function preparedProposal(): array
         'proposer_id' => $proposer->id,
         'title' => 'Kurangi waktu proses',
         'theme' => 'Efisiensi',
-        'theme_category' => ThemeCategory::Efficiency,
+        'theme_category' => ThemeCategory::CostEfficiency,
         'background' => 'Latar belakang',
         'current_situation' => 'Kondisi saat ini, baseline 10 jam',
         'target' => 'Target 5 jam',

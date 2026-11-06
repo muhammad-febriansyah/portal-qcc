@@ -7,20 +7,22 @@ namespace App\Enums;
  */
 enum ThemeCategory: string
 {
-    case Efficiency = 'EFFICIENCY';
-    case Productivity = 'PRODUCTIVITY';
-    case RevenueGm = 'REVENUE_GM';
+    case NewRevenueStream = 'NEW_REVENUE_STREAM';
     case QualityCustomerExperience = 'QUALITY_CUSTOMER_EXPERIENCE';
-    case RiskComplianceProcessControl = 'RISK_COMPLIANCE_PROCESS_CONTROL';
+    case CostEfficiency = 'COST_EFFICIENCY';
+    case Productivity = 'PRODUCTIVITY';
+    case DeliveryServiceExcellence = 'DELIVERY_SERVICE_EXCELLENCE';
+    case SafetyRiskCompliance = 'SAFETY_RISK_COMPLIANCE';
 
     public function label(): string
     {
         return match ($this) {
-            self::Efficiency => 'Efficiency',
-            self::Productivity => 'Productivity',
-            self::RevenueGm => 'Revenue & GM',
+            self::NewRevenueStream => 'New Revenue Stream',
             self::QualityCustomerExperience => 'Quality & Customer Experience',
-            self::RiskComplianceProcessControl => 'Risk, Compliance & Process Control',
+            self::CostEfficiency => 'Cost & Efficiency',
+            self::Productivity => 'Productivity',
+            self::DeliveryServiceExcellence => 'Delivery & Service Excellence',
+            self::SafetyRiskCompliance => 'Safety, Risk, & Compliance',
         };
     }
 
