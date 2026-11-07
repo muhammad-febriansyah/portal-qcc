@@ -430,10 +430,16 @@ it('lets SIMer submit without a team and tells them Owner QCC will form it', fun
             ->where('proposal.can_submit', true)
             ->where('proposal.cost_projection', 'Tidak ada biaya')
             ->has('proposal.step_timeline', 8)
-            ->where('proposal.team_status_message', 'Tim akan disusun oleh Owner QCC setelah proposal diajukan.'));
+            ->where('proposal.team_status_message', null));
 
     $this->post(route('proposals.submit', $project))->assertSessionHasNoErrors();
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Submitted);
+
+    $this->get(route('proposals.show', $project))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('proposal.team_confirmed', false)
+            ->where('proposal.team_status_message', null));
 });
 
 it('no longer asks Owner QCC to compose a team while the proposal is a draft', function () {

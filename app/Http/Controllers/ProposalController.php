@@ -232,11 +232,9 @@ class ProposalController extends Controller
                     && in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)
                     && $request->user()->can('projects.submit'),
                 'team_confirmed' => $teamConfirmed,
-                'team_status_message' => $request->user()->can('findCandidates', $project)
-                    ? null
-                    : ($teamConfirmed
-                        ? 'Tim sudah dikonfirmasi oleh Owner QCC.'
-                        : 'Tim akan disusun oleh Owner QCC setelah proposal diajukan.'),
+                'team_status_message' => $teamConfirmed && ! $request->user()->can('findCandidates', $project)
+                    ? 'Tim sudah dikonfirmasi oleh Owner QCC.'
+                    : null,
                 'can_start_review' => $project->proposal_status === ProposalStatus::Submitted
                     && $request->user()->can('reviewProposal', $project),
                 'can_decide' => $project->proposal_status === ProposalStatus::UnderReview

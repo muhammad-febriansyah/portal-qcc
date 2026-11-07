@@ -262,9 +262,7 @@ export default function ProposalShow({ proposal }: Props) {
                             <Alert>
                                 <UsersRound aria-hidden="true" />
                                 <AlertTitle>
-                                    {proposal.team_confirmed
-                                        ? 'Tim proposal sudah dikonfirmasi'
-                                        : 'Tim disusun oleh Owner QCC'}
+                                    Tim proposal sudah dikonfirmasi
                                 </AlertTitle>
                                 <AlertDescription>
                                     {proposal.team_status_message}
