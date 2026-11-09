@@ -36,7 +36,7 @@ class StartTeamMatching
         $project->refresh();
 
         if (! $project->proposal_status->allowsTeamFormation()) {
-            throw ValidationException::withMessages(['matching' => 'AI Matching hanya tersedia untuk proposal yang diajukan, direview, atau perlu revisi.']);
+            throw ValidationException::withMessages(['matching' => 'AI Matching hanya tersedia untuk proposal yang sudah disetujui.']);
         }
 
         if (! $this->ai->isReady()) {
@@ -59,7 +59,7 @@ class StartTeamMatching
             $lockedProject = Project::query()->whereKey($project->id)->lockForUpdate()->firstOrFail();
 
             if (! $lockedProject->proposal_status->allowsTeamFormation()) {
-                throw ValidationException::withMessages(['matching' => 'AI Matching hanya tersedia untuk proposal yang diajukan, direview, atau perlu revisi.']);
+                throw ValidationException::withMessages(['matching' => 'AI Matching hanya tersedia untuk proposal yang sudah disetujui.']);
             }
 
             $latest = TeamMatchingRun::query()->where('project_id', $project->id)->latest('id')->first();

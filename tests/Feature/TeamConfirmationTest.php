@@ -78,7 +78,7 @@ function teamPayload(TeamMatchingRun $run, array $team): array
 }
 
 beforeEach(function () {
-    $this->project = Project::factory()->status(ProposalStatus::Submitted)->create();
+    $this->project = Project::factory()->status(ProposalStatus::Approved)->create();
     $this->skill = Competency::factory()->create(['is_active' => true]);
     DB::table('project_requirements')->insert(['project_id' => $this->project->id, 'competency_id' => $this->skill->id, 'created_at' => now(), 'updated_at' => now()]);
     $this->a = confirmCandidate('Satu', $this->skill);
@@ -106,16 +106,15 @@ it('confirms the AI suggestion as the active team and records who did it', funct
 });
 
 it('uses confirmed project roles for access while preserving account roles', function () {
-    // Returned for revision: the team can be set and the proposer may still edit the proposal.
-    $this->project->forceFill(['proposer_id' => $this->a->id, 'proposal_status' => ProposalStatus::RevisionRequired])->save();
+    $this->project->forceFill(['proposer_id' => $this->a->id])->save();
 
     $this->actingAs($this->reviewer)
         ->post($this->url, teamPayload($this->run, [[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']]))
         ->assertSessionHasNoErrors();
-    $this->a->givePermissionTo(Permission::findOrCreate('projects.update', 'web'));
+    $this->a->givePermissionTo(Permission::findOrCreate('projects.view', 'web'));
 
     $this->actingAs($this->a)
-        ->get(route('proposals.edit', $this->project))
+        ->get(route('proposals.show', $this->project))
         ->assertOk();
 
     expect($this->a->fresh()->getRoleNames()->all())->toBe(['SIMer / Member'])
@@ -228,15 +227,17 @@ it('does not take a run that is not ready, belongs to another project or was alr
     $this->actingAs($this->reviewer)->post($this->url, teamPayload($other, $team))->assertSessionHasErrors('team');
 });
 
-it('allows team changes only after the proposal is submitted', function () {
-    $this->project->forceFill(['proposal_status' => ProposalStatus::Draft])->save();
+it('allows forming the team only after the proposal is approved', function () {
+    foreach ([ProposalStatus::Draft, ProposalStatus::Submitted, ProposalStatus::UnderReview, ProposalStatus::RevisionRequired] as $status) {
+        $this->project->forceFill(['proposal_status' => $status])->save();
 
-    $this->actingAs($this->reviewer)->post($this->url, teamPayload($this->run, [[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']]))
-        ->assertSessionHasErrors('team');
+        $this->actingAs($this->reviewer)->post($this->url, teamPayload($this->run, [[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']]))
+            ->assertSessionHasErrors(['team' => 'Tim hanya bisa disusun setelah proposal disetujui.']);
+    }
 
     expect(activeMembers($this->project))->toBe([]);
 
-    $this->project->forceFill(['proposal_status' => ProposalStatus::RevisionRequired])->save();
+    $this->project->forceFill(['proposal_status' => ProposalStatus::Approved])->save();
     $this->actingAs($this->reviewer)->post($this->url, teamPayload($this->run, [[$this->a->id, 'LEADER'], [$this->b->id, 'MEMBER']]))
         ->assertSessionHasNoErrors();
 

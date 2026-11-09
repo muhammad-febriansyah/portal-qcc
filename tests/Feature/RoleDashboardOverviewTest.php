@@ -103,27 +103,27 @@ test('reviewer dashboard shows submitted proposals as pending tasks', function (
     ])->save();
 
     roleOverviewOf($reviewer)
-            // The submitted proposal also waits for its team.
+            // The approved proposal still waits for its team.
         ->where('roleOverview.summary.pending_tasks', 3)
         ->where('roleOverview.tasks', fn ($tasks) => collect($tasks)->pluck('title')->sort()->values()->all()
-            === ['Proposal menunggu penyusunan tim', 'Review Step 1', 'Review proposal']);
+            === ['Proposal lolos menunggu penyusunan tim', 'Review Step 1', 'Review proposal']);
 });
 
-test('owner dashboard shows proposals waiting for team composition until team is confirmed', function () {
+test('owner dashboard shows approved proposals waiting for their team until it is confirmed', function () {
     $owner = roleDashboardUser('Owner QCC', 'projects.view', 'projects.viewAny', 'projects.review');
     $member = roleDashboardUser('SIMer / Member', 'projects.view', 'projects.create', 'projects.update');
-    $project = roleDashboardProject($member, 'Menunggu penyusunan tim', ProposalStatus::Submitted);
+    $project = roleDashboardProject($member, 'Menunggu penyusunan tim', ProposalStatus::Approved);
     roleDashboardProject($member, 'Masih draf', ProposalStatus::Draft);
 
-    $teamTask = fn (array $tasks): ?array => collect($tasks)->firstWhere('title', 'Proposal menunggu penyusunan tim');
+    $teamTask = fn (array $tasks): ?array => collect($tasks)->firstWhere('title', 'Proposal lolos menunggu penyusunan tim');
 
-    // A submitted proposal is both waiting for review and for its team; the draft is neither.
+    // Only the approved proposal waits for its team; the draft waits for nothing.
     roleOverviewOf($owner)
-        ->where('roleOverview.summary.pending_tasks', 2)
+        ->where('roleOverview.summary.pending_tasks', 1)
         ->where('roleOverview.tasks', fn ($tasks) => $teamTask(collect($tasks)->toArray()) !== null
             && $teamTask(collect($tasks)->toArray())['project'] === 'Menunggu penyusunan tim'
             && $teamTask(collect($tasks)->toArray())['href'] === route('proposals.candidates', $project)
-            && $teamTask(collect($tasks)->toArray())['detail'] === 'Susun dan konfirmasi tim sebelum proposal disetujui.');
+            && $teamTask(collect($tasks)->toArray())['detail'] === 'Proposal sudah lolos seleksi. Cari kandidat dan konfirmasi timnya.');
 
     $run = TeamMatchingRun::query()->create([
         'project_id' => $project->id,
@@ -134,7 +134,7 @@ test('owner dashboard shows proposals waiting for team composition until team is
     $run->forceFill(['confirmed_by' => $owner->id, 'confirmed_at' => now()])->save();
 
     roleOverviewOf($owner)
-        ->where('roleOverview.summary.pending_tasks', 1)
+        ->where('roleOverview.summary.pending_tasks', 0)
         ->where('roleOverview.tasks', fn ($tasks) => $teamTask(collect($tasks)->toArray()) === null);
 });
 

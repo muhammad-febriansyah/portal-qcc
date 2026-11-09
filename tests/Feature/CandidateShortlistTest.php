@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ProposalStatus;
 use App\Models\Competency;
 use App\Models\MemberCompetency;
 use App\Models\Organization;
@@ -52,7 +53,7 @@ function shortlistNames(Project $project): array
 }
 
 beforeEach(function () {
-    $this->project = Project::factory()->create();
+    $this->project = Project::factory()->status(ProposalStatus::Approved)->create();
     $this->skill = Competency::factory()->create();
     requireSkill($this->project, $this->skill);
 });
@@ -252,7 +253,7 @@ test('an owner opens the candidate page for any project', function () {
 
 test('a team leader can search only for a project they proposed', function () {
     $leader = candidateSearcher('Team Leader', false);
-    $own = Project::factory()->create(['proposer_id' => $leader->id]);
+    $own = Project::factory()->status(ProposalStatus::Approved)->create(['proposer_id' => $leader->id]);
 
     $this->actingAs($leader)->get(route('proposals.candidates', $own))->assertOk();
     $this->actingAs($leader)->get(route('proposals.candidates', $this->project))->assertForbidden();

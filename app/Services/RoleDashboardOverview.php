@@ -207,9 +207,9 @@ class RoleDashboardOverview
             $count += (clone $teamPendingProposals)->count();
             $items = [...$items, ...(clone $teamPendingProposals)->select(['id', 'title', 'updated_at'])->latest('updated_at')->limit(5)->get()->map(fn (Project $project): array => [
                 'key' => 'team-composition-'.$project->id,
-                'title' => 'Proposal menunggu penyusunan tim',
+                'title' => 'Proposal lolos menunggu penyusunan tim',
                 'project' => $project->title,
-                'detail' => 'Susun dan konfirmasi tim sebelum proposal disetujui.',
+                'detail' => 'Proposal sudah lolos seleksi. Cari kandidat dan konfirmasi timnya.',
                 'href' => route('proposals.candidates', $project),
                 'date' => $project->updated_at?->toDateString(),
             ])->all()];

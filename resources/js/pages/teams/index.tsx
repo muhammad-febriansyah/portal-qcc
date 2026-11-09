@@ -203,7 +203,7 @@ export default function TeamFormationIndex({
                         },
                     ]}
                     title="Pembentukan Tim"
-                    description="Pilih proposal yang sudah diajukan untuk mencocokkan anggota dan menyusun tim sebelum disetujui."
+                    description="Proposal yang lolos seleksi. Cari kandidat dan konfirmasi timnya."
                     actions={
                         can_create_proposal ? (
                             <Button
@@ -221,10 +221,10 @@ export default function TeamFormationIndex({
                 <Card className="gap-0 py-0">
                     <CardHeader className="border-b py-4">
                         <CardTitle className="text-base font-semibold">
-                            Proposal siap dibentuk tim
+                            Proposal lolos seleksi
                         </CardTitle>
                         <CardDescription>
-                            {proposals.total} proposal menunggu susunan tim
+                            {proposals.total} proposal siap dibentuk tim
                         </CardDescription>
                     </CardHeader>
                     <DataTable
@@ -242,12 +242,12 @@ export default function TeamFormationIndex({
                         emptyTitle={
                             filters.search
                                 ? 'Proposal tidak ditemukan'
-                                : 'Belum ada proposal yang diajukan'
+                                : 'Belum ada proposal yang lolos'
                         }
                         emptyDescription={
                             filters.search
                                 ? 'Coba kata kunci lain atau hapus pencarian.'
-                                : 'Proposal yang sudah diajukan member akan muncul di sini.'
+                                : 'Proposal yang disetujui Owner QCC akan muncul di sini.'
                         }
                     />
                 </Card>

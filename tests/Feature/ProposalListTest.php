@@ -183,6 +183,7 @@ test('the index carries both the proposal table and my own drafts', function () 
             ->where('can_create', true)
             ->has('proposals.data', 1)
             ->where('proposals.data.0.can_edit_draft', true)
-            ->where('proposals.data.0.can_find_candidates', true)
+            // A draft has not passed selection, so there is no team to form yet.
+            ->where('proposals.data.0.can_find_candidates', false)
             ->where('can_manage_teams', true));
 });

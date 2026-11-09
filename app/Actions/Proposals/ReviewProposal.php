@@ -2,7 +2,6 @@
 
 namespace App\Actions\Proposals;
 
-use App\Actions\Teams\EnsureConfirmedTeam;
 use App\Enums\ProposalStatus;
 use App\Models\Project;
 use App\Models\ReviewDecision;
@@ -17,7 +16,6 @@ class ReviewProposal
     public function __construct(
         private readonly AuditService $audit,
         private readonly InitializeProjectSteps $initializeProjectSteps,
-        private readonly EnsureConfirmedTeam $ensureConfirmedTeam,
     ) {}
 
     public function start(Project $project, User $actor): void
@@ -53,10 +51,6 @@ class ReviewProposal
                 throw ValidationException::withMessages(['reason' => 'Alasan wajib diisi untuk revisi atau penolakan.']);
             }
 
-            if ($decision === 'APPROVE') {
-                $this->ensureConfirmedTeam->handle($project);
-            }
-
             $this->recordTransition($project, $actor, $decision, $status, $reason);
 
             if (ProposalWorkflowNotification::enabled()) {
@@ -79,7 +73,7 @@ class ReviewProposal
     private function decisionMessage(Project $project, string $decision, ?string $reason): string
     {
         $message = match ($decision) {
-            'APPROVE' => "Proposal {$project->title} disetujui. Proyek QCC dapat dimulai dari Step 1.",
+            'APPROVE' => "Proposal {$project->title} lolos seleksi. Owner QCC akan menyusun tim proyeknya.",
             'REQUEST_REVISION' => "Proposal {$project->title} perlu direvisi sebelum dapat disetujui.",
             default => "Proposal {$project->title} tidak dapat dilanjutkan.",
         };

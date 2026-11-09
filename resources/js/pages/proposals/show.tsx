@@ -86,6 +86,7 @@ type Proposal = {
     attachments: ProposalAttachment[];
     can_edit_draft: boolean;
     can_find_candidates: boolean;
+    has_team: boolean;
     can_submit: boolean;
     team_confirmed: boolean;
     team_status_message: string | null;
@@ -200,7 +201,7 @@ export default function ProposalShow({ proposal }: Props) {
                                     nativeButton={false}
                                 >
                                     <UsersRound data-icon="inline-start" />
-                                    {proposal.status === 'APPROVED'
+                                    {proposal.has_team
                                         ? 'Kelola tim'
                                         : 'Cari kandidat tim'}
                                 </Button>
@@ -256,9 +257,7 @@ export default function ProposalShow({ proposal }: Props) {
 
                 <div className="space-y-5">
                     {proposal.team_status_message &&
-                        proposal.status !== 'DRAFT' &&
-                        proposal.status !== 'APPROVED' &&
-                        proposal.status !== 'REJECTED' && (
+                        proposal.status === 'APPROVED' && (
                             <Alert>
                                 <UsersRound aria-hidden="true" />
                                 <AlertTitle>
@@ -266,18 +265,6 @@ export default function ProposalShow({ proposal }: Props) {
                                 </AlertTitle>
                                 <AlertDescription>
                                     {proposal.team_status_message}
-                                </AlertDescription>
-                            </Alert>
-                        )}
-                    {proposal.can_decide &&
-                        proposal.can_find_candidates &&
-                        !proposal.team_confirmed && (
-                            <Alert className="border-warning/40 bg-warning/10">
-                                <UsersRound aria-hidden="true" />
-                                <AlertTitle>Tim belum dikonfirmasi</AlertTitle>
-                                <AlertDescription>
-                                    Susun dan konfirmasi tim lewat Cari kandidat
-                                    tim sebelum menyetujui proposal.
                                 </AlertDescription>
                             </Alert>
                         )}

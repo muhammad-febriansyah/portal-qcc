@@ -106,7 +106,7 @@ function queuedRun(Project $project, array $candidateIds): TeamMatchingRun
 }
 
 beforeEach(function () {
-    $this->project = Project::factory()->status(ProposalStatus::Submitted)->create();
+    $this->project = Project::factory()->status(ProposalStatus::Approved)->create();
     $this->skill = Competency::factory()->create();
     DB::table('project_requirements')->insert([
         'project_id' => $this->project->id, 'competency_id' => $this->skill->id,
@@ -201,17 +201,20 @@ test('there is nothing to match without requirements or candidates', function ()
     expect(fn () => app(StartTeamMatching::class)->handle($this->project, matchSearcher()))
         ->toThrow(ValidationException::class, 'Belum ada kandidat');
 
-    expect(fn () => app(StartTeamMatching::class)->handle(Project::factory()->status(ProposalStatus::Submitted)->create(), matchSearcher()))
+    expect(fn () => app(StartTeamMatching::class)->handle(Project::factory()->status(ProposalStatus::Approved)->create(), matchSearcher()))
         ->toThrow(ValidationException::class, 'kebutuhan kompetensi');
 });
 
-test('matching refuses proposals whose status no longer allows changes', function () {
+test('matching refuses proposals that have not been approved yet', function () {
     aiIsReady();
     Queue::fake();
-    $this->project->forceFill(['proposal_status' => ProposalStatus::Draft])->save();
 
-    expect(fn () => app(StartTeamMatching::class)->handle($this->project, matchSearcher()))
-        ->toThrow(ValidationException::class, 'hanya tersedia untuk proposal yang diajukan');
+    foreach ([ProposalStatus::Draft, ProposalStatus::Submitted, ProposalStatus::UnderReview] as $status) {
+        $this->project->forceFill(['proposal_status' => $status])->save();
+
+        expect(fn () => app(StartTeamMatching::class)->handle($this->project, matchSearcher()))
+            ->toThrow(ValidationException::class, 'hanya tersedia untuk proposal yang sudah disetujui');
+    }
 
     expect(TeamMatchingRun::query()->count())->toBe(0);
     Queue::assertNothingPushed();

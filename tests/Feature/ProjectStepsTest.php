@@ -2,7 +2,6 @@
 
 use App\Actions\Proposals\InitializeProjectSteps;
 use App\Actions\Proposals\ReviewProposal;
-use App\Actions\Teams\EnsureConfirmedTeam;
 use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
 use App\Enums\StepStatus;
@@ -166,8 +165,6 @@ it('opens the steps by itself when a reviewer approves the proposal', function (
     $reviewer = stepsViewer();
     $project = Project::factory()->status(ProposalStatus::UnderReview)->create();
     $this->actingAs($reviewer);
-    // Team readiness has its own tests; this one is about opening the steps.
-    $this->mock(EnsureConfirmedTeam::class)->shouldReceive('handle')->once();
 
     app(ReviewProposal::class)->decide($project, $reviewer, 'APPROVE', null);
 

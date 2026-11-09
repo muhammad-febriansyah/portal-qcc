@@ -168,7 +168,7 @@ it('does not change the team before the proposal is approved', function () {
     expect(approvedActiveTeam($this->project))->toHaveCount(2);
 });
 
-it('opens the approved team manager on the candidate page only for approved proposals', function () {
+it('opens the approved team manager only for approved proposals that already have a team', function () {
     $this->actingAs($this->owner)
         ->get(route('proposals.candidates', $this->project))
         ->assertInertia(fn (Assert $page) => $page
@@ -176,11 +176,19 @@ it('opens the approved team manager on the candidate page only for approved prop
             ->where('can_manage_approved_team', true)
             ->where('can_edit_team', false));
 
+    DB::table('project_members')->where('project_id', $this->project->id)->delete();
+
+    $this->actingAs($this->owner)
+        ->get(route('proposals.candidates', $this->project))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('can_manage_approved_team', false)
+            ->where('can_edit_team', true));
+
     $this->project->forceFill(['proposal_status' => ProposalStatus::Submitted])->save();
 
     $this->actingAs($this->owner)
         ->get(route('proposals.candidates', $this->project))
-        ->assertInertia(fn (Assert $page) => $page->where('can_manage_approved_team', false));
+        ->assertRedirect(route('proposals.show', $this->project));
 });
 
 function approvedRisk(Project $project, User $pic, User $creator, string $status = 'OPEN'): ProjectRisk

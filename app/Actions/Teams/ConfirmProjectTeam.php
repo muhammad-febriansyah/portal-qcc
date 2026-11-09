@@ -37,7 +37,7 @@ class ConfirmProjectTeam
             $lockedProject = Project::query()->whereKey($project->id)->lockForUpdate()->firstOrFail();
 
             if (! $lockedProject->proposal_status->allowsTeamFormation()) {
-                throw ValidationException::withMessages(['team' => 'Tim hanya bisa disusun saat proposal diajukan, direview, atau perlu revisi.']);
+                throw ValidationException::withMessages(['team' => 'Tim hanya bisa disusun setelah proposal disetujui.']);
             }
 
             $run = TeamMatchingRun::query()->whereKey($run->id)->lockForUpdate()->firstOrFail();

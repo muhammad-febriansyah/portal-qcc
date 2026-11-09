@@ -16,12 +16,13 @@ function teamFormationUser(string $role): User
     return $user;
 }
 
-it('lists submitted proposals for reviewers who can view all projects', function () {
+it('lists approved proposals for reviewers who can view all projects', function () {
     $this->seed(ProjectAccessSeeder::class);
 
     $owner = teamFormationUser('Owner QCC');
-    Project::factory()->status(ProposalStatus::Submitted)->create(['title' => 'Optimasi proses pengemasan']);
-    Project::factory()->status(ProposalStatus::UnderReview)->create(['title' => 'Perbaikan waktu setup']);
+    Project::factory()->status(ProposalStatus::Approved)->create(['title' => 'Optimasi proses pengemasan']);
+    Project::factory()->status(ProposalStatus::Approved)->create(['title' => 'Perbaikan waktu setup']);
+    Project::factory()->status(ProposalStatus::UnderReview)->create(['title' => 'Masih diseleksi']);
     Project::factory()->create(['title' => 'Proposal masih draf']);
 
     $this->actingAs($owner)->get(route('team-formation.index'))
@@ -34,12 +35,12 @@ it('lists submitted proposals for reviewers who can view all projects', function
             ->where('proposals.data.1.title', 'Optimasi proses pengemasan'));
 });
 
-it('limits Team Leader to their own submitted proposals', function () {
+it('limits Team Leader to their own approved proposals', function () {
     $this->seed(ProjectAccessSeeder::class);
 
     $leader = teamFormationUser('Team Leader');
-    Project::factory()->status(ProposalStatus::Submitted)->create(['proposer_id' => $leader->id, 'title' => 'Proposal milik saya']);
-    Project::factory()->status(ProposalStatus::Submitted)->create(['title' => 'Proposal milik orang lain']);
+    Project::factory()->status(ProposalStatus::Approved)->create(['proposer_id' => $leader->id, 'title' => 'Proposal milik saya']);
+    Project::factory()->status(ProposalStatus::Approved)->create(['title' => 'Proposal milik orang lain']);
 
     $this->actingAs($leader)->get(route('team-formation.index'))
         ->assertOk()
@@ -53,8 +54,8 @@ it('filters team formation proposals by title or proposal code', function () {
     $this->seed(ProjectAccessSeeder::class);
 
     $owner = teamFormationUser('Owner QCC');
-    $match = Project::factory()->status(ProposalStatus::Submitted)->create(['title' => 'Kualitas produk']);
-    Project::factory()->status(ProposalStatus::Submitted)->create(['title' => 'Efisiensi mesin']);
+    $match = Project::factory()->status(ProposalStatus::Approved)->create(['title' => 'Kualitas produk']);
+    Project::factory()->status(ProposalStatus::Approved)->create(['title' => 'Efisiensi mesin']);
 
     $this->actingAs($owner)->get(route('team-formation.index', ['search' => sprintf('PRP-%04d', $match->id)]))
         ->assertOk()
@@ -63,17 +64,16 @@ it('filters team formation proposals by title or proposal code', function () {
             ->where('proposals.data.0.id', $match->id));
 });
 
-it('shows proposals returned for revision in team formation to Owner QCC', function () {
+it('leaves proposals that are still in selection out of team formation', function () {
     $this->seed(ProjectAccessSeeder::class);
 
     $owner = teamFormationUser('Owner QCC');
-    Project::factory()->status(ProposalStatus::RevisionRequired)->create(['title' => 'Perlu susun ulang tim']);
+    Project::factory()->status(ProposalStatus::RevisionRequired)->create(['title' => 'Perlu revisi']);
+    Project::factory()->status(ProposalStatus::Rejected)->create(['title' => 'Tidak lolos']);
 
     $this->actingAs($owner)->get(route('team-formation.index'))
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->has('proposals.data', 1)
-            ->where('proposals.data.0.title', 'Perlu susun ulang tim'));
+        ->assertInertia(fn (Assert $page) => $page->has('proposals.data', 0));
 });
 
 it('forbids members without team formation authority', function () {

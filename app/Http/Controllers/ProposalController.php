@@ -63,8 +63,8 @@ class ProposalController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        $canFindCandidates = fn (Project $project): bool => $user->can('projects.viewAny')
-            || ($user->hasRole('Team Leader') && $project->proposer_id === $user->id);
+        $canFindCandidates = fn (Project $project): bool => $project->proposal_status->allowsTeamFormation()
+            && ($user->can('projects.viewAny') || ($user->hasRole('Team Leader') && $project->proposer_id === $user->id));
 
         $drafts = Project::query()
             ->with('batch:id,name')
@@ -116,9 +116,15 @@ class ProposalController extends Controller
         ]);
     }
 
-    public function candidates(Request $request, Project $project, CandidateShortlist $shortlist, AiConnection $ai, TeamMatchingInputFingerprint $fingerprint, PicOpenItems $picItems): Response
+    public function candidates(Request $request, Project $project, CandidateShortlist $shortlist, AiConnection $ai, TeamMatchingInputFingerprint $fingerprint, PicOpenItems $picItems): Response|RedirectResponse
     {
         Gate::authorize('findCandidates', $project);
+
+        if (! $project->proposal_status->allowsTeamFormation()) {
+            Inertia::flash('toast', ['type' => 'warning', 'message' => 'Tim disusun setelah proposal diberi keputusan lolos.']);
+
+            return to_route('proposals.show', $project);
+        }
 
         // The matching screen polls every few seconds while a run is active; it only needs the run.
         if ($request->header('X-Inertia-Partial-Data') === 'matching') {
@@ -127,6 +133,7 @@ class ProposalController extends Controller
             ]);
         }
 
+        $hasTeam = $project->members()->wherePivot('status', 'ACTIVE')->wherePivotNull('left_at')->exists();
         $result = $shortlist->for($project);
         $manualSearch = trim((string) ($request->validate(['manual_search' => ['nullable', 'string', 'max:255']])['manual_search'] ?? ''));
         $manualResult = $manualSearch === '' ? ['candidates' => []] : $shortlist->search($project, $manualSearch, 100);
@@ -150,10 +157,8 @@ class ProposalController extends Controller
             ],
             'matching' => $this->latestMatching($project, $fingerprint),
             'team' => $this->currentTeam($project, array_column($result['requirements'], 'competency_id'), $picItems),
-            'can_edit_team' => $project->proposal_status->allowsTeamFormation()
-                && $request->user()->can('findCandidates', $project),
-            'can_manage_approved_team' => $project->proposal_status === ProposalStatus::Approved
-                && $request->user()->can('findCandidates', $project),
+            'can_edit_team' => $hasTeam === false,
+            'can_manage_approved_team' => $hasTeam,
         ]);
     }
 
@@ -239,8 +244,9 @@ class ProposalController extends Controller
                     && $request->user()->can('reviewProposal', $project),
                 'can_decide' => $project->proposal_status === ProposalStatus::UnderReview
                     && ($request->user()->can('reviewProposal', $project) || $request->user()->can('approveProposal', $project)),
-                'can_find_candidates' => $request->user()->can('projects.viewAny')
-                    || ($request->user()->hasRole('Team Leader') && $project->proposer_id === $request->user()->id),
+                'can_find_candidates' => $project->proposal_status->allowsTeamFormation()
+                    && $request->user()->can('findCandidates', $project),
+                'has_team' => $project->members()->wherePivot('status', 'ACTIVE')->wherePivotNull('left_at')->exists(),
             ],
         ]);
     }
@@ -272,7 +278,7 @@ class ProposalController extends Controller
                 $lockedProject = Project::query()->whereKey($project->id)->lockForUpdate()->firstOrFail();
 
                 if (! $lockedProject->proposal_status->allowsTeamFormation()) {
-                    throw ValidationException::withMessages(['team' => 'Tim hanya bisa disusun saat proposal diajukan, direview, atau perlu revisi.']);
+                    throw ValidationException::withMessages(['team' => 'Tim hanya bisa disusun setelah proposal disetujui.']);
                 }
 
                 $latestRun = TeamMatchingRun::query()->where('project_id', $project->id)->latest('id')->first();
