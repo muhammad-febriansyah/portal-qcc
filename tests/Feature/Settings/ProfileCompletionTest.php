@@ -71,7 +71,6 @@ test('completing the profile opens the menus and goes to the dashboard', functio
             'work_contact' => '0215550101',
             'personal_contact' => '081234567890',
             'organization_id' => $organization->id,
-            'availability_status' => 'AVAILABLE',
         ])
         ->assertSessionHasNoErrors()
         ->assertRedirect(route('dashboard'));
@@ -93,9 +92,8 @@ test('saving a still incomplete profile keeps the member on the profile page', f
             'work_location' => '',
             'work_contact' => '0215550101',
             'personal_contact' => '081234567890',
-            'availability_status' => '',
         ])
-        ->assertSessionHasErrors(['position', 'work_location', 'availability_status']);
+        ->assertSessionHasErrors(['position', 'work_location']);
 
     $this->actingAs($user->fresh())
         ->get(route('dashboard'))

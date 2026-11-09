@@ -86,6 +86,30 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * A SIM ID as it is stored: trimmed, upper case, and only the number when it
+     * is a "SIM" number ("SIM2551" and "2551" both become "2551").
+     */
+    public static function normalizeSimId(mixed $simId): mixed
+    {
+        if (! is_string($simId)) {
+            return $simId;
+        }
+
+        $simId = strtoupper(trim($simId));
+
+        return preg_match('/^SIM-?(\d+)$/', $simId, $match) === 1 ? $match[1] : $simId;
+    }
+
+    /**
+     * The first password of an account: "SIM" followed by the SIM ID number,
+     * or the SIM ID itself when it is not a number.
+     */
+    public static function initialPasswordFor(string $simId): string
+    {
+        return preg_match('/^\d+$/', $simId) === 1 ? 'SIM'.$simId : $simId;
+    }
+
+    /**
      * Remember the moment a profile first becomes complete, however it was filled in.
      */
     protected static function booted(): void
@@ -135,8 +159,7 @@ class User extends Authenticatable implements MustVerifyEmail
             && filled($this->position)
             && filled($this->work_location)
             && filled($this->work_contact)
-            && filled($this->personal_contact)
-            && filled($this->availability_status);
+            && filled($this->personal_contact);
     }
 
     public function mustCompleteProfile(): bool

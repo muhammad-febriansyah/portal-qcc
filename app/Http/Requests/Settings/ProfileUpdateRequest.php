@@ -29,7 +29,6 @@ class ProfileUpdateRequest extends FormRequest
                 'integer',
                 Rule::exists('organizations', 'id')->where('is_active', true),
             ],
-            'availability_status' => ['required', Rule::in(['AVAILABLE', 'UNAVAILABLE'])],
             'qcc_experience_batches' => ['array'],
             'qcc_experience_batches.*' => ['string', 'distinct', Rule::in(['QCC Batch 1', 'QCC Batch 2', 'QCC Batch 3'])],
         ];

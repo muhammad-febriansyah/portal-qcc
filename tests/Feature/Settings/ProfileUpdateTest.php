@@ -18,7 +18,7 @@ test('profile page is displayed', function () {
         ->assertInertia(fn (Assert $page) => $page
             ->component('settings/profile')
             ->where('organizations', [['id' => $activeOrganization->id, 'name' => $activeOrganization->name]])
-            ->where('profile.availability_status', null));
+            ->missing('profile.availability_status'));
 });
 
 test('profile information can be updated', function () {
@@ -35,7 +35,6 @@ test('profile information can be updated', function () {
             'work_contact' => '0215550101',
             'personal_contact' => '081234567890',
             'organization_id' => $organization->id,
-            'availability_status' => 'AVAILABLE',
         ]);
 
     $response
@@ -51,7 +50,6 @@ test('profile information can be updated', function () {
     expect($user->work_contact)->toBe('0215550101');
     expect($user->personal_contact)->toBe('081234567890');
     expect($user->organization_id)->toBe($organization->id);
-    expect($user->availability_status)->toBe('AVAILABLE');
     expect($user->email_verified_at)->toBeNull();
 
     $this->actingAs($user)
@@ -76,7 +74,6 @@ test('work and personal contacts are required and existing contacts stay unchang
             'position' => 'Staff Operasional',
             'work_location' => 'Jakarta',
             'organization_id' => $organization->id,
-            'availability_status' => 'AVAILABLE',
         ])
         ->assertSessionHasErrors(['work_contact', 'personal_contact']);
 
@@ -98,7 +95,6 @@ test('email verification status is unchanged when the email address is unchanged
             'work_contact' => '0215550102',
             'personal_contact' => '081234567891',
             'organization_id' => $organization->id,
-            'availability_status' => 'UNAVAILABLE',
         ]);
 
     $response
@@ -106,30 +102,26 @@ test('email verification status is unchanged when the email address is unchanged
         ->assertRedirect(route('profile.edit'));
 
     expect($user->refresh()->email_verified_at)->not->toBeNull();
-    expect($user->availability_status)->toBe('UNAVAILABLE');
 });
 
-test('unsupported availability statuses are rejected', function () {
-    $user = User::factory()->create(['availability_status' => 'AVAILABLE']);
+test('saving the profile keeps the stored availability', function () {
+    $user = User::factory()->create(['availability_status' => 'UNAVAILABLE']);
     $organization = Organization::factory()->create(['is_active' => true]);
 
-    $response = $this
-        ->actingAs($user)
-        ->from(route('profile.edit'))
+    $this->actingAs($user)
         ->patch(route('profile.update'), [
             'name' => $user->name,
             'email' => $user->email,
-            'position' => $user->position ?? 'Staff Operasional',
-            'work_location' => $user->work_location ?? 'Jakarta',
-            'work_contact' => $user->work_contact ?? '0215550103',
-            'personal_contact' => $user->personal_contact ?? '081234567892',
+            'position' => 'Staff Operasional',
+            'work_location' => 'HO Kebagusan',
+            'work_contact' => '0215550103',
+            'personal_contact' => '081234567892',
             'organization_id' => $organization->id,
-            'availability_status' => 'MAYBE',
-        ]);
+            'availability_status' => 'AVAILABLE',
+        ])
+        ->assertSessionHasNoErrors();
 
-    $response->assertSessionHasErrors('availability_status');
-
-    expect($user->refresh()->availability_status)->toBe('AVAILABLE');
+    expect($user->refresh()->availability_status)->toBe('UNAVAILABLE');
 });
 
 test('inactive organizations cannot be selected in a profile', function () {
@@ -147,7 +139,6 @@ test('inactive organizations cannot be selected in a profile', function () {
             'work_contact' => '0215550104',
             'personal_contact' => '081234567893',
             'organization_id' => $organization->id,
-            'availability_status' => 'AVAILABLE',
         ]);
 
     $response->assertSessionHasErrors('organization_id');

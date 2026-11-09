@@ -31,7 +31,6 @@ type PageProps = {
         personal_contact: string | null;
         organization_id: number | null;
         organization_name: string | null;
-        availability_status: 'AVAILABLE' | 'UNAVAILABLE' | null;
         qcc_experience_batches: string[];
     };
     organizations: Array<{ id: number; name: string }>;
@@ -60,11 +59,6 @@ function SummaryRow({
     );
 }
 
-const availabilityOptions = [
-    { value: 'AVAILABLE', label: 'Tersedia untuk proyek QCC' },
-    { value: 'UNAVAILABLE', label: 'Belum tersedia untuk proyek QCC' },
-];
-
 export default function Profile() {
     const { auth, profile, profileComplete, organizations, passwordRules } =
         usePage<PageProps>().props;
@@ -80,7 +74,6 @@ export default function Profile() {
         !profile.work_location ? 'Lokasi kerja' : null,
         !profile.work_contact ? 'Kontak kerja' : null,
         !profile.personal_contact ? 'Kontak pribadi' : null,
-        profile.availability_status === null ? 'Ketersediaan' : null,
     ].filter((field): field is string => field !== null);
 
     return (
@@ -276,44 +269,11 @@ export default function Profile() {
                                                         ''
                                                     }
                                                     name="work_location"
-                                                    placeholder="Contoh: Jakarta"
+                                                    placeholder="Contoh: HO Kebagusan"
                                                     required
                                                 />
                                             </FormField>
                                         </div>
-
-                                        <FormField
-                                            id="availability_status"
-                                            label="Ketersediaan"
-                                            required
-                                            error={errors.availability_status}
-                                        >
-                                            <Select
-                                                name="availability_status"
-                                                items={availabilityOptions}
-                                                defaultValue={
-                                                    profile.availability_status ??
-                                                    undefined
-                                                }
-                                                required
-                                            >
-                                                <SelectTrigger className="h-10 w-full">
-                                                    <SelectValue placeholder="Pilih ketersediaan" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectGroup>
-                                                        <SelectItem value="AVAILABLE">
-                                                            Tersedia untuk
-                                                            proyek QCC
-                                                        </SelectItem>
-                                                        <SelectItem value="UNAVAILABLE">
-                                                            Belum tersedia untuk
-                                                            proyek QCC
-                                                        </SelectItem>
-                                                    </SelectGroup>
-                                                </SelectContent>
-                                            </Select>
-                                        </FormField>
 
                                         <fieldset className="grid gap-2.5">
                                             <legend className="text-sm font-medium">

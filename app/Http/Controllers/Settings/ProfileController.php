@@ -35,7 +35,6 @@ class ProfileController extends Controller
                 'personal_contact' => $user?->personal_contact,
                 'organization_id' => $user?->organization_id,
                 'organization_name' => $user?->organization()->value('name'),
-                'availability_status' => $user?->availability_status,
                 'qcc_experience_batches' => $user->qcc_experience_batches ?? [],
             ],
             'organizations' => Organization::query()
