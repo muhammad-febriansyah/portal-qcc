@@ -6,7 +6,6 @@ use App\Enums\CompetencyLevel;
 use App\Http\Requests\StoreMemberCompetencyRequest;
 use App\Http\Requests\UpdateMemberCompetencyRequest;
 use App\Models\Competency;
-use App\Models\CompetencyGroup;
 use App\Models\MemberCompetency;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,18 +24,14 @@ class MyCompetencyController extends Controller
     {
         $user = $request->user();
 
-        $groups = CompetencyGroup::query()->orderBy('code')->get(['id', 'code', 'name']);
-
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'group' => ['nullable', Rule::in(['all', ...$groups->pluck('id')->map(fn (int $id): string => (string) $id)->all()])],
             'sort' => ['nullable', Rule::in(['code', 'self_level', 'updated_at'])],
             'direction' => ['nullable', Rule::in(['asc', 'desc'])],
             'per_page' => ['nullable', Rule::in([10, 25, 50])],
         ]);
 
         $search = trim((string) ($filters['search'] ?? ''));
-        $group = $filters['group'] ?? 'all';
         $sort = $filters['sort'] ?? 'code';
         $direction = $filters['direction'] ?? 'asc';
         $perPage = (int) ($filters['per_page'] ?? 10);
@@ -47,15 +42,15 @@ class MyCompetencyController extends Controller
         $rows = MemberCompetency::query()
             ->join('competency_master', 'competency_master.id', '=', 'member_competencies.competency_id')
             ->where('member_competencies.user_id', $user->id)
+            ->where('competency_master.is_active', true)
             ->select('member_competencies.*')
-            ->with('competency:id,group_id,code,name', 'competency.group:id,code,name')
+            ->with('competency:id,code,name,description')
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('competency_master.code', 'like', "%{$search}%")
                         ->orWhere('competency_master.name', 'like', "%{$search}%");
                 });
             })
-            ->when($group !== 'all', fn (Builder $query): Builder => $query->where('competency_master.group_id', (int) $group))
             ->orderBy($sortColumn, $direction)
             ->orderBy('member_competencies.id')
             ->paginate($perPage)
@@ -66,22 +61,17 @@ class MyCompetencyController extends Controller
                 'id' => $row->id,
                 'code' => $row->competency->code,
                 'name' => $row->competency->name,
-                'group_code' => $row->competency->group?->code,
+                'description' => $row->competency->description,
                 'self_level' => $row->self_level,
                 'self_level_label' => CompetencyLevel::labelFor($row->self_level),
                 'updated_at' => $row->updated_at?->toIso8601String(),
             ]),
             'filters' => [
                 'search' => $search,
-                'group' => $group,
                 'sort' => $sort,
                 'direction' => $direction,
                 'per_page' => $perPage,
             ],
-            'groupOptions' => $groups->map(fn (CompetencyGroup $item): array => [
-                'id' => $item->id,
-                'label' => $item->name,
-            ])->all(),
             'competencyCount' => $competencyCount,
             'mustJoinTalentPool' => $user->mustFillCompetencies(),
             'competencyLimit' => MemberCompetency::MAX_PER_USER,
@@ -91,10 +81,9 @@ class MyCompetencyController extends Controller
                     ->where('is_active', true)
                     ->whereNotIn('id', MemberCompetency::query()->where('user_id', $user->id)->select('competency_id'))
                     ->orderBy('code')
-                    ->get(['id', 'group_id', 'code', 'name', 'description'])
+                    ->get(['id', 'code', 'name', 'description'])
                     ->map(fn (Competency $competency): array => [
                         'id' => $competency->id,
-                        'group_id' => $competency->group_id,
                         'label' => $competency->code.' - '.$competency->name,
                         'description' => $competency->description,
                     ])

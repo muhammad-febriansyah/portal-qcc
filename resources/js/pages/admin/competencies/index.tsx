@@ -33,7 +33,6 @@ import {
     SelectContent,
     SelectGroup,
     SelectItem,
-    SelectLabel,
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
@@ -42,30 +41,19 @@ import { Textarea } from '@/components/ui/textarea';
 import CompetencyController from '@/actions/App/Http/Controllers/Admin/CompetencyController';
 import competenciesRoute from '@/routes/admin/competencies';
 import { dashboard } from '@/routes';
-import { competencyGroupBadgeVariant } from '@/lib/badge-variants';
 
 type CompetencyRow = {
     id: number;
-    group_id: number;
-    group_code: string;
-    group_name: string;
     code: string;
     name: string;
     description: string;
     is_active: boolean;
 };
 
-type CompetencyGroupOption = {
-    id: number;
-    code: string;
-    name: string;
-};
-
 type CompetencyFilters = {
     search: string;
-    group: string;
     status: 'all' | 'active' | 'inactive';
-    sort: 'code' | 'name' | 'group_id' | 'is_active';
+    sort: 'code' | 'name' | 'is_active';
     direction: 'asc' | 'desc';
     per_page: number;
 };
@@ -81,13 +69,11 @@ type CompetencyPageProps = {
         per_page: number;
         total: number;
     };
-    groups: CompetencyGroupOption[];
     filters: CompetencyFilters;
 };
 
 export default function CompetenciesIndex({
     competencies,
-    groups,
     filters,
 }: CompetencyPageProps) {
     const [searchValue, setSearchValue] = useState(filters.search);
@@ -98,7 +84,6 @@ export default function CompetenciesIndex({
         useState<CompetencyRow | null>(null);
     const form = useForm({
         code: '',
-        group_id: '',
         name: '',
         description: '',
         is_active: true,
@@ -108,7 +93,6 @@ export default function CompetenciesIndex({
     function visit(nextFilters: CompetencyQueryFilters, resetPage = true) {
         const query = {
             search: nextFilters.search ?? filters.search,
-            group: nextFilters.group ?? filters.group,
             status: nextFilters.status ?? filters.status,
             sort: nextFilters.sort ?? filters.sort,
             direction: nextFilters.direction ?? filters.direction,
@@ -153,7 +137,6 @@ export default function CompetenciesIndex({
         form.resetAndClearErrors();
         form.setData({
             code: '',
-            group_id: '',
             name: '',
             description: '',
             is_active: true,
@@ -166,7 +149,6 @@ export default function CompetenciesIndex({
         form.clearErrors();
         form.setData({
             code: competency.code,
-            group_id: String(competency.group_id),
             name: competency.name,
             description: competency.description,
             is_active: competency.is_active,
@@ -256,20 +238,6 @@ export default function CompetenciesIndex({
                 ),
             },
             {
-                id: 'group_id',
-                accessorKey: 'group_id',
-                header: 'Kelompok',
-                cell: ({ row }) => (
-                    <Badge
-                        variant={competencyGroupBadgeVariant(
-                            row.original.group_code,
-                        )}
-                    >
-                        {row.original.group_code} · {row.original.group_name}
-                    </Badge>
-                ),
-            },
-            {
                 id: 'is_active',
                 accessorKey: 'is_active',
                 header: 'Status',
@@ -340,10 +308,7 @@ export default function CompetenciesIndex({
         id: filters.sort,
         desc: filters.direction === 'desc',
     };
-    const hasActiveFilter =
-        filters.search !== '' ||
-        filters.group !== 'all' ||
-        filters.status !== 'all';
+    const hasActiveFilter = filters.search !== '' || filters.status !== 'active';
 
     return (
         <>
@@ -358,7 +323,7 @@ export default function CompetenciesIndex({
                         },
                     ]}
                     title="Master Kompetensi"
-                    description="Kelola katalog kompetensi resmi QCC dan kelompoknya."
+                    description="Kelola kamus skill resmi QCC beserta definisinya."
                     actions={
                         <div className="flex flex-wrap gap-2">
                             <Button
@@ -404,12 +369,7 @@ export default function CompetenciesIndex({
                         onPageChange={(page) => visit({ page }, false)}
                         onPageSizeChange={(per_page) => visit({ per_page })}
                         sort={sort}
-                        sortableColumns={[
-                            'code',
-                            'name',
-                            'group_id',
-                            'is_active',
-                        ]}
+                        sortableColumns={['code', 'name', 'is_active']}
                         onSortChange={(nextSort) =>
                             visit({
                                 sort: (nextSort?.id ??
@@ -422,44 +382,6 @@ export default function CompetenciesIndex({
                         searchPlaceholder="Cari kode, nama, atau definisi kompetensi..."
                         filters={
                             <>
-                                <Select
-                                    value={filters.group}
-                                    onValueChange={(value) =>
-                                        visit({ group: value ?? 'all' })
-                                    }
-                                    items={[
-                                        {
-                                            value: 'all',
-                                            label: 'Semua kelompok',
-                                        },
-                                        ...groups.map((group) => ({
-                                            value: group.code,
-                                            label: `${group.code} · ${group.name}`,
-                                        })),
-                                    ]}
-                                >
-                                    <SelectTrigger
-                                        aria-label="Filter kelompok kompetensi"
-                                        className="w-full sm:w-48"
-                                    >
-                                        <SelectValue placeholder="Semua kelompok" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                            <SelectItem value="all">
-                                                Semua kelompok
-                                            </SelectItem>
-                                            {groups.map((group) => (
-                                                <SelectItem
-                                                    key={group.id}
-                                                    value={group.code}
-                                                >
-                                                    {group.code} · {group.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectGroup>
-                                    </SelectContent>
-                                </Select>
                                 <Select
                                     value={filters.status}
                                     onValueChange={(value) =>
@@ -507,7 +429,7 @@ export default function CompetenciesIndex({
                         emptyDescription={
                             hasActiveFilter
                                 ? 'Ubah kata kunci atau filter untuk melihat hasil lain.'
-                                : 'Kelompok A–F tersedia. Tambahkan data berdasarkan katalog resmi C001–C062.'
+                                : 'Tambahkan skill berdasarkan kamus resmi: hard skill H01–H48 dan soft skill S01–S18.'
                         }
                     />
                 </Card>
@@ -538,49 +460,10 @@ export default function CompetenciesIndex({
                                         event.target.value.toUpperCase(),
                                     )
                                 }
-                                placeholder="contoh: C001"
+                                placeholder="contoh: H01"
                                 autoComplete="off"
                                 maxLength={10}
                             />
-                        </FormField>
-                        <FormField
-                            id="group_id"
-                            label="Kelompok kompetensi"
-                            required
-                            error={form.errors.group_id}
-                        >
-                            <Select
-                                value={form.data.group_id}
-                                onValueChange={(value) =>
-                                    form.setData('group_id', value ?? '')
-                                }
-                                items={groups.map((group) => ({
-                                    value: String(group.id),
-                                    label: `${group.code} · ${group.name}`,
-                                }))}
-                            >
-                                <SelectTrigger
-                                    aria-label="Kelompok kompetensi"
-                                    className="w-full"
-                                >
-                                    <SelectValue placeholder="Pilih kelompok A–F" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectGroup>
-                                        <SelectLabel>
-                                            Kelompok resmi
-                                        </SelectLabel>
-                                        {groups.map((group) => (
-                                            <SelectItem
-                                                key={group.id}
-                                                value={String(group.id)}
-                                            >
-                                                {group.code} · {group.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
                         </FormField>
                         <FormField
                             id="name"
@@ -665,9 +548,9 @@ export default function CompetenciesIndex({
                     <DialogHeader>
                         <DialogTitle>Impor Master Kompetensi</DialogTitle>
                         <p className="text-sm text-muted-foreground">
-                            Unduh template, isi kolom Kelompok, Nama Kompetensi,
-                            dan Definisi, lalu unggah kembali. Kode kompetensi
-                            yang sudah ada akan diperbarui.
+                            Unduh template, isi kolom Kode, Nama, dan Deskripsi,
+                            lalu unggah kembali. Kode kompetensi yang sudah ada
+                            akan diperbarui.
                         </p>
                     </DialogHeader>
                     <form onSubmit={submitImport} className="grid gap-5">
@@ -677,7 +560,7 @@ export default function CompetenciesIndex({
                                     Template Excel
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                    Berisi kode C001–C062 dan pilihan kelompok.
+                                    Berisi kolom Kode, Nama, dan Deskripsi.
                                     Kompetensi yang sudah ada ikut terisi.
                                 </p>
                             </div>

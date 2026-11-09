@@ -33,7 +33,7 @@ function person(string $name, ?Organization $organization = null, string $role =
 function skill(string $code, string $name, ?CompetencyGroup $group = null): Competency
 {
     return Competency::factory()->create([
-        'group_id' => ($group ?? CompetencyGroup::factory()->create())->id,
+        'group_id' => $group?->id,
         'code' => $code,
         'name' => $name,
     ]);
@@ -129,13 +129,11 @@ test('by competency shows who holds it at the level they filled in', function ()
             ->where('rows.data.1.name', 'Siti Aminah'));
 });
 
-test('the competency, group, organization and search filters narrow the list', function () {
+test('the competency, organization and search filters narrow the list', function () {
     $itOrg = Organization::factory()->create();
     $hrOrg = Organization::factory()->create();
-    $groupA = CompetencyGroup::factory()->create();
-    $groupB = CompetencyGroup::factory()->create();
-    $analysis = skill('C001', 'Analisis Data', $groupA);
-    $negotiation = skill('C002', 'Negosiasi', $groupB);
+    $analysis = skill('H24', 'Data Analysis & Reporting');
+    $negotiation = skill('S13', 'Negotiation & Influencing');
     holds(person('Budi', $itOrg), $analysis, 3);
     holds(person('Citra', $hrOrg), $analysis, 3);
     holds(person('Dewi', $hrOrg), $negotiation, 3);
@@ -144,8 +142,8 @@ test('the competency, group, organization and search filters narrow the list', f
 
     $this->get(route('admin.competency-directory.index', ['competency' => (string) $negotiation->id]))
         ->assertInertia(fn (Assert $page) => $page->has('rows.data', 1)->where('rows.data.0.name', 'Dewi'));
-    $this->get(route('admin.competency-directory.index', ['group' => (string) $groupA->id]))
-        ->assertInertia(fn (Assert $page) => $page->has('rows.data', 2));
+    $this->get(route('admin.competency-directory.index', ['competency' => (string) $analysis->id]))
+        ->assertInertia(fn (Assert $page) => $page->has('rows.data', 2)->missing('groupOptions'));
     $this->get(route('admin.competency-directory.index', ['organization' => (string) $hrOrg->id]))
         ->assertInertia(fn (Assert $page) => $page->has('rows.data', 2));
     $this->get(route('admin.competency-directory.index', ['search' => 'SIM-'.strtoupper(substr(md5('Budi'), 0, 8))]))

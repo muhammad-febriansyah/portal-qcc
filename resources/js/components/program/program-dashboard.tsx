@@ -163,16 +163,16 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
 
                 <Panel
                     title="Competency profile SIMers"
-                    description={`${numberFormat.format(data.competency_completed)} dari ${numberFormat.format(data.registered)} SIMers terdaftar sudah mengisi.`}
+                    description={`Skill yang paling banyak dimiliki SIMers terdaftar. ${numberFormat.format(data.competency_completed)} dari ${numberFormat.format(data.registered)} sudah mengisi.`}
                 >
                     <BarList
-                        label="SIMers per kelompok kompetensi"
+                        label="SIMers per skill"
                         limit={6}
-                        emptyLabel="kelompok belum terisi"
-                        rows={data.competency_groups.map((group) => ({
-                            name: group.name,
-                            value: group.count,
-                            display: `${numberFormat.format(group.count)} · ${group.percent}%`,
+                        emptyLabel="skill belum dimiliki SIMers"
+                        rows={data.top_competencies.map((competency) => ({
+                            name: competency.name,
+                            value: competency.count,
+                            display: `${numberFormat.format(competency.count)} · ${competency.percent}%`,
                         }))}
                     />
                 </Panel>

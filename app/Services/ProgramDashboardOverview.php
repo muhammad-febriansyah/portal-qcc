@@ -10,7 +10,6 @@ use App\Enums\StepStatus;
 use App\Enums\TeamMatchingStatus;
 use App\Enums\ThemeCategory;
 use App\Models\BiweeklyReport;
-use App\Models\CompetencyGroup;
 use App\Models\MentoringReport;
 use App\Models\Organization;
 use App\Models\Project;
@@ -45,6 +44,9 @@ class ProgramDashboardOverview
 
     /** Longest trend drawn, so a mistyped phase end cannot build a huge series. */
     private const MAX_TREND_DAYS = 180;
+
+    /** How many of the most-held skills the registration phase lists. */
+    private const TOP_COMPETENCIES = 10;
 
     /**
      * The program dashboard limited to the given phases. Null when no batch runs or none of
@@ -178,7 +180,7 @@ class ProgramDashboardOverview
             'submitters_percent' => $target ? $this->percent($submitters, $target) : null,
             'organizations_count' => Organization::query()->where('is_active', true)->count(),
             'submissions_by_organization' => $this->submissionsByOrganization($batch),
-            'competency_groups' => $this->competencyGroups($registeredIds->all(), $registered),
+            'top_competencies' => $this->topCompetencies($registeredIds->all(), $registered),
             'themes' => $this->themes($batch, $proposalsSubmitted),
             'trend' => $this->trend($batch, $phase, $today),
         ];
@@ -247,31 +249,28 @@ class ProgramDashboardOverview
     }
 
     /**
-     * How many registered SIMers hold at least one competency of each competency group.
+     * The skills most registered SIMers hold, with how many of them hold each one.
      *
      * @param  list<int>  $registeredIds
      * @return list<array{name: string, count: int, percent: int}>
      */
-    private function competencyGroups(array $registeredIds, int $registered): array
+    private function topCompetencies(array $registeredIds, int $registered): array
     {
-        $counts = DB::table('member_competencies')
+        return DB::table('member_competencies')
             ->join('competency_master', 'competency_master.id', '=', 'member_competencies.competency_id')
             ->whereIn('member_competencies.user_id', $registeredIds)
-            ->whereNotNull('competency_master.group_id')
-            ->groupBy('competency_master.group_id')
-            ->selectRaw('competency_master.group_id as group_id, count(distinct member_competencies.user_id) as total')
-            ->pluck('total', 'group_id');
-
-        return CompetencyGroup::query()
-            ->orderBy('id')
-            ->get(['id', 'name'])
-            ->map(fn (CompetencyGroup $group): array => [
-                'name' => $group->name,
-                'count' => (int) ($counts[$group->id] ?? 0),
-                'percent' => $this->percent((int) ($counts[$group->id] ?? 0), $registered),
+            ->where('competency_master.is_active', true)
+            ->groupBy('competency_master.id', 'competency_master.code', 'competency_master.name')
+            ->selectRaw('competency_master.code as code, competency_master.name as name, count(distinct member_competencies.user_id) as total')
+            ->orderByDesc('total')
+            ->orderBy('competency_master.code')
+            ->limit(self::TOP_COMPETENCIES)
+            ->get()
+            ->map(fn (object $row): array => [
+                'name' => (string) $row->name,
+                'count' => (int) $row->total,
+                'percent' => $this->percent((int) $row->total, $registered),
             ])
-            ->sortBy([['count', 'desc'], ['name', 'asc']])
-            ->values()
             ->all();
     }
 

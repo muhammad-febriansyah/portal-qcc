@@ -43,7 +43,6 @@ type DirectoryRow = {
     role: string | null;
     competency_code?: string;
     competency_name?: string;
-    group_code?: string | null;
     self_level?: number;
     self_level_label?: string | null;
     competencies_count?: number;
@@ -55,7 +54,6 @@ type Filters = {
     view: View;
     search: string;
     organization: string;
-    group: string;
     competency: string;
     min_level: number;
     filled: string;
@@ -67,7 +65,6 @@ type Filters = {
 type Query = Partial<Filters> & { page?: number; member?: number | null };
 
 type Option = { id: number; label: string };
-type CompetencyOption = Option & { group_id: number };
 
 type Props = {
     rows: {
@@ -79,8 +76,7 @@ type Props = {
     filters: Filters;
     selectedMember: MemberProfile | null;
     organizationOptions: Option[];
-    groupOptions: Option[];
-    competencyOptions: CompetencyOption[];
+    competencyOptions: Option[];
     levelOptions: { value: number; label: string }[];
 };
 
@@ -133,7 +129,6 @@ export default function CompetencyDirectoryIndex({
     filters,
     selectedMember,
     organizationOptions,
-    groupOptions,
     competencyOptions,
     levelOptions,
 }: Props) {
@@ -144,7 +139,6 @@ export default function CompetencyDirectoryIndex({
             view: next.view ?? filters.view,
             search: next.search ?? filters.search,
             organization: next.organization ?? filters.organization,
-            group: next.group ?? filters.group,
             competency: next.competency ?? filters.competency,
             min_level: next.min_level ?? filters.min_level,
             filled: next.filled ?? filters.filled,
@@ -257,9 +251,6 @@ export default function CompetencyDirectoryIndex({
                         </span>
                         <span className="text-xs text-muted-foreground">
                             {row.original.competency_code}
-                            {row.original.group_code
-                                ? ` · Kelompok ${row.original.group_code}`
-                                : ''}
                         </span>
                     </div>
                 ),
@@ -357,7 +348,6 @@ export default function CompetencyDirectoryIndex({
     const hasActiveFilter =
         filters.search !== '' ||
         filters.organization !== 'all' ||
-        filters.group !== 'all' ||
         filters.competency !== 'all' ||
         filters.min_level > 0 ||
         filters.filled !== 'all';
@@ -429,21 +419,19 @@ export default function CompetencyDirectoryIndex({
                                     <Combobox
                                         items={competencyOptions}
                                         value={selectedCompetency}
-                                        onValueChange={(
-                                            item: CompetencyOption | null,
-                                        ) =>
+                                        onValueChange={(item: Option | null) =>
                                             visit({
                                                 competency: item
                                                     ? String(item.id)
                                                     : 'all',
                                             })
                                         }
-                                        itemToStringLabel={(
-                                            item: CompetencyOption,
-                                        ) => item.label}
+                                        itemToStringLabel={(item: Option) =>
+                                            item.label
+                                        }
                                         isItemEqualToValue={(
-                                            a: CompetencyOption,
-                                            b: CompetencyOption,
+                                            a: Option,
+                                            b: Option,
                                         ) => a.id === b.id}
                                     >
                                         <ComboboxInput
@@ -456,7 +444,7 @@ export default function CompetencyDirectoryIndex({
                                                 Kompetensi tidak ditemukan.
                                             </ComboboxEmpty>
                                             <ComboboxList>
-                                                {(item: CompetencyOption) => (
+                                                {(item: Option) => (
                                                     <ComboboxItem
                                                         key={item.id}
                                                         value={item}
@@ -468,16 +456,6 @@ export default function CompetencyDirectoryIndex({
                                         </ComboboxContent>
                                     </Combobox>
                                 </div>
-                                <FilterSelect
-                                    label="Filter kelompok"
-                                    value={filters.group}
-                                    onChange={(group) => visit({ group })}
-                                    allLabel="Semua kelompok"
-                                    options={groupOptions.map((group) => ({
-                                        value: String(group.id),
-                                        label: group.label,
-                                    }))}
-                                />
                                 <FilterSelect
                                     label="Filter LOB atau divisi"
                                     value={filters.organization}

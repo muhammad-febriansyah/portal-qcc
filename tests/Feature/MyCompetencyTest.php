@@ -8,11 +8,12 @@ use App\Models\MemberCompetency;
 use App\Models\User;
 use App\Services\AuditDescriber;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Role;
 
 function competencyInGroup(string $code, string $name, ?CompetencyGroup $group = null, bool $active = true): Competency
 {
     return Competency::factory()->create([
-        'group_id' => ($group ?? CompetencyGroup::factory()->create())->id,
+        'group_id' => $group?->id,
         'code' => $code,
         'name' => $name,
         'is_active' => $active,
@@ -58,20 +59,20 @@ test('the add dialog only offers active competencies the person does not have ye
             ->has('levelOptions', 4));
 });
 
-test('the list can be searched and filtered by group', function () {
+test('the list can be searched and has no groups', function () {
     $me = User::factory()->create();
-    $groupA = CompetencyGroup::factory()->create();
-    $groupB = CompetencyGroup::factory()->create();
-    foreach ([['C001', 'Analisis Data', $groupA], ['C002', 'Negosiasi', $groupB]] as [$code, $name, $group]) {
-        MemberCompetency::factory()->create(['user_id' => $me->id, 'competency_id' => competencyInGroup($code, $name, $group)->id]);
+    foreach ([['H24', 'Data Analysis & Reporting'], ['S13', 'Negotiation & Influencing']] as [$code, $name]) {
+        MemberCompetency::factory()->create(['user_id' => $me->id, 'competency_id' => competencyInGroup($code, $name)->id]);
     }
 
     $this->actingAs($me);
 
     $this->get(route('my-competencies.index', ['search' => 'nego']))
-        ->assertInertia(fn (Assert $page) => $page->has('competencies.data', 1)->where('competencies.data.0.code', 'C002'));
-    $this->get(route('my-competencies.index', ['group' => (string) $groupA->id]))
-        ->assertInertia(fn (Assert $page) => $page->has('competencies.data', 1)->where('competencies.data.0.code', 'C001'));
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('competencies.data', 1)
+            ->where('competencies.data.0.code', 'S13')
+            ->missing('competencies.data.0.group_code')
+            ->missing('groupOptions'));
     $this->get(route('my-competencies.index', ['sort' => 'verified_level']))->assertSessionHasErrors('sort');
 });
 
@@ -224,4 +225,19 @@ it('shows every competency level with its Indonesian alias', function () {
         3 => 'Proficient (Mahir)',
         4 => 'Expert (Ahli)',
     ]);
+});
+
+test('skills retired from the dictionary no longer show or count for the person', function () {
+    $me = User::factory()->create();
+    $me->assignRole(Role::findOrCreate('SIMer / Member', 'web'));
+    $retired = competencyInGroup('C001', 'Kompetensi lama', active: false);
+    MemberCompetency::factory()->create(['user_id' => $me->id, 'competency_id' => $retired->id]);
+
+    expect($me->mustFillCompetencies())->toBeTrue();
+
+    $this->actingAs($me)
+        ->get(route('my-competencies.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('competencies.data', 0)
+            ->where('competencyCount', 0));
 });

@@ -10,42 +10,32 @@ class CompetencyTemplateBuilder
     public function __construct(private readonly XlsxWriter $writer) {}
 
     /**
-     * Build the import template. All 62 official codes are listed; rows already in the
-     * master are filled in, so the same file also works to edit existing competencies.
+     * Build the import template with every skill already in the master, so the same file
+     * works to edit existing skills or to add new ones at the bottom.
      *
      * @return string Path of a temporary .xlsx file. The caller deletes it.
      */
     public function build(): string
     {
-        $groups = DB::table('competency_groups')->orderBy('code')->get(['code', 'name']);
-        $existing = DB::table('competency_master')
-            ->join('competency_groups', 'competency_groups.id', '=', 'competency_master.group_id')
-            ->get(['competency_master.code', 'competency_master.name', 'competency_master.description', 'competency_groups.code as group_code'])
-            ->keyBy('code');
+        $rows = [['Kode', 'Nama Kompetensi', 'Definisi']];
 
-        $rows = [['Kode', 'Kelompok', 'Nama Kompetensi', 'Definisi']];
-
-        foreach (range(1, 62) as $number) {
-            $code = sprintf('C%03d', $number);
-            $current = $existing->get($code);
-
-            $rows[] = $current === null
-                ? [$code, null, null, null]
-                : [$code, (string) $current->group_code, (string) $current->name, $current->description === null ? null : (string) $current->description];
+        foreach (DB::table('competency_master')->orderBy('code')->get(['code', 'name', 'description']) as $competency) {
+            $rows[] = [
+                (string) $competency->code,
+                (string) $competency->name,
+                $competency->description === null ? null : (string) $competency->description,
+            ];
         }
 
         $guide = [
             ['Panduan Mengisi Template'],
             [''],
-            ['1. Isi kolom Kelompok, Nama Kompetensi, dan Definisi pada sheet "Kompetensi".'],
-            ['2. Kolom Kode sudah terisi C001–C062. Jangan diubah atau ditambah.'],
-            ['3. Kolom Kelompok dipilih dari daftar (huruf A–F) sesuai pilihan di bawah.'],
-            ['4. Baris yang kolom Kelompok, Nama, dan Definisi-nya kosong akan dilewati.'],
-            ['5. Simpan sebagai .xlsx lalu unggah di halaman Master Kompetensi.'],
-            ['6. Kode yang sudah ada akan diperbarui, kode baru akan dibuat.'],
-            [''],
-            ['Pilihan kelompok'],
-            ...$groups->map(fn (object $group): array => ["{$group->code} = {$group->name}"])->values()->all(),
+            ['1. Setiap baris berisi satu skill: Kode, Nama Kompetensi, dan Definisi.'],
+            ['2. Kode memakai H untuk hard skill (H01, H02, ...) dan S untuk soft skill (S01, S02, ...).'],
+            ['3. Untuk menambah skill, isi baris baru di bawah dengan kode yang belum dipakai.'],
+            ['4. Kode yang sudah ada akan diperbarui, kode baru akan dibuat.'],
+            ['5. Baris yang Kode, Nama, dan Definisi-nya kosong akan dilewati.'],
+            ['6. Simpan sebagai .xlsx lalu unggah di halaman Master Kompetensi.'],
         ];
 
         $path = tempnam(sys_get_temp_dir(), 'kompetensi-template-');
@@ -58,8 +48,7 @@ class CompetencyTemplateBuilder
             [
                 'name' => 'Kompetensi',
                 'rows' => $rows,
-                'widths' => [10, 12, 42, 80],
-                'validations' => [['sqref' => 'B2:B63', 'values' => array_values($groups->map(fn (object $group): string => (string) $group->code)->all())]],
+                'widths' => [10, 46, 90],
             ],
             [
                 'name' => 'Panduan',

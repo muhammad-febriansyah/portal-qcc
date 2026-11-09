@@ -41,9 +41,10 @@ const attentionLinks: Record<
     ai_not_configured: settingsIndex,
 };
 
-export type CompetencyLevelData = {
-    groups: string[];
-    levels: Record<string, { label: string; data: number[] }>;
+export type CompetencyLevelCount = {
+    level: number;
+    label: string;
+    count: number;
 };
 
 export type OrganizationCount = { label: string; total: number };
@@ -60,7 +61,7 @@ export type AdminOverviewData = {
         activity_previous_week: number;
     };
     activity: ActivitySeries;
-    competency_levels: CompetencyLevelData;
+    competency_levels: CompetencyLevelCount[];
     members_by_organization: OrganizationCount[];
     attention: { key: string; label: string; count: number }[];
     recent: {
@@ -99,69 +100,61 @@ function ChartSkeleton() {
     );
 }
 
-/** Competency entries per level for each group, as one stacked bar per group. */
-function LevelBars({ data }: { data: CompetencyLevelData }) {
-    const levels = Object.values(data.levels);
-    const totals = data.groups.map((_, index) =>
-        sum(levels.map((level) => level.data[index] ?? 0)),
-    );
-    const max = Math.max(1, ...totals);
+/** How many competency entries sit at each self-assessed level. */
+function LevelBars({ levels }: { levels: CompetencyLevelCount[] }) {
+    const total = sum(levels.map((level) => level.count));
+    const max = Math.max(1, ...levels.map((level) => level.count));
 
     return (
-        <div className="grid gap-3">
-            <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                {levels.map((level, index) => (
-                    <li key={level.label} className="flex items-center gap-1.5">
+        <ul className="grid" aria-label="Jumlah kompetensi per level">
+            {levels.map((level, index) => (
+                <li
+                    key={level.level}
+                    className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] items-center gap-3 py-1.5 text-sm"
+                >
+                    <span className="flex min-w-0 items-center gap-2 leading-tight text-foreground">
                         <span
                             aria-hidden="true"
-                            className="size-2 rounded-full"
-                            style={{ backgroundColor: LEVEL_COLORS[index] }}
+                            className="size-2 shrink-0 rounded-full"
+                            style={{
+                                backgroundColor:
+                                    LEVEL_COLORS[index % LEVEL_COLORS.length],
+                            }}
                         />
-                        {level.label}
-                    </li>
-                ))}
-            </ul>
-            <ul
-                className="grid"
-                aria-label="Kompetensi per level untuk tiap kelompok"
-            >
-                {data.groups.map((group, groupIndex) => (
-                    <li
-                        key={group}
-                        className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] items-center gap-3 py-1.5 text-sm"
+                        <span className="min-w-0">
+                            <span className="font-medium tabular-nums">
+                                {level.level}
+                            </span>
+                            {' · '}
+                            {level.label}
+                        </span>
+                    </span>
+                    <span
+                        className="h-1.5 overflow-hidden rounded-full"
+                        style={{ backgroundColor: programColors.track }}
                     >
-                        <span className="leading-tight text-foreground">
-                            {group}
-                        </span>
                         <span
-                            className="flex h-1.5 gap-px overflow-hidden rounded-full"
-                            style={{ backgroundColor: '#E8EEF2' }}
-                            title={levels
-                                .map(
-                                    (level) =>
-                                        `${level.label}: ${level.data[groupIndex] ?? 0}`,
-                                )
-                                .join(' · ')}
-                        >
-                            {levels.map((level, levelIndex) => (
-                                <span
-                                    key={level.label}
-                                    className="h-full"
-                                    style={{
-                                        width: `${((level.data[groupIndex] ?? 0) / max) * 100}%`,
-                                        backgroundColor:
-                                            LEVEL_COLORS[levelIndex],
-                                    }}
-                                />
-                            ))}
-                        </span>
-                        <span className="min-w-8 text-right font-medium text-foreground tabular-nums">
-                            {numberFormat.format(totals[groupIndex])}
-                        </span>
-                    </li>
-                ))}
-            </ul>
-        </div>
+                            className="block h-full rounded-full"
+                            style={{
+                                width: `${(level.count / max) * 100}%`,
+                                backgroundColor:
+                                    LEVEL_COLORS[index % LEVEL_COLORS.length],
+                            }}
+                        />
+                    </span>
+                    <span
+                        className="min-w-10 text-right font-medium text-foreground tabular-nums"
+                        title={
+                            total > 0
+                                ? `${Math.round((level.count / total) * 100)}% dari ${numberFormat.format(total)} entri`
+                                : undefined
+                        }
+                    >
+                        {numberFormat.format(level.count)}
+                    </span>
+                </li>
+            ))}
+        </ul>
     );
 }
 
@@ -169,9 +162,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
     const isMounted = useMounted();
     const { cards, activity, recent, attention } = overview;
     const levels = overview.competency_levels;
-    const hasLevels = Object.values(levels.levels).some((level) =>
-        level.data.some((value) => value > 0),
-    );
+    const levelEntries = sum(levels.map((level) => level.count));
     const completion =
         cards.participants === 0
             ? 0
@@ -310,11 +301,15 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
 
             <div className="grid gap-4 lg:grid-cols-3">
                 <Panel
-                    title="Level kompetensi per kelompok"
-                    description="Berdasarkan level penilaian diri peserta."
+                    title="Level kompetensi"
+                    description={
+                        levelEntries > 0
+                            ? `${numberFormat.format(levelEntries)} kompetensi terisi, menurut penilaian diri peserta.`
+                            : 'Berdasarkan level penilaian diri peserta.'
+                    }
                 >
-                    {hasLevels ? (
-                        <LevelBars data={levels} />
+                    {levelEntries > 0 ? (
+                        <LevelBars levels={levels} />
                     ) : (
                         <PanelEmpty
                             title="Belum ada data"

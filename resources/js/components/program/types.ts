@@ -29,7 +29,7 @@ export type RegistrationPhaseData = {
     submitters_percent: number | null;
     organizations_count: number;
     submissions_by_organization: { name: string; count: number }[];
-    competency_groups: { name: string; count: number; percent: number }[];
+    top_competencies: { name: string; count: number; percent: number }[];
     themes: { key: string; label: string; count: number; percent: number }[];
     trend: { date: string; registered: number; submitted: number }[];
 };

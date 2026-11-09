@@ -19,22 +19,12 @@ import { MemberCompetencyDialog } from '@/components/member-competency-dialog';
 import type {
     CompetencyOption,
     EditableCompetency,
-    GroupOption,
     LevelOption,
 } from '@/components/member-competency-dialog';
 import { PageHeader } from '@/components/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { competencyGroupBadgeVariant } from '@/lib/badge-variants';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { dashboard } from '@/routes';
 import { destroy, index } from '@/routes/my-competencies';
 
@@ -42,7 +32,6 @@ type CompetencyRow = {
     id: number;
     code: string;
     name: string;
-    group_code: string | null;
     self_level: number;
     self_level_label: string | null;
     updated_at: string | null;
@@ -52,7 +41,6 @@ type SortKey = 'code' | 'self_level' | 'updated_at';
 
 type Filters = {
     search: string;
-    group: string;
     sort: SortKey;
     direction: 'asc' | 'desc';
     per_page: number;
@@ -68,7 +56,6 @@ type Props = {
         total: number;
     };
     filters: Filters;
-    groupOptions: GroupOption[];
     competencyOptions: CompetencyOption[];
     levelOptions: LevelOption[];
     competencyCount: number;
@@ -79,7 +66,6 @@ type Props = {
 export default function MyCompetenciesIndex({
     competencies,
     filters,
-    groupOptions,
     competencyOptions,
     levelOptions,
     competencyCount,
@@ -93,7 +79,6 @@ export default function MyCompetenciesIndex({
     function visit(next: Query, resetPage = true): void {
         const query = {
             search: next.search ?? filters.search,
-            group: next.group ?? filters.group,
             sort: next.sort ?? filters.sort,
             direction: next.direction ?? filters.direction,
             per_page: next.per_page ?? filters.per_page,
@@ -144,22 +129,6 @@ export default function MyCompetenciesIndex({
                         </span>
                     </div>
                 ),
-            },
-            {
-                id: 'group',
-                header: 'Kelompok',
-                cell: ({ row }) =>
-                    row.original.group_code ? (
-                        <Badge
-                            variant={competencyGroupBadgeVariant(
-                                row.original.group_code,
-                            )}
-                        >
-                            Kelompok {row.original.group_code}
-                        </Badge>
-                    ) : (
-                        '—'
-                    ),
             },
             {
                 id: 'self_level',
@@ -239,7 +208,7 @@ export default function MyCompetenciesIndex({
         id: filters.sort === 'code' ? 'code' : filters.sort,
         desc: filters.direction === 'desc',
     };
-    const hasActiveFilter = filters.search !== '' || filters.group !== 'all';
+    const hasActiveFilter = filters.search !== '';
     const reachedCompetencyLimit = competencyCount >= competencyLimit;
 
     return (
@@ -322,41 +291,6 @@ export default function MyCompetenciesIndex({
                         search={searchValue}
                         onSearchChange={setSearchValue}
                         searchPlaceholder="Cari kode atau nama kompetensi..."
-                        filters={
-                            <Select
-                                value={filters.group}
-                                onValueChange={(value) =>
-                                    visit({ group: value ?? 'all' })
-                                }
-                                items={[
-                                    { value: 'all', label: 'Semua kelompok' },
-                                    ...groupOptions.map((group) => ({
-                                        value: String(group.id),
-                                        label: group.label,
-                                    })),
-                                ]}
-                            >
-                                <SelectTrigger
-                                    aria-label="Filter kelompok"
-                                    className="w-full sm:w-48"
-                                >
-                                    <SelectValue placeholder="Semua kelompok" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">
-                                        Semua kelompok
-                                    </SelectItem>
-                                    {groupOptions.map((group) => (
-                                        <SelectItem
-                                            key={group.id}
-                                            value={String(group.id)}
-                                        >
-                                            {group.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        }
                         emptyTitle={
                             hasActiveFilter
                                 ? 'Kompetensi tidak ditemukan'
@@ -364,7 +298,7 @@ export default function MyCompetenciesIndex({
                         }
                         emptyDescription={
                             hasActiveFilter
-                                ? 'Ubah kata kunci atau filter kelompok.'
+                                ? 'Ubah kata kunci pencarian.'
                                 : 'Tambahkan kompetensi yang Anda kuasai beserta levelnya.'
                         }
                     />
@@ -375,7 +309,6 @@ export default function MyCompetenciesIndex({
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 editing={editing}
-                groupOptions={groupOptions}
                 competencyOptions={competencyOptions}
                 levelOptions={levelOptions}
             />

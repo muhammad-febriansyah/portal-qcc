@@ -14,7 +14,6 @@ export type ProfileCompetency = {
     id: number;
     code: string;
     name: string;
-    group_code: string | null;
     self_level: number;
     self_level_label: string | null;
 };
@@ -63,10 +62,7 @@ function CompetencyName({ item }: { item: ProfileCompetency }) {
     return (
         <div className="grid gap-0.5 whitespace-normal">
             <span className="font-semibold text-foreground">{item.name}</span>
-            <span className="text-sm text-muted-foreground">
-                {item.code}
-                {item.group_code ? ` · Kelompok ${item.group_code}` : ''}
-            </span>
+            <span className="text-sm text-muted-foreground">{item.code}</span>
         </div>
     );
 }
@@ -125,9 +121,7 @@ function CompetencyTable({
         }
 
         return competencies.filter((item) =>
-            `${item.code} ${item.name} ${item.group_code ?? ''}`
-                .toLowerCase()
-                .includes(keyword),
+            `${item.code} ${item.name}`.toLowerCase().includes(keyword),
         );
     }, [competencies, search]);
 
@@ -176,7 +170,7 @@ function CompetencyTable({
                     pageSizes={PAGE_SIZES}
                     search={search}
                     onSearchChange={updateSearch}
-                    searchPlaceholder="Cari kode, nama, atau kelompok..."
+                    searchPlaceholder="Cari kode atau nama kompetensi..."
                     emptyTitle="Tidak ada kompetensi yang cocok"
                     emptyDescription="Coba kata kunci lain."
                 />
@@ -192,7 +186,7 @@ function CompetencyTable({
                     <Input
                         value={search}
                         onChange={(event) => updateSearch(event.target.value)}
-                        placeholder="Cari kode, nama, atau kelompok..."
+                        placeholder="Cari kode atau nama kompetensi..."
                         aria-label="Cari kompetensi"
                         className="pl-9"
                     />

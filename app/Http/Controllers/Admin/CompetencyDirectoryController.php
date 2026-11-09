@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\CompetencyLevel;
 use App\Http\Controllers\Controller;
 use App\Models\Competency;
-use App\Models\CompetencyGroup;
 use App\Models\MemberCompetency;
 use App\Models\Organization;
 use App\Models\User;
@@ -30,7 +29,6 @@ class CompetencyDirectoryController extends Controller
             'view' => ['nullable', Rule::in(['competency', 'member'])],
             'search' => ['nullable', 'string', 'max:255'],
             'organization' => ['nullable', 'string', 'regex:/^(all|\d+)$/'],
-            'group' => ['nullable', 'string', 'regex:/^(all|\d+)$/'],
             'competency' => ['nullable', 'string', 'regex:/^(all|\d+)$/'],
             'min_level' => ['nullable', 'integer', 'between:0,4'],
             'filled' => ['nullable', Rule::in(['all', 'filled', 'empty'])],
@@ -45,7 +43,6 @@ class CompetencyDirectoryController extends Controller
             'view' => $view,
             'search' => trim((string) ($filters['search'] ?? '')),
             'organization' => $filters['organization'] ?? 'all',
-            'group' => $filters['group'] ?? 'all',
             'competency' => $filters['competency'] ?? 'all',
             'min_level' => (int) ($filters['min_level'] ?? 0),
             'filled' => $filters['filled'] ?? 'all',
@@ -60,12 +57,9 @@ class CompetencyDirectoryController extends Controller
             'selectedMember' => isset($filters['member']) ? $this->memberProfile((int) $filters['member']) : null,
             'organizationOptions' => Organization::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 ->map(fn (Organization $organization): array => ['id' => $organization->id, 'label' => $organization->name])->all(),
-            'groupOptions' => CompetencyGroup::query()->orderBy('code')->get(['id', 'name'])
-                ->map(fn (CompetencyGroup $group): array => ['id' => $group->id, 'label' => $group->name])->all(),
-            'competencyOptions' => Competency::query()->where('is_active', true)->orderBy('code')->get(['id', 'group_id', 'code', 'name'])
+            'competencyOptions' => Competency::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name'])
                 ->map(fn (Competency $competency): array => [
                     'id' => $competency->id,
-                    'group_id' => $competency->group_id,
                     'label' => $competency->code.' - '.$competency->name,
                 ])->all(),
             'levelOptions' => CompetencyLevel::options(),
@@ -77,7 +71,7 @@ class CompetencyDirectoryController extends Controller
      * @return LengthAwarePaginator<int, array{
      *     id: int, user_id: int, name: string, sim_id: string|null, email: string,
      *     organization: string|null, role: string|null, competency_code: string, competency_name: string,
-     *     group_code: string|null, self_level: int, self_level_label: string|null
+     *     self_level: int, self_level_label: string|null
      * }>
      */
     private function byCompetency(array $state): LengthAwarePaginator
@@ -93,13 +87,13 @@ class CompetencyDirectoryController extends Controller
             ->join('users', 'users.id', '=', 'member_competencies.user_id')
             ->join('competency_master', 'competency_master.id', '=', 'member_competencies.competency_id')
             ->where('users.is_active', true)
+            ->where('competency_master.is_active', true)
             ->select('member_competencies.*')
             ->with([
                 'user:id,name,sim_id,email,organization_id',
                 'user.organization:id,name',
                 'user.roles:id,name',
-                'competency:id,group_id,code,name',
-                'competency.group:id,code',
+                'competency:id,code,name',
             ])
             ->when($state['search'] !== '', function (Builder $query) use ($state): void {
                 $query->where(function (Builder $query) use ($state): void {
@@ -110,7 +104,6 @@ class CompetencyDirectoryController extends Controller
             })
             ->when($state['organization'] !== 'all', fn (Builder $query): Builder => $query->where('users.organization_id', (int) $state['organization']))
             ->when($state['competency'] !== 'all', fn (Builder $query): Builder => $query->where('member_competencies.competency_id', (int) $state['competency']))
-            ->when($state['group'] !== 'all', fn (Builder $query): Builder => $query->where('competency_master.group_id', (int) $state['group']))
             ->when($state['min_level'] > 0, fn (Builder $query): Builder => $query->where('member_competencies.self_level', '>=', $state['min_level']))
             ->orderBy($sortColumn, $state['direction'])
             ->orderBy('users.name')
@@ -127,7 +120,6 @@ class CompetencyDirectoryController extends Controller
                 'role' => is_string($role = $row->user->roles->pluck('name')->sort()->first()) ? $role : null,
                 'competency_code' => $row->competency->code,
                 'competency_name' => $row->competency->name,
-                'group_code' => $row->competency->group?->code,
                 'self_level' => $row->self_level,
                 'self_level_label' => CompetencyLevel::labelFor($row->self_level),
             ]);
@@ -142,7 +134,7 @@ class CompetencyDirectoryController extends Controller
      */
     private function byMember(array $state): LengthAwarePaginator
     {
-        $holdsFiltered = $state['competency'] !== 'all' || $state['group'] !== 'all' || $state['min_level'] > 0;
+        $holdsFiltered = $state['competency'] !== 'all' || $state['min_level'] > 0;
 
         return User::query()
             ->select(['users.id', 'users.name', 'users.sim_id', 'users.email', 'users.organization_id'])
@@ -166,7 +158,6 @@ class CompetencyDirectoryController extends Controller
             ->when($holdsFiltered, function (Builder $query) use ($state): void {
                 $query->whereHas('memberCompetencies', function (Builder $held) use ($state): void {
                     $held->when($state['competency'] !== 'all', fn (Builder $q): Builder => $q->where('competency_id', (int) $state['competency']))
-                        ->when($state['group'] !== 'all', fn (Builder $q): Builder => $q->whereHas('competency', fn (Builder $c): Builder => $c->where('group_id', (int) $state['group'])))
                         ->when($state['min_level'] > 0, fn (Builder $q): Builder => $q->where('self_level', '>=', $state['min_level']));
                 });
             })
@@ -211,15 +202,15 @@ class CompetencyDirectoryController extends Controller
             'competencies' => MemberCompetency::query()
                 ->join('competency_master', 'competency_master.id', '=', 'member_competencies.competency_id')
                 ->where('member_competencies.user_id', $user->id)
+                ->where('competency_master.is_active', true)
                 ->orderBy('competency_master.code')
                 ->select('member_competencies.*')
-                ->with('competency:id,group_id,code,name', 'competency.group:id,code')
+                ->with('competency:id,code,name')
                 ->get()
                 ->map(fn (MemberCompetency $row): array => [
                     'id' => $row->id,
                     'code' => $row->competency->code,
                     'name' => $row->competency->name,
-                    'group_code' => $row->competency->group?->code,
                     'self_level' => $row->self_level,
                     'self_level_label' => CompetencyLevel::labelFor($row->self_level),
                 ])->all(),

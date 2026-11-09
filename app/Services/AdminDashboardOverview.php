@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\BatchStatus;
 use App\Enums\CompetencyLevel;
 use App\Models\AuditLog;
-use App\Models\CompetencyGroup;
 use App\Models\Organization;
 use App\Models\QccBatch;
 use App\Models\User;
@@ -96,43 +95,26 @@ class AdminDashboardOverview
     }
 
     /**
-     * How many competency entries sit at each level, per competency group.
+     * How many competency entries of active people sit at each level, on current skills.
      *
-     * @return array{groups: list<string>, levels: array<int, array{label: non-falsy-string, data: list<int>}>}
+     * @return list<array{level: int, label: non-falsy-string, count: int}>
      */
     private function competencyLevels(): array
     {
-        $groups = CompetencyGroup::query()->orderBy('code')->get(['id', 'code', 'name']);
-        $effectiveLevel = 'member_competencies.self_level';
-
-        /** @var Collection<int, object{group_id: int, level: int, total: int}> $rows */
-        $rows = DB::table('member_competencies')
+        $counts = DB::table('member_competencies')
             ->join('users', 'users.id', '=', 'member_competencies.user_id')
             ->join('competency_master', 'competency_master.id', '=', 'member_competencies.competency_id')
             ->where('users.is_active', true)
-            ->selectRaw("competency_master.group_id as group_id, {$effectiveLevel} as level, COUNT(*) as total")
-            ->groupBy('competency_master.group_id', DB::raw($effectiveLevel))
-            ->get();
+            ->where('competency_master.is_active', true)
+            ->groupBy('member_competencies.self_level')
+            ->selectRaw('member_competencies.self_level as level, COUNT(*) as total')
+            ->pluck('total', 'level');
 
-        $counts = [];
-
-        foreach ($rows as $row) {
-            $counts[(int) $row->group_id][(int) $row->level] = (int) $row->total;
-        }
-
-        $levels = [];
-
-        foreach (CompetencyLevel::cases() as $level) {
-            $levels[$level->value] = [
-                'label' => $level->value.' · '.$level->label(),
-                'data' => array_values($groups->map(fn (CompetencyGroup $group): int => $counts[$group->id][$level->value] ?? 0)->all()),
-            ];
-        }
-
-        return [
-            'groups' => array_values($groups->map(fn (CompetencyGroup $group): string => $group->name)->all()),
-            'levels' => $levels,
-        ];
+        return array_map(fn (CompetencyLevel $level): array => [
+            'level' => $level->value,
+            'label' => $level->label(),
+            'count' => (int) ($counts[$level->value] ?? 0),
+        ], CompetencyLevel::cases());
     }
 
     /**

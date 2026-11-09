@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCompetencyRequest;
 use App\Http\Requests\UpdateCompetencyRequest;
 use App\Models\Competency;
-use App\Models\CompetencyGroup;
 use App\Services\CompetencyImportService;
 use App\Services\CompetencyTemplateBuilder;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,23 +26,20 @@ class CompetencyController extends Controller
 
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'group' => ['nullable', 'string', 'max:10'],
             'status' => ['nullable', Rule::in(['all', 'active', 'inactive'])],
-            'sort' => ['nullable', Rule::in(['code', 'name', 'group_id', 'is_active'])],
+            'sort' => ['nullable', Rule::in(['code', 'name', 'is_active'])],
             'direction' => ['nullable', Rule::in(['asc', 'desc'])],
             'per_page' => ['nullable', Rule::in([10, 25, 50])],
         ]);
 
         $search = trim((string) ($filters['search'] ?? ''));
-        $group = $filters['group'] ?? 'all';
-        $status = $filters['status'] ?? 'all';
+        $status = $filters['status'] ?? 'active';
         $sort = $filters['sort'] ?? 'code';
         $direction = $filters['direction'] ?? 'asc';
         $perPage = (int) ($filters['per_page'] ?? 10);
 
         $competencies = Competency::query()
-            ->select(['id', 'group_id', 'code', 'name', 'description', 'is_active'])
-            ->with(['group:id,code,name'])
+            ->select(['id', 'code', 'name', 'description', 'is_active'])
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('code', 'like', "%{$search}%")
@@ -51,10 +47,6 @@ class CompetencyController extends Controller
                         ->orWhere('description', 'like', "%{$search}%");
                 });
             })
-            ->when($group !== 'all', fn (Builder $query): Builder => $query->whereHas(
-                'group',
-                fn (Builder $groupQuery): Builder => $groupQuery->where('code', $group),
-            ))
             ->when($status !== 'all', fn (Builder $query): Builder => $query->where('is_active', $status === 'active'))
             ->orderBy($sort, $direction)
             ->orderBy('id')
@@ -64,20 +56,13 @@ class CompetencyController extends Controller
         return Inertia::render('admin/competencies/index', [
             'competencies' => $competencies->through(fn (Competency $competency): array => [
                 'id' => $competency->id,
-                'group_id' => $competency->group_id,
-                'group_code' => $competency->group->code,
-                'group_name' => $competency->group->name,
                 'code' => $competency->code,
                 'name' => $competency->name,
                 'description' => $competency->description,
                 'is_active' => $competency->is_active,
             ]),
-            'groups' => CompetencyGroup::query()
-                ->orderBy('code')
-                ->get(['id', 'code', 'name']),
             'filters' => [
                 'search' => $search,
-                'group' => $group,
                 'status' => $status,
                 'sort' => $sort,
                 'direction' => $direction,

@@ -51,19 +51,6 @@ export function permissionBadgeVariant(permission: string): BadgeVariant {
     return variants[prefix] ?? 'secondary';
 }
 
-export function competencyGroupBadgeVariant(groupCode: string): BadgeVariant {
-    const variants: Record<string, BadgeVariant> = {
-        A: 'info',
-        B: 'success',
-        C: 'warning',
-        D: 'violet',
-        E: 'teal',
-        F: 'default',
-    };
-
-    return variants[groupCode.toUpperCase()] ?? 'secondary';
-}
-
 export function scoringStatusBadgeVariant(status: string): BadgeVariant {
     if (status === 'approved') {
         return 'success';

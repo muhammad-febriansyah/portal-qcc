@@ -134,9 +134,14 @@ class User extends Authenticatable implements MustVerifyEmail
     /**
      * @return HasMany<MemberCompetency, $this>
      */
+    /**
+     * Skills this person holds from the current skill dictionary. Entries on retired skills
+     * stay in the table but no longer count anywhere.
+     */
     public function memberCompetencies(): HasMany
     {
-        return $this->hasMany(MemberCompetency::class);
+        return $this->hasMany(MemberCompetency::class)
+            ->whereHas('competency', fn ($competency) => $competency->where('is_active', true));
     }
 
     /** @return HasMany<ReviewAssignment, $this> */
