@@ -19,7 +19,7 @@ class StoreUserRequest extends FormRequest
     {
         $this->merge([
             'name' => is_string($this->input('name')) ? trim($this->input('name')) : $this->input('name'),
-            'sim_id' => is_string($this->input('sim_id')) ? strtoupper(trim($this->input('sim_id'))) : $this->input('sim_id'),
+            'sim_id' => User::normalizeSimId($this->input('sim_id')),
             'email' => is_string($this->input('email')) ? strtolower(trim($this->input('email'))) : $this->input('email'),
         ]);
     }

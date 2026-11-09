@@ -58,7 +58,7 @@ export function CredentialDialog({ credential, onClose }: Props) {
                             <div className="grid min-w-0 gap-1">
                                 <span className="text-xs text-muted-foreground">
                                     {credential.reason === 'created'
-                                        ? 'Password awal (SIM ID)'
+                                        ? 'Password awal'
                                         : 'Password baru'}
                                 </span>
                                 <code className="text-sm font-semibold tracking-wide break-all">
@@ -85,7 +85,7 @@ export function CredentialDialog({ credential, onClose }: Props) {
                                 aria-hidden="true"
                             />
                             {credential.reason === 'created'
-                                ? 'Password sama dengan SIM ID. Sarankan anggota menggantinya setelah berhasil masuk.'
+                                ? 'Password awal adalah "SIM" + nomor SIM ID. Sarankan anggota menggantinya setelah berhasil masuk.'
                                 : 'Password hanya tampil sekali. Setelah dialog ini ditutup, password tidak dapat dilihat lagi dan harus direset bila hilang.'}
                         </p>
                     </div>

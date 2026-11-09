@@ -90,7 +90,7 @@ function UserForm({
                         required
                         hint={
                             !isEditing
-                                ? 'Password awal otomatis sama dengan SIM ID.'
+                                ? 'Isi angkanya saja. Password awal otomatis "SIM" + nomor SIM ID.'
                                 : undefined
                         }
                         error={errors.sim_id}
@@ -98,7 +98,7 @@ function UserForm({
                         <Input
                             name="sim_id"
                             defaultValue={user?.sim_id ?? ''}
-                            placeholder="Contoh: SIM-12345"
+                            placeholder="Contoh: 12345"
                             maxLength={32}
                             autoComplete="off"
                             className="uppercase placeholder:normal-case"

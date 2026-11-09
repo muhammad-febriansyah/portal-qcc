@@ -87,7 +87,7 @@ export default function Register({ passwordRules }: Props) {
                                     required
                                     autoFocus
                                     autoComplete="off"
-                                    placeholder="Contoh: SIM12345"
+                                    placeholder="Contoh: 12345"
                                     className="uppercase placeholder:normal-case"
                                 />
                             </FormField>

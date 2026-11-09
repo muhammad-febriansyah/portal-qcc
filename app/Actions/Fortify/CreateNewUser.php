@@ -22,7 +22,7 @@ class CreateNewUser implements CreatesNewUsers
     public function create(array $input): User
     {
         $input['name'] = is_string($input['name'] ?? null) ? trim($input['name']) : $input['name'] ?? null;
-        $input['sim_id'] = is_string($input['sim_id'] ?? null) ? strtoupper(trim($input['sim_id'])) : $input['sim_id'] ?? null;
+        $input['sim_id'] = User::normalizeSimId($input['sim_id'] ?? null);
         $input['email'] = is_string($input['email'] ?? null) ? strtolower(trim($input['email'])) : $input['email'] ?? null;
 
         $validated = Validator::make($input, [

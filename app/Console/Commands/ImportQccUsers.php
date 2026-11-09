@@ -16,7 +16,7 @@ use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 #[Signature('qcc:users:import {path : Path file .xlsx (kolom: SIM ID, EMPLOYEE NAME, E-MAIL KANTOR, POSITION, opsional LOB/DIV)} {--dry-run : Validasi dan tampilkan ringkasan tanpa menyimpan} {--create-organizations : Buat organisasi baru untuk LOB/DIV yang belum ada}')]
-#[Description('Impor akun portal dari file Excel data user. Akun baru memakai password awal SIM ID.')]
+#[Description('Impor akun portal dari file Excel data user. Akun baru memakai password awal "SIM" + nomor SIM ID.')]
 class ImportQccUsers extends Command
 {
     /** @var array<string, list<string>> Accepted header names for each column, compared in lowercase. */
@@ -188,8 +188,7 @@ class ImportQccUsers extends Command
             // \p{Z} also strips non-breaking spaces that Excel cells often carry.
             $cell = static fn (string $key): string => (string) preg_replace('/^[\s\p{Z}]+|[\s\p{Z}]+$/u', '', $row['cells'][$columns[$key]] ?? '');
 
-            $simId = strtoupper($cell('sim_id'));
-            $simId = preg_match('/^\d+$/', $simId) === 1 ? 'SIM'.$simId : $simId;
+            $simId = (string) User::normalizeSimId($cell('sim_id'));
             $name = (string) preg_replace('/\s+/', ' ', strtr($cell('name'), self::LOOKALIKE_LETTERS));
             $email = strtolower($cell('email'));
             $position = strtolower($cell('position'));
@@ -337,7 +336,7 @@ class ImportQccUsers extends Command
                     'name' => $record['name'],
                     'sim_id' => $record['sim_id'],
                     'email' => $record['email'],
-                    'password' => $record['sim_id'],
+                    'password' => User::initialPasswordFor($record['sim_id']),
                     'organization_id' => $record['organization_id'],
                     'needs_profile_setup' => true,
                 ]);

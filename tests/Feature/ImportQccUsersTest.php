@@ -26,7 +26,7 @@ function userWorkbook(array $rows): string
     return $path;
 }
 
-test('it creates accounts with roles and the SIM ID as first password', function () {
+test('it stores the SIM ID number and gives "SIM" plus that number as first password', function () {
     $path = userWorkbook([
         [1493, 'GILANG RAMADHAN', " GILANG.RAMADHAN@SIM.CO.ID\u{00A0}", 'SIM1493', 'SIMers'],
         [1000, 'I DEWA PUTU PRAYOGA', 'idp.prayoga@sim.co.id', 'SIM1000', 'Mentor/Reviewer'],
@@ -35,22 +35,22 @@ test('it creates accounts with roles and the SIM ID as first password', function
 
     $this->artisan('qcc:users:import', ['path' => $path])->assertSuccessful();
 
-    $member = User::query()->where('sim_id', 'SIM1493')->firstOrFail();
+    $member = User::query()->where('sim_id', '1493')->firstOrFail();
     expect($member->email)->toBe('gilang.ramadhan@sim.co.id')
         ->and($member->hasRole('SIMer / Member'))->toBeTrue()
         ->and(Hash::check('SIM1493', $member->password))->toBeTrue()
         ->and($member->needs_profile_setup)->toBeTrue()
         ->and($member->email_verified_at)->not->toBeNull();
 
-    expect(User::query()->where('sim_id', 'SIM1000')->firstOrFail()->hasRole('Mentor'))->toBeTrue();
+    expect(User::query()->where('sim_id', '1000')->firstOrFail()->hasRole('Mentor'))->toBeTrue();
 
-    $owner = User::query()->where('sim_id', 'SIM2685')->firstOrFail();
+    $owner = User::query()->where('sim_id', '2685')->firstOrFail();
     expect($owner->name)->toBe('MOHAMMAD ALI RIDHA')
         ->and($owner->hasRole('Owner QCC'))->toBeTrue();
 });
 
 test('running it again updates existing accounts without resetting passwords', function () {
-    $existing = User::factory()->create(['sim_id' => 'SIM1493', 'email' => 'old@sim.co.id', 'password' => 'changed-password']);
+    $existing = User::factory()->create(['sim_id' => '1493', 'email' => 'old@sim.co.id', 'password' => 'changed-password']);
     $existing->assignRole('Mentor');
 
     $this->artisan('qcc:users:import', ['path' => userWorkbook([

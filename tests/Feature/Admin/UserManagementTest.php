@@ -131,7 +131,7 @@ test('creating a member stores a verified active account with password matching 
         ->post(route('admin.users.store'), $payload)
         ->assertRedirect()
         ->assertInertiaFlash('credential.email', 'budi@example.com')
-        ->assertInertiaFlash('credential.password', 'SIM-0042')
+        ->assertInertiaFlash('credential.password', 'SIM0042')
         ->assertInertiaFlash('credential.reason', 'created');
 
     $user = User::query()->where('email', 'budi@example.com')->firstOrFail();
@@ -139,7 +139,7 @@ test('creating a member stores a verified active account with password matching 
     expect($user->is_active)->toBeTrue()
         ->and($user->email_verified_at)->not->toBeNull()
         ->and($user->organization_id)->toBe($payload['organization_id'])
-        ->and($user->sim_id)->toBe('SIM-0042')
+        ->and($user->sim_id)->toBe('0042')
         ->and($user->getRoleNames()->all())->toBe(['Mentor']);
 });
 
@@ -148,8 +148,9 @@ test('the SIM ID password is hashed and lets the new member log in', function ()
     $password = session('inertia.flash_data.credential.password');
     $user = User::query()->where('email', 'budi@example.com')->firstOrFail();
 
-    expect($password)->toBe('SIM-0001')
-        ->and($user->password)->not->toBe('SIM-0001')
+    expect($password)->toBe('SIM0001')
+        ->and($user->sim_id)->toBe('0001')
+        ->and($user->password)->not->toBe('SIM0001')
         ->and(Hash::check($password, $user->password))->toBeTrue();
 
     auth()->logout();

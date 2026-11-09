@@ -98,7 +98,7 @@ class UserController extends Controller
     public function store(StoreUserRequest $request, AuditService $audit): RedirectResponse
     {
         $data = $request->validated();
-        $password = $data['sim_id'];
+        $password = User::initialPasswordFor($data['sim_id']);
 
         $user = DB::transaction(function () use ($data, $password, $audit): User {
             $user = new User([

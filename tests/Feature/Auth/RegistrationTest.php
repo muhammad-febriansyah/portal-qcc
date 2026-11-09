@@ -50,7 +50,7 @@ test('new users register as SIMer / Member and are signed in', function () {
     $this->assertAuthenticated();
     $response->assertRedirect(route('dashboard', absolute: false));
 
-    $user = User::query()->where('sim_id', 'SIM12345')->firstOrFail();
+    $user = User::query()->where('sim_id', '12345')->firstOrFail();
 
     expect($user->name)->toBe('Sari Wulandari')
         ->and($user->email)->toBe('sari.wulandari@example.test')
@@ -66,7 +66,7 @@ test('self registration is audited with its role and without credentials', funct
 
     $this->post(route('register.store'), registrationPayload());
 
-    $user = User::query()->where('sim_id', 'SIM12345')->firstOrFail();
+    $user = User::query()->where('sim_id', '12345')->firstOrFail();
     $entries = AuditLog::query()
         ->where('event', 'user.registered')
         ->where('subject_id', $user->id)
@@ -95,13 +95,13 @@ test('registration cannot choose a role', function () {
 
     $this->post(route('register.store'), registrationPayload(['role' => 'Super Admin']));
 
-    $user = User::query()->where('sim_id', 'SIM12345')->firstOrFail();
+    $user = User::query()->where('sim_id', '12345')->firstOrFail();
 
     expect($user->getRoleNames()->all())->toBe(['SIMer / Member']);
 });
 
 test('registration rejects an email or SIM ID that is already used', function () {
-    User::factory()->create(['email' => 'sari.wulandari@example.test', 'sim_id' => 'SIM12345']);
+    User::factory()->create(['email' => 'sari.wulandari@example.test', 'sim_id' => '12345']);
 
     $this->post(route('register.store'), registrationPayload())
         ->assertSessionHasErrors([
@@ -132,7 +132,7 @@ test('registration requires name, SIM ID, email and password', function () {
 });
 
 test('registration treats the same SIM ID in different letter case as already used', function () {
-    User::factory()->create(['sim_id' => 'SIM12345']);
+    User::factory()->create(['sim_id' => '12345']);
 
     $this->post(route('register.store'), registrationPayload(['sim_id' => 'sim12345']))
         ->assertSessionHasErrors(['sim_id' => 'SIM ID sudah terdaftar.']);
@@ -149,7 +149,7 @@ test('a SIM ID taken at the very same moment is reported as a validation error, 
         $validator->after(fn () => DB::table('users')->insertOrIgnore([
             'name' => 'Racer',
             'password' => 'not-used',
-            'sim_id' => $takenField === 'sim_id' ? 'SIM12345' : 'SIM99999',
+            'sim_id' => $takenField === 'sim_id' ? '12345' : '99999',
             'email' => $takenField === 'email' ? 'sari.wulandari@example.test' : 'racer@example.test',
             'created_at' => now(),
             'updated_at' => now(),
