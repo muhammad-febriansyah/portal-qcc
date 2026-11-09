@@ -7,7 +7,6 @@ import {
     ComboboxContent,
     ComboboxEmpty,
     ComboboxInput,
-    ComboboxItem,
     ComboboxList,
 } from '@/components/ui/combobox';
 import {
@@ -18,6 +17,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { CompetencyOptionItem } from '@/components/competency-option-item';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
@@ -36,6 +36,7 @@ export type CompetencyOption = {
     id: number;
     group_id: number;
     label: string;
+    description: string | null;
 };
 
 export type EditableCompetency = {
@@ -211,17 +212,23 @@ function CompetencyForm({
                                         </ComboboxEmpty>
                                         <ComboboxList>
                                             {(item: CompetencyOption) => (
-                                                <ComboboxItem
+                                                <CompetencyOptionItem
                                                     key={item.id}
-                                                    value={item}
-                                                >
-                                                    {item.label}
-                                                </ComboboxItem>
+                                                    item={item}
+                                                />
                                             )}
                                         </ComboboxList>
                                     </ComboboxContent>
                                 </Combobox>
                             </FormField>
+                            {selected?.description && (
+                                <p className="-mt-2 rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                                    <span className="font-medium text-foreground">
+                                        Definisi:{' '}
+                                    </span>
+                                    {selected.description}
+                                </p>
+                            )}
                             <input
                                 type="hidden"
                                 name="competency_id"

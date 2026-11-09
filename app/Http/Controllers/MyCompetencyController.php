@@ -91,11 +91,12 @@ class MyCompetencyController extends Controller
                     ->where('is_active', true)
                     ->whereNotIn('id', MemberCompetency::query()->where('user_id', $user->id)->select('competency_id'))
                     ->orderBy('code')
-                    ->get(['id', 'group_id', 'code', 'name'])
+                    ->get(['id', 'group_id', 'code', 'name', 'description'])
                     ->map(fn (Competency $competency): array => [
                         'id' => $competency->id,
                         'group_id' => $competency->group_id,
                         'label' => $competency->code.' - '.$competency->name,
+                        'description' => $competency->description,
                     ])
                     ->all(),
             'levelOptions' => CompetencyLevel::options(),

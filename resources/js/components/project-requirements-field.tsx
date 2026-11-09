@@ -10,7 +10,6 @@ import {
     ComboboxChipsInput,
     ComboboxContent,
     ComboboxEmpty,
-    ComboboxItem,
     ComboboxList,
     ComboboxValue,
     useComboboxAnchor,
@@ -22,6 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { CompetencyOptionItem } from '@/components/competency-option-item';
 import { Spinner } from '@/components/ui/spinner';
 import { update } from '@/routes/proposals/requirements';
 
@@ -30,6 +30,7 @@ export type RequirementCompetencyOption = {
     code: string;
     name: string;
     label: string;
+    description: string | null;
 };
 
 export type ProjectRequirement = {
@@ -173,9 +174,10 @@ export function ProjectRequirementsField({
                         </ComboboxEmpty>
                         <ComboboxList>
                             {(item: RequirementCompetencyOption) => (
-                                <ComboboxItem key={item.id} value={item}>
-                                    {item.label}
-                                </ComboboxItem>
+                                <CompetencyOptionItem
+                                    key={item.id}
+                                    item={item}
+                                />
                             )}
                         </ComboboxList>
                     </ComboboxContent>

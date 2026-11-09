@@ -276,18 +276,19 @@ class ProposalWizardController extends Controller
             ->all());
     }
 
-    /** @return list<array{id: int, code: string, name: string, label: string}> */
+    /** @return list<array{id: int, code: string, name: string, label: string, description: string|null}> */
     private function competencyOptions(): array
     {
         return array_values(Competency::query()
             ->where('is_active', true)
             ->orderBy('code')
-            ->get(['id', 'code', 'name'])
+            ->get(['id', 'code', 'name', 'description'])
             ->map(fn (Competency $competency): array => [
                 'id' => $competency->id,
                 'code' => $competency->code,
                 'name' => $competency->name,
                 'label' => $competency->code.' - '.$competency->name,
+                'description' => $competency->description,
             ])
             ->all());
     }

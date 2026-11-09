@@ -147,7 +147,8 @@ it('rejects competency edits when proposal status changes after route binding', 
     expect(savedRequirements($this->project))->toBe([]);
 });
 
-it('hands the wizard the master list, the saved rows and the level names', function () {
+it('hands the wizard the master list with definitions, the saved rows and the level names', function () {
+    $this->a->update(['description' => 'Definisi kompetensi A.']);
     $this->actingAs($this->editor)->put(route('proposals.requirements.update', $this->project), ['requirements' => [
         ['competency_id' => $this->a->id, 'minimum_level' => 2],
     ]]);
@@ -156,6 +157,7 @@ it('hands the wizard the master list, the saved rows and the level names', funct
         ->assertInertia(fn (Assert $page) => $page
             ->component('proposals/wizard')
             ->has('competencyOptions', 2)
+            ->where('competencyOptions', fn ($options) => collect($options)->firstWhere('id', $this->a->id)['description'] === 'Definisi kompetensi A.')
             ->where('requirements.0.competency_id', $this->a->id)
             ->where('requirements.0.minimum_level', 2)
             ->has('levelOptions', 4));

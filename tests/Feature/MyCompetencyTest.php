@@ -45,7 +45,7 @@ test('a person only sees their own competencies', function () {
 test('the add dialog only offers active competencies the person does not have yet', function () {
     $me = User::factory()->create();
     $taken = competencyInGroup('C001', 'Sudah Ada');
-    competencyInGroup('C002', 'Masih Bisa');
+    competencyInGroup('C002', 'Masih Bisa')->update(['description' => 'Definisi kompetensi C002.']);
     competencyInGroup('C003', 'Nonaktif', active: false);
     MemberCompetency::factory()->create(['user_id' => $me->id, 'competency_id' => $taken->id]);
 
@@ -54,6 +54,7 @@ test('the add dialog only offers active competencies the person does not have ye
         ->assertInertia(fn (Assert $page) => $page
             ->has('competencyOptions', 1)
             ->where('competencyOptions.0.label', 'C002 - Masih Bisa')
+            ->where('competencyOptions.0.description', 'Definisi kompetensi C002.')
             ->has('levelOptions', 4));
 });
 
