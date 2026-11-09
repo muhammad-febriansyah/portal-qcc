@@ -201,7 +201,7 @@ test('building the overview takes a small, fixed number of queries', function ()
     expect($queries)->toBeLessThan(30);
 });
 
-test('overview counts competency levels per group, preferring the verified level', function () {
+test('overview counts competency levels per group by the level people filled in', function () {
     $admin = dashboardAdmin();
     $member = User::factory()->create(['is_active' => true]);
     $competency = Competency::factory()->create();
@@ -217,8 +217,8 @@ test('overview counts competency levels per group, preferring the verified level
     $levels = app(AdminDashboardOverview::class)->get()['competency_levels'];
     $groupIndex = array_search($competency->group->name, $levels['groups'], true);
 
-    expect($levels['levels'][3]['data'][$groupIndex])->toBe(1)
-        ->and($levels['levels'][1]['data'][$groupIndex])->toBe(0);
+    expect($levels['levels'][1]['data'][$groupIndex])->toBe(1)
+        ->and($levels['levels'][3]['data'][$groupIndex])->toBe(0);
 });
 
 test('overview lists participants per organization and flags what needs attention', function () {

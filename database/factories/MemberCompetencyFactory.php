@@ -23,13 +23,4 @@ class MemberCompetencyFactory extends Factory
             'self_level' => fake()->numberBetween(1, 4),
         ];
     }
-
-    public function verified(int $level = 3): static
-    {
-        return $this->state(fn () => [
-            'verified_level' => $level,
-            'verification_status' => 'VERIFIED',
-            'verified_at' => now(),
-        ]);
-    }
 }

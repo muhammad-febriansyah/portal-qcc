@@ -45,10 +45,6 @@ type CompetencyRow = {
     group_code: string | null;
     self_level: number;
     self_level_label: string | null;
-    verified_level: number | null;
-    verified_level_label: string | null;
-    verification_status: string | null;
-    verification_note: string | null;
     updated_at: string | null;
 };
 
@@ -167,53 +163,12 @@ export default function MyCompetenciesIndex({
             },
             {
                 id: 'self_level',
-                header: 'Level Saya',
+                header: 'Level',
                 cell: ({ row }) => (
                     <span className="whitespace-nowrap">
                         {row.original.self_level} ·{' '}
                         {row.original.self_level_label}
                     </span>
-                ),
-            },
-            {
-                id: 'verified',
-                header: 'Terverifikasi',
-                cell: ({ row }) => (
-                    <div className="grid justify-items-start gap-1.5">
-                        {row.original.verified_level !== null ? (
-                            <span className="whitespace-nowrap">
-                                {row.original.verified_level} ·{' '}
-                                {row.original.verified_level_label}
-                            </span>
-                        ) : (
-                            <span className="text-muted-foreground">
-                                Belum ada level verifikasi
-                            </span>
-                        )}
-                        {row.original.verification_status?.toUpperCase() ===
-                        'VERIFIED' ? (
-                            <Badge variant="success" className="gap-1">
-                                <ShieldCheck aria-hidden="true" /> Terverifikasi
-                            </Badge>
-                        ) : row.original.verification_status?.toUpperCase() ===
-                          'PENDING' ? (
-                            <Badge variant="outline">
-                                Menunggu verifikasi ulang
-                            </Badge>
-                        ) : row.original.verification_status?.toUpperCase() ===
-                          'REJECTED' ? (
-                            <div className="grid gap-1">
-                                <Badge variant="destructive">
-                                    Perlu perbaikan
-                                </Badge>
-                                {row.original.verification_note && (
-                                    <span className="max-w-52 text-xs whitespace-normal text-muted-foreground">
-                                        {row.original.verification_note}
-                                    </span>
-                                )}
-                            </div>
-                        ) : null}
-                    </div>
                 ),
             },
             {
@@ -259,7 +214,6 @@ export default function MyCompetenciesIndex({
                                         label: 'Hapus',
                                         icon: Trash2,
                                         destructive: true,
-                                        hidden: item.verified_level !== null,
                                         confirmTitle: 'Hapus kompetensi?',
                                         confirmDescription: `${item.name} akan dihapus dari daftar kompetensi Anda.`,
                                         confirmLabel: 'Hapus',

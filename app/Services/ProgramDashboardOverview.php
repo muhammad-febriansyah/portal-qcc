@@ -426,8 +426,8 @@ class ProgramDashboardOverview
 
     /**
      * How well each formed team covers the competencies its project asked for. A need counts as
-     * covered when one active member holds that competency at the minimum level (verified level
-     * first, self-assessed otherwise). A project without needs counts as fully covered.
+     * covered when one active member holds that competency at the minimum level. A project
+     * without needs counts as fully covered.
      *
      * @param  Collection<int, Project>  $projects
      * @return list<array{key: string, label: string, count: int, percent: int}>
@@ -436,7 +436,7 @@ class ProgramDashboardOverview
     {
         $levels = DB::table('member_competencies')
             ->whereIn('user_id', $projects->flatMap(fn (Project $project) => $project->members->pluck('id'))->unique())
-            ->get(['user_id', 'competency_id', 'self_level', 'verified_level'])
+            ->get(['user_id', 'competency_id', 'self_level'])
             ->groupBy('user_id');
 
         $bands = ['fit' => 0, 'partial' => 0, 'gap' => 0];
@@ -446,7 +446,7 @@ class ProgramDashboardOverview
             $memberLevels = $project->members->flatMap(fn (User $member) => $levels->get($member->id, collect()));
             $covered = $requirements->filter(fn ($requirement): bool => $memberLevels->contains(
                 fn ($held): bool => (int) $held->competency_id === (int) $requirement->competency_id
-                    && (int) ($held->verified_level ?? $held->self_level) >= (int) ($requirement->minimum_level ?? 0),
+                    && (int) $held->self_level >= (int) ($requirement->minimum_level ?? 0),
             ))->count();
             $coverage = $requirements->isEmpty() ? 100 : $this->percent($covered, $requirements->count());
 

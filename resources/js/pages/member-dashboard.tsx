@@ -51,7 +51,6 @@ type MemberOverview = {
     competencies: {
         count: number;
         limit: number;
-        verified: number;
         href: string;
     };
     projects: {
@@ -497,8 +496,7 @@ function CompetenciesPanel({
                         {competencies.count}
                     </span>
                     <span className="pb-0.5 text-sm text-muted-foreground">
-                        dari {competencies.limit} kompetensi ·{' '}
-                        {competencies.verified} terverifikasi
+                        dari {competencies.limit} kompetensi
                     </span>
                 </div>
                 <ProgressBar

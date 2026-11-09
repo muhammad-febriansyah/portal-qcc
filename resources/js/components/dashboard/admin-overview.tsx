@@ -311,7 +311,7 @@ export function AdminOverview({ overview }: { overview: AdminOverviewData }) {
             <div className="grid gap-4 lg:grid-cols-3">
                 <Panel
                     title="Level kompetensi per kelompok"
-                    description="Level terverifikasi dipakai lebih dulu, jika belum ada dipakai penilaian diri."
+                    description="Berdasarkan level penilaian diri peserta."
                 >
                     {hasLevels ? (
                         <LevelBars data={levels} />

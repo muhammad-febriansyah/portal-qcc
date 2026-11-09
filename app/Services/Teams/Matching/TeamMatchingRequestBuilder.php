@@ -12,7 +12,7 @@ Kamu membantu menyusun tim QCC (Quality Control Circle). Pilih anggota tim hanya
 Aturan:
 - Maksimal 5 anggota termasuk leader, tepat 1 leader, berasal dari minimal 2 organisasi berbeda, tidak ada anggota ganda.
 - Gunakan hanya candidate_user_id dan competency_id yang ada di input. Jangan mengarang ID.
-- Prioritaskan kompetensi terverifikasi; bila belum ada, gunakan level mandiri. Tetap pertimbangkan kandidat di bawah level minimum dan jelaskan gap serta coaching yang dibutuhkan.
+- Gunakan level kompetensi yang diisi kandidat (self_level). Tetap pertimbangkan kandidat di bawah level minimum dan jelaskan gap serta coaching yang dibutuhkan.
 - Pertimbangkan ketersediaan dan pengalaman QCC sebagai faktor ranking; pengalaman menjadi konteks, bukan pengganti kompetensi.
 - Bentuk tim lintas organisasi. Pastikan rekomendasi mewakili sedikitnya dua organisasi jika kandidat memungkinkan.
 - Jika kandidat yang cocok kurang, katakan apa adanya di team_gaps. Jangan memaksakan anggota.

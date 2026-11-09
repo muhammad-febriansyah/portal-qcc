@@ -37,7 +37,7 @@ class MemberDashboardOverview
     /**
      * @return array{
      *     journey: array{steps: list<array{key: string, label: string, state: string}>, next_action: array{label: string, description: string, href: string}|null},
-     *     competencies: array{count: int, limit: int, verified: int, href: string},
+     *     competencies: array{count: int, limit: int, href: string},
      *     projects: list<array<string, mixed>>,
      *     proposals: list<array<string, mixed>>,
      *     tasks: list<array<string, mixed>>,
@@ -48,7 +48,6 @@ class MemberDashboardOverview
     {
         $today = today(config('app.timezone'));
         $competencyCount = $user->memberCompetencies()->count();
-        $verifiedCount = $user->memberCompetencies()->where('verification_status', MemberCompetency::STATUS_VERIFIED)->count();
 
         $memberships = $this->activeProjects($user);
         $proposals = Project::query()
@@ -63,7 +62,6 @@ class MemberDashboardOverview
             'competencies' => [
                 'count' => $competencyCount,
                 'limit' => MemberCompetency::MAX_PER_USER,
-                'verified' => $verifiedCount,
                 'href' => route('my-competencies.index'),
             ],
             'projects' => array_values($memberships->map(fn (Project $project): array => $this->projectCard($project))->all()),

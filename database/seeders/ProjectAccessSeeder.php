@@ -14,7 +14,7 @@ class ProjectAccessSeeder extends Seeder
      */
     private const ROLE_PERMISSIONS = [
         'Super Admin' => ['projects.view', 'projects.viewAny'],
-        'Owner QCC' => ['projects.view', 'projects.viewAny', 'projects.review', 'projects.approve', 'evidence.view', 'review-assignments.manage', 'competencies.verify', 'audit.view'],
+        'Owner QCC' => ['projects.view', 'projects.viewAny', 'projects.review', 'projects.approve', 'evidence.view', 'review-assignments.manage', 'audit.view'],
         'Mentor' => ['projects.view', 'projects.review', 'projects.approve', 'evidence.view'],
         'Team Leader' => ['projects.view', 'projects.create', 'projects.update', 'projects.submit', 'evidence.view', 'evidence.upload'],
         'SIMer / Member' => ['projects.view', 'projects.create', 'projects.update', 'projects.submit', 'evidence.view', 'evidence.upload'],

@@ -27,8 +27,6 @@ class CandidateShortlist
     /** Availability values that take someone out of the shortlist. Empty means unknown, so still eligible. */
     public const UNAVAILABLE_STATUSES = ['UNAVAILABLE'];
 
-    private const EFFECTIVE_LEVEL = "CASE WHEN member_competencies.verification_status = 'VERIFIED' THEN member_competencies.verified_level ELSE member_competencies.self_level END";
-
     public function __construct(private readonly TeamMatchingInputFingerprint $fingerprint) {}
 
     /**
@@ -38,7 +36,7 @@ class CandidateShortlist
      *         user_id: int, name: string, position: string|null, organization_id: int, organization: string,
      *         availability_status: string|null, matched_count: int, requirement_count: int,
      *         qcc_projects_count: int,
-     *         competencies: list<array{competency_id: int, self_level: int, verified_level: int|null}>
+     *         competencies: list<array{competency_id: int, self_level: int}>
      *     }>
      * }
      */
@@ -115,7 +113,7 @@ class CandidateShortlist
             ->whereIn('user_id', $userIds)
             ->whereIn('competency_id', array_column($requirements, 'competency_id'))
             ->orderBy('competency_id')
-            ->get(['user_id', 'competency_id', 'self_level', 'verified_level', 'verification_status'])
+            ->get(['user_id', 'competency_id', 'self_level'])
             ->groupBy('user_id');
 
         $candidates = [];
@@ -140,7 +138,6 @@ class CandidateShortlist
                 'competencies' => array_values($held->get($row->user_id)?->map(fn (MemberCompetency $entry): array => [
                     'competency_id' => $entry->competency_id,
                     'self_level' => $entry->self_level,
-                    'verified_level' => $entry->activeVerifiedLevel(),
                 ])->all() ?? []),
             ];
         }
@@ -234,8 +231,6 @@ class CandidateShortlist
      */
     public function rankedQuery(Project $project, ?int $limit = self::DEFAULT_LIMIT, ?string $search = null, ?array $userIds = null): Builder
     {
-        $effective = self::EFFECTIVE_LEVEL;
-
         return DB::table('member_competencies')
             ->join('project_requirements', function ($join) use ($project): void {
                 $join->on('project_requirements.competency_id', '=', 'member_competencies.competency_id')
@@ -272,13 +267,11 @@ class CandidateShortlist
             })
             ->groupBy('member_competencies.user_id')
             ->selectRaw('member_competencies.user_id as user_id')
-            ->selectRaw("SUM(CASE WHEN {$effective} >= COALESCE(project_requirements.minimum_level, 0) THEN 1 ELSE 0 END) as matched_count")
-            ->selectRaw("SUM({$effective}) as level_sum")
-            ->selectRaw("SUM(CASE WHEN member_competencies.verification_status = 'VERIFIED' THEN 1 ELSE 0 END) as verified_count")
+            ->selectRaw('SUM(CASE WHEN member_competencies.self_level >= COALESCE(project_requirements.minimum_level, 0) THEN 1 ELSE 0 END) as matched_count')
+            ->selectRaw('SUM(member_competencies.self_level) as level_sum')
             ->selectRaw('(SELECT COUNT(DISTINCT prior_member.project_id) FROM project_members as prior_member INNER JOIN projects as prior_project ON prior_project.id = prior_member.project_id WHERE prior_member.user_id = users.id AND prior_member.project_id <> ? AND prior_project.deleted_at IS NULL) as qcc_projects_count', [$project->id])
             ->orderByDesc('matched_count')
             ->orderByDesc('level_sum')
-            ->orderByDesc('verified_count')
             ->orderByRaw("CASE WHEN users.availability_status = 'AVAILABLE' THEN 0 ELSE 1 END")
             ->orderByRaw('(SELECT COUNT(*) FROM project_members as current_member WHERE current_member.project_id = ? AND current_member.status = \'ACTIVE\' AND current_member.left_at IS NULL AND current_member.user_id IN (SELECT same_org.id FROM users as same_org WHERE same_org.organization_id = users.organization_id)) ASC', [$project->id])
             ->orderByDesc('qcc_projects_count')

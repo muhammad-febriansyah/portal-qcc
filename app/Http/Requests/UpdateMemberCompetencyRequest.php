@@ -19,8 +19,7 @@ class UpdateMemberCompetencyRequest extends FormRequest
     }
 
     /**
-     * Only the self-assessed level can change. The competency itself and the
-     * verified level are never part of this request.
+     * Only the self-assessed level can change, never the competency itself.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */

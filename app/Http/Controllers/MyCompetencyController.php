@@ -69,10 +69,6 @@ class MyCompetencyController extends Controller
                 'group_code' => $row->competency->group?->code,
                 'self_level' => $row->self_level,
                 'self_level_label' => CompetencyLevel::labelFor($row->self_level),
-                'verified_level' => $row->verified_level,
-                'verified_level_label' => CompetencyLevel::labelFor($row->verified_level),
-                'verification_status' => $row->verification_status,
-                'verification_note' => $row->verification_note,
                 'updated_at' => $row->updated_at?->toIso8601String(),
             ]),
             'filters' => [
@@ -130,16 +126,7 @@ class MyCompetencyController extends Controller
 
     public function update(UpdateMemberCompetencyRequest $request, MemberCompetency $memberCompetency): RedirectResponse
     {
-        $selfLevel = (int) $request->validated('self_level');
-        $changes = ['self_level' => $selfLevel];
-
-        if ($selfLevel !== $memberCompetency->self_level
-            && strtoupper((string) $memberCompetency->verification_status) === MemberCompetency::STATUS_VERIFIED) {
-            $changes['verification_status'] = MemberCompetency::STATUS_PENDING;
-            $changes['verification_note'] = null;
-        }
-
-        $memberCompetency->forceFill($changes)->save();
+        $memberCompetency->forceFill(['self_level' => (int) $request->validated('self_level')])->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Level kompetensi berhasil diperbarui.']);
 
@@ -149,15 +136,6 @@ class MyCompetencyController extends Controller
     public function destroy(Request $request, MemberCompetency $memberCompetency): RedirectResponse
     {
         Gate::authorize('delete', $memberCompetency);
-
-        if ($memberCompetency->verified_level !== null && $memberCompetency->verification_status !== MemberCompetency::STATUS_REJECTED) {
-            Inertia::flash('toast', [
-                'type' => 'warning',
-                'message' => 'Kompetensi yang sudah terverifikasi tidak dapat dihapus.',
-            ]);
-
-            return back();
-        }
 
         $memberCompetency->delete();
 

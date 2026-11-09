@@ -77,12 +77,6 @@ Route::middleware(['auth', 'verified'])
 
         Route::get('competency-directory', [CompetencyDirectoryController::class, 'index'])
             ->name('competency-directory.index');
-        Route::post('competency-directory/{memberCompetency}/verify', [CompetencyDirectoryController::class, 'verify'])
-            ->whereNumber('memberCompetency')
-            ->name('competency-directory.verify');
-        Route::post('competency-directory/{memberCompetency}/reject', [CompetencyDirectoryController::class, 'reject'])
-            ->whereNumber('memberCompetency')
-            ->name('competency-directory.reject');
 
         Route::get('audit', [AuditLogController::class, 'index'])
             ->name('audit.index');

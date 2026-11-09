@@ -22,7 +22,7 @@ function requireSkill(Project $project, Competency $competency, ?int $minimum = 
     ]);
 }
 
-function candidate(string $name, Competency $competency, int $self = 3, ?int $verified = null, array $attributes = [], string $role = 'SIMer / Member'): User
+function candidate(string $name, Competency $competency, int $self = 3, ?int $oldVerified = null, array $attributes = [], string $role = 'SIMer / Member'): User
 {
     $user = User::factory()->create(array_merge([
         'name' => $name,
@@ -34,8 +34,8 @@ function candidate(string $name, Competency $competency, int $self = 3, ?int $ve
         'user_id' => $user->id,
         'competency_id' => $competency->id,
         'self_level' => $self,
-        'verified_level' => $verified,
-        'verification_status' => $verified === null ? null : 'VERIFIED',
+        'verified_level' => $oldVerified,
+        'verification_status' => $oldVerified === null ? null : 'VERIFIED',
     ]);
 
     return $user;
@@ -84,37 +84,20 @@ test('people already on the project team are left out', function () {
     expect(shortlistNames($this->project))->toBe(['Belum Anggota']);
 });
 
-test('the minimum level counts the verified level before the self level', function () {
+test('the minimum level uses the level people filled in and ignores old verified levels', function () {
     $strict = Project::factory()->create();
     requireSkill($strict, $this->skill, minimum: 3);
 
-    candidate('Mandiri Tinggi Verifikasi Rendah', $this->skill, self: 4, verified: 2);
-    candidate('Mandiri Rendah Verifikasi Tinggi', $this->skill, self: 1, verified: 3);
+    candidate('Dulu Diturunkan', $this->skill, self: 4, oldVerified: 2);
+    candidate('Dulu Dinaikkan', $this->skill, self: 1, oldVerified: 3);
     candidate('Mandiri Cukup', $this->skill, self: 3);
-
-    expect(shortlistNames($strict))->toEqualCanonicalizing([
-        'Mandiri Tinggi Verifikasi Rendah',
-        'Mandiri Rendah Verifikasi Tinggi',
-        'Mandiri Cukup',
-    ]);
-});
-
-test('a rejected or outdated verification is ignored and the self assessed level counts', function () {
-    $strict = Project::factory()->create();
-    requireSkill($strict, $this->skill, minimum: 3);
-
-    $rejected = candidate('Verifikasi Ditolak', $this->skill, self: 3, verified: 1);
-    MemberCompetency::query()->where('user_id', $rejected->id)->update(['verification_status' => 'REJECTED']);
-
-    $outdated = candidate('Ubah Setelah Verifikasi', $this->skill, self: 3, verified: 1);
-    MemberCompetency::query()->where('user_id', $outdated->id)->update(['verification_status' => 'PENDING']);
 
     $candidates = collect(shortlistFor($strict)['candidates'])->keyBy('name');
 
-    expect($candidates['Verifikasi Ditolak']['matched_count'])->toBe(1)
-        ->and($candidates['Verifikasi Ditolak']['competencies'][0]['verified_level'])->toBeNull()
-        ->and($candidates['Ubah Setelah Verifikasi']['matched_count'])->toBe(1)
-        ->and($candidates['Ubah Setelah Verifikasi']['competencies'][0]['verified_level'])->toBeNull();
+    expect($candidates['Dulu Diturunkan']['matched_count'])->toBe(1)
+        ->and($candidates['Dulu Dinaikkan']['matched_count'])->toBe(0)
+        ->and($candidates['Mandiri Cukup']['matched_count'])->toBe(1)
+        ->and($candidates['Dulu Diturunkan']['competencies'][0])->toBe(['competency_id' => $this->skill->id, 'self_level' => 4]);
 });
 
 test('better matches come first and the list is bounded', function () {

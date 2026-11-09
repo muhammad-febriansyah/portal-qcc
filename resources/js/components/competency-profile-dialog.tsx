@@ -1,7 +1,6 @@
-import { ChevronLeft, ChevronRight, Search, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { DataTable, type DataTableColumnDef } from '@/components/data-table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -10,7 +9,6 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 
 export type ProfileCompetency = {
     id: number;
@@ -19,10 +17,6 @@ export type ProfileCompetency = {
     group_code: string | null;
     self_level: number;
     self_level_label: string | null;
-    verified_level: number | null;
-    verified_level_label: string | null;
-    verification_status: string | null;
-    verification_note: string | null;
 };
 
 export type MemberProfile = {
@@ -54,77 +48,15 @@ function Info({ label, value }: { label: string; value: string | null }) {
     );
 }
 
-function LevelChip({
-    level,
-    label,
-    tone,
-}: {
-    level: number;
-    label: string | null;
-    tone: 'primary' | 'success';
-}) {
+function LevelChip({ level, label }: { level: number; label: string | null }) {
     return (
         <span className="inline-flex max-w-full items-center gap-2.5 whitespace-normal">
-            <span
-                className={cn(
-                    'flex size-7 shrink-0 items-center justify-center rounded-md text-sm font-semibold tabular-nums',
-                    tone === 'success'
-                        ? 'bg-success/10 text-success'
-                        : 'bg-primary/10 text-primary',
-                )}
-            >
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold text-primary tabular-nums">
                 {level}
             </span>
             <span className="text-base text-foreground">{label ?? '—'}</span>
         </span>
     );
-}
-
-const badgeTextClass =
-    'h-auto min-h-6 px-2.5 py-0.5 text-left text-sm whitespace-normal';
-
-function VerificationStatus({
-    status,
-    note,
-}: {
-    status: string | null;
-    note: string | null;
-}) {
-    const normalized = status?.toUpperCase();
-
-    if (normalized === 'VERIFIED') {
-        return (
-            <Badge variant="success" className={cn(badgeTextClass, 'gap-1.5')}>
-                <ShieldCheck aria-hidden="true" />
-                Terverifikasi
-            </Badge>
-        );
-    }
-
-    if (normalized === 'PENDING') {
-        return (
-            <Badge variant="outline" className={badgeTextClass}>
-                Menunggu verifikasi ulang
-            </Badge>
-        );
-    }
-
-    if (normalized === 'REJECTED') {
-        return (
-            <div className="grid justify-items-start gap-1.5">
-                <Badge variant="destructive" className={badgeTextClass}>
-                    Perlu perbaikan
-                </Badge>
-                {note && (
-                    <p className="text-sm leading-snug whitespace-normal text-muted-foreground">
-                        {note}
-                    </p>
-                )}
-            </div>
-        );
-    }
-
-    return null;
 }
 
 function CompetencyName({ item }: { item: ProfileCompetency }) {
@@ -139,28 +71,6 @@ function CompetencyName({ item }: { item: ProfileCompetency }) {
     );
 }
 
-function VerifiedCell({ item }: { item: ProfileCompetency }) {
-    return (
-        <div className="grid justify-items-start gap-2 whitespace-normal">
-            {item.verified_level !== null ? (
-                <LevelChip
-                    level={item.verified_level}
-                    label={item.verified_level_label}
-                    tone="success"
-                />
-            ) : (
-                <span className="text-sm text-muted-foreground">
-                    Belum ada level verifikasi
-                </span>
-            )}
-            <VerificationStatus
-                status={item.verification_status}
-                note={item.verification_note}
-            />
-        </div>
-    );
-}
-
 const competencyColumns: DataTableColumnDef<ProfileCompetency>[] = [
     {
         id: 'competency',
@@ -169,47 +79,30 @@ const competencyColumns: DataTableColumnDef<ProfileCompetency>[] = [
     },
     {
         id: 'self_level',
-        header: 'Level sendiri',
+        header: 'Level',
         cell: ({ row }) => (
             <LevelChip
                 level={row.original.self_level}
                 label={row.original.self_level_label}
-                tone="primary"
             />
         ),
-    },
-    {
-        id: 'verified',
-        header: 'Terverifikasi',
-        cell: ({ row }) => <VerifiedCell item={row.original} />,
     },
 ];
 
 function CompetencyCard({ item }: { item: ProfileCompetency }) {
     return (
-        <article className="grid min-w-0 gap-4 rounded-xl border border-border/60 p-4">
+        <article className="grid min-w-0 gap-3 rounded-xl border border-border/60 p-4">
             <CompetencyName item={item} />
-            <dl className="grid gap-4">
-                <div className="grid min-w-0 gap-1.5">
-                    <dt className="text-xs font-medium text-muted-foreground">
-                        Level sendiri
-                    </dt>
-                    <dd>
-                        <LevelChip
-                            level={item.self_level}
-                            label={item.self_level_label}
-                            tone="primary"
-                        />
-                    </dd>
-                </div>
-                <div className="grid min-w-0 gap-1.5">
-                    <dt className="text-xs font-medium text-muted-foreground">
-                        Terverifikasi
-                    </dt>
-                    <dd>
-                        <VerifiedCell item={item} />
-                    </dd>
-                </div>
+            <dl className="grid min-w-0 gap-1.5">
+                <dt className="text-xs font-medium text-muted-foreground">
+                    Level
+                </dt>
+                <dd>
+                    <LevelChip
+                        level={item.self_level}
+                        label={item.self_level_label}
+                    />
+                </dd>
             </dl>
         </article>
     );

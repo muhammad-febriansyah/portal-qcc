@@ -38,23 +38,8 @@ test('a person only sees their own competencies', function () {
             ->has('competencies.data', 1)
             ->where('competencies.data.0.code', 'C001')
             ->where('competencies.data.0.self_level_label', 'Proficient (Mahir)')
-            ->where('competencies.data.0.verified_level', null));
-});
-
-test('the list shows the verified level apart from the self assessed one', function () {
-    $me = User::factory()->create();
-    MemberCompetency::factory()->verified(2)->create([
-        'user_id' => $me->id,
-        'competency_id' => competencyInGroup('C001', 'Analisis')->id,
-        'self_level' => 4,
-    ]);
-
-    $this->actingAs($me)
-        ->get(route('my-competencies.index'))
-        ->assertInertia(fn (Assert $page) => $page
-            ->where('competencies.data.0.self_level', 4)
-            ->where('competencies.data.0.verified_level', 2)
-            ->where('competencies.data.0.verified_level_label', 'Basic (Dasar)'));
+            ->missing('competencies.data.0.verified_level')
+            ->missing('competencies.data.0.verification_status'));
 });
 
 test('the add dialog only offers active competencies the person does not have yet', function () {
@@ -167,10 +152,10 @@ test('two people can hold the same competency', function () {
     expect(MemberCompetency::query()->count())->toBe(2);
 });
 
-test('changing the level never touches the verified level, and the competency cannot be swapped', function () {
+test('a person can change the level but never swap the competency', function () {
     $me = User::factory()->create();
     $other = competencyInGroup('C009', 'Lain');
-    $row = MemberCompetency::factory()->verified(2)->create([
+    $row = MemberCompetency::factory()->create([
         'user_id' => $me->id,
         'competency_id' => competencyInGroup('C001', 'Analisis')->id,
         'self_level' => 1,
@@ -183,20 +168,8 @@ test('changing the level never touches the verified level, and the competency ca
 
     $row->refresh();
     expect($row->self_level)->toBe(4)
-        ->and($row->verified_level)->toBe(2)
-        ->and($row->verification_status)->toBe('PENDING')
+        ->and($row->verified_level)->toBeNull()
         ->and($row->competency_id)->toBe($originalCompetency);
-});
-
-test('a rejected verification can be removed so the person can start again', function () {
-    $me = User::factory()->create();
-    $rejected = MemberCompetency::factory()->verified()->create(['user_id' => $me->id]);
-    $rejected->forceFill(['verification_status' => 'REJECTED'])->save();
-
-    $this->actingAs($me);
-    $this->delete(route('my-competencies.destroy', $rejected))->assertRedirect();
-
-    expect(MemberCompetency::query()->whereKey($rejected->id)->exists())->toBeFalse();
 });
 
 test('nobody can change or delete someone else\'s competency', function () {
@@ -211,17 +184,18 @@ test('nobody can change or delete someone else\'s competency', function () {
     expect($row->fresh()->self_level)->toBe(2);
 });
 
-test('an unverified competency can be removed but a verified one cannot', function () {
+test('a person can remove any of their competencies, even one verified in the past', function () {
     $me = User::factory()->create();
     $loose = MemberCompetency::factory()->create(['user_id' => $me->id]);
-    $verified = MemberCompetency::factory()->verified()->create(['user_id' => $me->id]);
+    $oldVerified = MemberCompetency::factory()->create(['user_id' => $me->id]);
+    $oldVerified->forceFill(['verified_level' => 3, 'verification_status' => 'VERIFIED', 'verified_at' => now()])->save();
 
     $this->actingAs($me);
     $this->delete(route('my-competencies.destroy', $loose))->assertRedirect();
-    $this->delete(route('my-competencies.destroy', $verified))->assertRedirect();
+    $this->delete(route('my-competencies.destroy', $oldVerified))->assertRedirect();
 
     expect(MemberCompetency::query()->whereKey($loose->id)->exists())->toBeFalse()
-        ->and(MemberCompetency::query()->whereKey($verified->id)->exists())->toBeTrue();
+        ->and(MemberCompetency::query()->whereKey($oldVerified->id)->exists())->toBeFalse();
 });
 
 test('changes are audited in plain language', function () {

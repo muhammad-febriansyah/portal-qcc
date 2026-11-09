@@ -395,7 +395,6 @@ class ProposalController extends Controller
             'competencies' => $held->get($member->id)?->map(fn (MemberCompetency $row): array => [
                 'competency_id' => $row->competency_id,
                 'self_level' => $row->self_level,
-                'verified_level' => $row->activeVerifiedLevel(),
             ])->values()->all() ?? [],
         ])->all());
     }

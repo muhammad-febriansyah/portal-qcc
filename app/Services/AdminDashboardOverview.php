@@ -97,14 +97,13 @@ class AdminDashboardOverview
 
     /**
      * How many competency entries sit at each level, per competency group.
-     * The verified level counts first, otherwise the self assessed level.
      *
      * @return array{groups: list<string>, levels: array<int, array{label: non-falsy-string, data: list<int>}>}
      */
     private function competencyLevels(): array
     {
         $groups = CompetencyGroup::query()->orderBy('code')->get(['id', 'code', 'name']);
-        $effectiveLevel = 'COALESCE(member_competencies.verified_level, member_competencies.self_level)';
+        $effectiveLevel = 'member_competencies.self_level';
 
         /** @var Collection<int, object{group_id: int, level: int, total: int}> $rows */
         $rows = DB::table('member_competencies')

@@ -63,7 +63,6 @@ class DemoCandidateUiSeeder extends Seeder
 
             $leaderRole = Role::findByName('Team Leader', 'web');
             $memberRole = Role::findByName('SIMer / Member', 'web');
-            $verifiedBy = User::query()->whereHas('roles', fn ($query) => $query->where('name', 'Super Admin'))->value('id');
 
             $candidates = [
                 [
@@ -71,28 +70,28 @@ class DemoCandidateUiSeeder extends Seeder
                     'role' => $leaderRole,
                     'organization' => $organizations[0],
                     'position' => 'Team Leader Operasional',
-                    'levels' => ['C003' => [3, 3], 'C005' => [2, 2], 'C009' => [2, 1]],
+                    'levels' => ['C003' => 3, 'C005' => 2, 'C009' => 2],
                 ],
                 [
                     'name' => '[UI DEMO] Aditya Pranata',
                     'role' => $memberRole,
                     'organization' => $organizations[1],
                     'position' => 'Analis Proses',
-                    'levels' => ['C003' => [2, null], 'C005' => [3, 3], 'C009' => [1, null]],
+                    'levels' => ['C003' => 2, 'C005' => 3, 'C009' => 1],
                 ],
                 [
                     'name' => '[UI DEMO] Sari Wulandari',
                     'role' => $memberRole,
                     'organization' => $organizations[$organizations->count() > 2 ? 2 : 0],
                     'position' => 'Staf Administrasi',
-                    'levels' => ['C003' => [3, 2], 'C009' => [1, 1]],
+                    'levels' => ['C003' => 3, 'C009' => 1],
                 ],
                 [
                     'name' => '[UI DEMO] Bagas Mahendra',
                     'role' => $memberRole,
                     'organization' => $organizations[$organizations->count() > 3 ? 3 : 1],
                     'position' => 'Staf Layanan',
-                    'levels' => ['C005' => [1, null]],
+                    'levels' => ['C005' => 1],
                 ],
             ];
 
@@ -117,20 +116,13 @@ class DemoCandidateUiSeeder extends Seeder
                 ])->save();
                 $user->syncRoles([$candidateData['role']]);
 
-                foreach ($candidateData['levels'] as $code => [$selfLevel, $verifiedLevel]) {
+                foreach ($candidateData['levels'] as $code => $selfLevel) {
                     $competency = $competencies->get($code);
                     $memberCompetency = MemberCompetency::query()->firstOrNew([
                         'user_id' => $user->id,
                         'competency_id' => $competency->id,
                     ]);
-                    $memberCompetency->forceFill([
-                        'self_level' => $selfLevel,
-                        'verified_level' => $verifiedLevel,
-                        'verified_by' => $verifiedLevel === null ? null : $verifiedBy,
-                        'verified_at' => $verifiedLevel === null ? null : now(),
-                        'verification_status' => $verifiedLevel === null ? 'PENDING' : 'VERIFIED',
-                        'verification_note' => $verifiedLevel === null ? null : 'Data demo untuk pengujian UI kandidat.',
-                    ])->save();
+                    $memberCompetency->forceFill(['self_level' => $selfLevel])->save();
                 }
             }
 

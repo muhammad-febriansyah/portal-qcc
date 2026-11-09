@@ -263,8 +263,7 @@ function CandidateCard({
 
         return (
             held !== undefined &&
-            (held.verified_level ?? held.self_level) >=
-                (requirement.minimum_level ?? 0)
+            held.self_level >= (requirement.minimum_level ?? 0)
         );
     }).length;
     const matchPercentage = requirements.length
@@ -323,9 +322,7 @@ function CandidateCard({
                                 {byId[competency.competency_id]?.name}
                             </span>
                             <span className="max-w-[45%] text-right text-xs leading-snug text-muted-foreground">
-                                Mandiri {competency.self_level}
-                                {competency.verified_level !== null &&
-                                    ` · Verifikasi ${competency.verified_level}`}
+                                Level {competency.self_level}
                             </span>
                         </li>
                     ))}
@@ -459,12 +456,9 @@ function CandidateCard({
                                         competency.competency_id ===
                                         requirement.competency_id,
                                 );
-                                const effectiveLevel = held
-                                    ? (held.verified_level ?? held.self_level)
-                                    : null;
                                 const meets =
-                                    effectiveLevel !== null &&
-                                    effectiveLevel >=
+                                    held !== undefined &&
+                                    held.self_level >=
                                         (requirement.minimum_level ?? 0);
 
                                 return (
@@ -483,7 +477,7 @@ function CandidateCard({
                                                     'tidak ditentukan'}
                                                 {' · '}
                                                 {held
-                                                    ? `Self ${held.self_level}${held.verified_level !== null ? ` · Terverifikasi ${held.verified_level}` : ' · Belum diverifikasi'}`
+                                                    ? `Level ${held.self_level}`
                                                     : 'Belum tercantum di profil kompetensi'}
                                             </span>
                                         </div>
@@ -1870,8 +1864,7 @@ export default function ProposalCandidates({
                                         );
                                         return (
                                             held !== undefined &&
-                                            (held.verified_level ??
-                                                held.self_level) >=
+                                            held.self_level >=
                                                 (requirement.minimum_level ?? 0)
                                         );
                                     },
@@ -1981,21 +1974,9 @@ export default function ProposalCandidates({
                                                         </section>
                                                     )}
                                                     <section className="grid gap-3">
-                                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                                            <h3 className="text-sm font-semibold">
-                                                                Rincian
-                                                                kompetensi
-                                                            </h3>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                Level
-                                                                terverifikasi
-                                                                dipakai bila
-                                                                tersedia; jika
-                                                                belum, level
-                                                                mandiri
-                                                                ditampilkan.
-                                                            </span>
-                                                        </div>
+                                                        <h3 className="text-sm font-semibold">
+                                                            Rincian kompetensi
+                                                        </h3>
                                                         {requirements.length >
                                                         0 ? (
                                                             <ul className="grid gap-2">
@@ -2011,15 +1992,10 @@ export default function ProposalCandidates({
                                                                                     item.competency_id ===
                                                                                     requirement.competency_id,
                                                                             );
-                                                                        const level =
-                                                                            held
-                                                                                ? (held.verified_level ??
-                                                                                  held.self_level)
-                                                                                : null;
                                                                         const meets =
-                                                                            level !==
-                                                                                null &&
-                                                                            level >=
+                                                                            held !==
+                                                                                undefined &&
+                                                                            held.self_level >=
                                                                                 (requirement.minimum_level ??
                                                                                     0);
 
@@ -2046,7 +2022,7 @@ export default function ProposalCandidates({
                                                                                             'tidak ditentukan'}{' '}
                                                                                         ·{' '}
                                                                                         {held
-                                                                                            ? `Mandiri ${held.self_level}${held.verified_level !== null ? ` · Terverifikasi ${held.verified_level}` : ' · Belum diverifikasi'}`
+                                                                                            ? `Level ${held.self_level}`
                                                                                             : 'Belum ada data kompetensi'}
                                                                                     </p>
                                                                                 </div>
@@ -2110,7 +2086,7 @@ export default function ProposalCandidates({
                                                                         <p className="leading-6">
                                                                             <span className="font-medium">
                                                                                 Perlu
-                                                                                diverifikasi:
+                                                                                dipastikan:
                                                                             </span>{' '}
                                                                             {suggestion.uncertainties.join(
                                                                                 '; ',

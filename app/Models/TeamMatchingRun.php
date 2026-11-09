@@ -17,7 +17,7 @@ use Illuminate\Support\Carbon;
  *     requirements: list<array{competency_id: int, minimum_level: int|null}>,
  *     candidates: list<array{
  *         candidate_user_id: int, organization_id: int, availability_status: string|null,
- *         competencies: list<array{competency_id: int, self_level: int, verified_level: int|null}>,
+ *         competencies: list<array{competency_id: int, self_level: int}>,
  *         qcc_experience: array{projects_count: int, leader_projects_count: int, completed_projects_count: int}
  *     }>
  * }|null $candidate_snapshot_json

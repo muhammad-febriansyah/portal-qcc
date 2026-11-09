@@ -2,7 +2,6 @@ import { Head, useForm } from '@inertiajs/react';
 import {
     Activity,
     Award,
-    BadgeCheck,
     BookOpenCheck,
     Building2,
     ClipboardCheck,
@@ -58,11 +57,6 @@ const permissionLabels: Record<
         menu: 'Master Kompetensi',
         action: 'Kelola kompetensi',
         icon: BookOpenCheck,
-    },
-    'competencies.verify': {
-        menu: 'Direktori Kompetensi',
-        action: 'Verifikasi kompetensi anggota',
-        icon: BadgeCheck,
     },
     'dashboard.admin': {
         menu: 'Dashboard',
