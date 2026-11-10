@@ -52,8 +52,7 @@ test('completing the profile leads a member outside the talent pool to the compe
             'email' => $member->email,
             'position' => 'Staf Operasional',
             'work_location' => 'Jakarta',
-            'work_contact' => '0215550101',
-            'personal_contact' => '081234567890',
+            'phone_number' => '081234567890',
             'organization_id' => Organization::factory()->create(['is_active' => true])->id,
             'availability_status' => 'AVAILABLE',
         ])

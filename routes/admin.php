@@ -5,7 +5,6 @@ use App\Http\Controllers\Admin\BatchController;
 use App\Http\Controllers\Admin\BatchScheduleController;
 use App\Http\Controllers\Admin\CompetencyController;
 use App\Http\Controllers\Admin\CompetencyDirectoryController;
-use App\Http\Controllers\Admin\ReviewAssignmentController;
 use App\Http\Controllers\Admin\RolePermissionController;
 use App\Http\Controllers\Admin\RubricSetController;
 use App\Http\Controllers\Admin\ScoringController;
@@ -34,13 +33,6 @@ Route::middleware(['auth', 'verified'])
         Route::post('settings/test-ai', [SystemSettingsController::class, 'testAi'])
             ->middleware('throttle:5,1')
             ->name('settings.test-ai');
-
-        Route::get('reviewer-assignments', [ReviewAssignmentController::class, 'index'])
-            ->name('reviewer-assignments.index');
-        Route::post('reviewer-assignments', [ReviewAssignmentController::class, 'store'])
-            ->name('reviewer-assignments.store');
-        Route::patch('reviewer-assignments/{reviewAssignment}/revoke', [ReviewAssignmentController::class, 'revoke'])
-            ->name('reviewer-assignments.revoke');
 
         Route::get('roles', [RolePermissionController::class, 'index'])
             ->name('roles.index');

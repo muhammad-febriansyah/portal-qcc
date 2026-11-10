@@ -241,7 +241,7 @@ test('a member profile lists every competency of that person', function () {
 
 test('only work data is exposed, never personal contacts or secrets', function () {
     $person = person('Budi Santoso');
-    $person->forceFill(['work_contact' => '0811111', 'personal_contact' => '0822222'])->save();
+    $person->forceFill(['phone_number' => '0822222'])->save();
     holds($person, skill('C001', 'Analisis Data'), 3);
 
     $viewer = directoryViewer();
@@ -249,8 +249,7 @@ test('only work data is exposed, never personal contacts or secrets', function (
     $byMember = $this->get(route('admin.competency-directory.index', ['view' => 'member', 'member' => $person->id]))->getContent();
 
     foreach ([$byCompetency, $byMember] as $html) {
-        expect($html)->not->toContain('0811111')
-            ->and($html)->not->toContain('0822222')
+        expect($html)->not->toContain('0822222')
             ->and($html)->not->toContain('password');
     }
 });

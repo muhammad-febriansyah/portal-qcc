@@ -160,7 +160,7 @@ class MemberDashboardOverview
         $firstWithStatus = fn (ProposalStatus ...$statuses): ?Project => $proposals->first(fn (Project $project): bool => in_array($project->proposal_status, $statuses, true));
 
         if (! $hasCompetency) {
-            return ['label' => 'Isi kompetensi', 'description' => 'Masuk Talent Pool supaya Owner QCC bisa memilih Anda saat menyusun tim.', 'href' => route('my-competencies.index')];
+            return ['label' => 'Isi kompetensi', 'description' => 'Tambahkan minimal 1 kompetensi agar Anda bisa dipilih masuk tim QCC.', 'href' => route('my-competencies.index')];
         }
 
         if ($revision = $firstWithStatus(ProposalStatus::RevisionRequired)) {

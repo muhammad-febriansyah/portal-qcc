@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Concerns\Auditable;
 use App\Enums\BatchStatus;
+use Carbon\CarbonInterface;
 use Database\Factories\QccBatchFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -52,6 +53,29 @@ class QccBatch extends Model
             'status' => BatchStatus::class,
             'configuration_json' => 'array',
         ];
+    }
+
+    /**
+     * The active batch that started most recently.
+     */
+    public static function current(): ?self
+    {
+        return self::query()
+            ->where('status', BatchStatus::Active->value)
+            ->orderByDesc('starts_on')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * Members fill in their competencies until proposal submission closes at the end of phase 1.
+     * A batch without that date keeps them open.
+     */
+    public function acceptsCompetencyChanges(?CarbonInterface $today = null): bool
+    {
+        $today ??= today(config('app.timezone'));
+
+        return $this->registration_ends_on === null || $today->lte($this->registration_ends_on);
     }
 
     public function auditEventPrefix(): string

@@ -159,7 +159,9 @@ class AuditDescriber
             'evidence.created' => "{$actor} mengunggah evidence {$subject}",
             'evidence.updated' => "{$actor} memperbarui status evidence {$subject}".$fields,
             'evidence_link.created' => "{$actor} mengaitkan {$subject} ke proyek atau step",
-            'review_assignment.created' => "{$actor} menugaskan reviewer untuk {$subject}",
+            'review_assignment.created' => ($log->after_json['granted_by'] ?? null) === null
+                ? "Div/LOB Head otomatis ditugaskan sebagai reviewer untuk {$subject}"
+                : "{$actor} menugaskan reviewer untuk {$subject}",
             'review_assignment.updated' => "{$actor} memperbarui penugasan reviewer {$subject}".$fields,
             'review_assignment.revoked' => "{$actor} mencabut penugasan reviewer {$subject}",
             default => "{$actor}: ".$log->eventLabel().($log->subject_label ? " ({$subject})" : ''),

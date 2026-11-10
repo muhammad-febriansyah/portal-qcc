@@ -118,7 +118,7 @@ type Props = {
     batches: BatchOption[];
     drafts: DraftOption[];
     qccSteps: QccStepOption[];
-    themeCategories?: { value: string; label: string }[];
+    themeCategories?: { value: string; label: string; description: string }[];
     competencyOptions?: RequirementCompetencyOption[];
     requirements?: ProjectRequirement[];
     levelOptions?: { value: number; label: string }[];
@@ -544,6 +544,9 @@ export default function ProposalWizard({
         (batch) => String(batch.id) === form.data.batch_id,
     );
     const batchName = selectedBatch?.name ?? '';
+    const selectedThemeCategory = themeCategories.find(
+        (category) => category.value === form.data.theme_category,
+    );
 
     function renderStepFields(stepNumber: number): React.ReactNode {
         if (stepNumber === 1) {
@@ -552,17 +555,10 @@ export default function ProposalWizard({
                     <FormField
                         id="proposal-title"
                         label="Judul Proposal"
-                        hint="Jelas, spesifik, dan menggambarkan apa yang akan diubah dari kondisi x (kondisi saat ini) ke y (kondisi yang diharapkan) dengan target waktu penyelesaian (bulan & tahun)."
+                        hint="Tuliskan judul yang menggambarkan permasalahan atau peluang perbaikan yang ingin dicapai. Buat secara spesifik, jelas, dan menunjukkan arah hasil yang diharapkan."
+                        example="Meningkatkan Revenue Value Added Service pada Klien Handle LOB MSM Labour dari 18 Juta pada Bulan Oktober 2025 menjadi 1,5 Miliar pada Closing Bulan April 2026"
                         required
                         error={fieldError('title')}
-                        footer={
-                            <p className="text-xs text-muted-foreground">
-                                Contoh: Meningkatkan Revenue Value Added Service
-                                pada Klien Handle LOB MSM Labour dari 18 Juta
-                                pada Bulan Oktober 2025 menjadi 1,5 Miliar pada
-                                Closing Bulan April 2026
-                            </p>
-                        }
                     >
                         <Input
                             value={form.data.title}
@@ -574,7 +570,7 @@ export default function ProposalWizard({
                             className={controlClassName}
                         />
                     </FormField>
-                    <div className="grid gap-6 sm:grid-cols-2">
+                    <div className="grid items-start gap-6 sm:grid-cols-2">
                         <FormField
                             id="proposal-batch"
                             label="Batch QCC"
@@ -621,6 +617,16 @@ export default function ProposalWizard({
                             hint="Jenis improvement yang dituju proposal ini."
                             required
                             error={fieldError('theme_category')}
+                            footer={
+                                selectedThemeCategory ? (
+                                    <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                                        <span className="font-medium text-foreground">
+                                            Definisi:{' '}
+                                        </span>
+                                        {selectedThemeCategory.description}
+                                    </p>
+                                ) : null
+                            }
                         >
                             <Select
                                 value={form.data.theme_category}
@@ -644,8 +650,16 @@ export default function ProposalWizard({
                                             <SelectItem
                                                 key={category.value}
                                                 value={category.value}
+                                                className="py-1.5"
                                             >
-                                                {category.label}
+                                                <span className="flex flex-col gap-0.5">
+                                                    <span>
+                                                        {category.label}
+                                                    </span>
+                                                    <span className="text-xs leading-snug text-muted-foreground">
+                                                        {category.description}
+                                                    </span>
+                                                </span>
                                             </SelectItem>
                                         ))}
                                     </SelectGroup>
@@ -656,7 +670,8 @@ export default function ProposalWizard({
                     <FormField
                         id="proposal-theme"
                         label="Tema Improvement"
-                        hint="Uraikan permasalahan atau peluang perbaikan yang menjadi fokus project."
+                        hint="Arah peluang perbaikan yang paling sesuai dengan dampak atau kontribusi utama yang ingin dihasilkan proyek terhadap perusahaan."
+                        example="Optimalisasi Value Added Service untuk meningkatkan revenue"
                         required
                         error={fieldError('theme')}
                     >
@@ -680,7 +695,7 @@ export default function ProposalWizard({
                     <FormField
                         id="proposal-background"
                         label="Latar Belakang"
-                        hint="Mengapa proyek ini penting dilakukan, apa masalah utama/tantangan yang dihadapi tim atau divisi saat ini, dan dampak jika masalah tidak segera diperbaiki."
+                        hint="Jelaskan alasan mengapa proyek ini penting untuk dilakukan. Gambarkan permasalahan, kondisi, atau peluang yang melatarbelakangi munculnya ide proyek serta dampaknya terhadap perusahaan."
                         required
                         error={fieldError('background')}
                     >
@@ -693,7 +708,7 @@ export default function ProposalWizard({
                     <FormField
                         id="proposal-situation"
                         label="Situasi Saat Ini & Baseline"
-                        hint="Proses dan kondisi yang berjalan sekarang, lengkap dengan angka awal dan periode pengukurannya."
+                        hint="Tampilkan kondisi aktual sebelum perbaikan dilakukan dengan data kuantitatif maupun kualitatif. Pastikan baseline memiliki periode pengukuran dan sumber data yang jelas."
                         required
                         error={fieldError('current_situation')}
                     >
@@ -715,7 +730,8 @@ export default function ProposalWizard({
                     <FormField
                         id="proposal-improvement"
                         label="Rencana Perbaikan / Arah Solusi / Improvement"
-                        hint="Tindakan atau arah solusi yang direncanakan untuk mencapai target."
+                        hint="Jelaskan area yang akan dieksplorasi untuk menghasilkan perbaikan. Bukan merupakan solusi final sebelum akar penyebab dan peluang perbaikan dianalisis."
+                        example="Mengeksplorasi potensi peningkatan pendapatan melalui optimalisasi layanan tambahan kepada klien, termasuk mengidentifikasi peluang layanan yang dapat dikembangkan dan faktor-faktor yang memengaruhi pemanfaatannya."
                         required
                         error={fieldError('improvement_plan')}
                     >
@@ -731,7 +747,7 @@ export default function ProposalWizard({
                         <FormField
                             id="proposal-target"
                             label="Target / Tujuan"
-                            hint="Angka yang ingin dicapai dan cara mengukurnya."
+                            hint="Tentukan hasil yang ingin dicapai secara spesifik dan terukur dengan konsep SMART (Specific, Measurable, Achievable, Relevant, Time-bound)."
                             required
                             error={fieldError('target')}
                         >
@@ -744,7 +760,7 @@ export default function ProposalWizard({
                         <FormField
                             id="proposal-scope"
                             label="Ruang Lingkup Proyek"
-                            hint="Proses, area, dan periode yang termasuk."
+                            hint="Tentukan batasan proyek, termasuk proses, aktivitas, area kerja, objek, dan pihak yang terlibat agar pelaksanaan proyek tetap fokus."
                             required
                             error={fieldError('scope')}
                         >
@@ -765,7 +781,7 @@ export default function ProposalWizard({
                     <FormField
                         id="proposal-supplementary-information"
                         label="Informasi dan Data Pelengkap"
-                        hint="Fakta, data, atau konteks proyek yang belum tercakup. Ringkasan ini dapat dipakai AI Team Matching; jangan masukkan data pribadi yang tidak diperlukan."
+                        hint="Cantumkan informasi atau data pendukung yang membantu memahami proyek, seperti grafik, foto kondisi aktual, laporan, hasil observasi, data historis, atau dokumen terkait. Jangan masukkan data pribadi yang tidak diperlukan."
                         error={fieldError('supplementary_information')}
                     >
                         <RichTextarea

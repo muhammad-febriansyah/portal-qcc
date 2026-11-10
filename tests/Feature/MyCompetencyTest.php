@@ -5,6 +5,7 @@ use App\Models\AuditLog;
 use App\Models\Competency;
 use App\Models\CompetencyGroup;
 use App\Models\MemberCompetency;
+use App\Models\QccBatch;
 use App\Models\User;
 use App\Services\AuditDescriber;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -240,4 +241,65 @@ test('skills retired from the dictionary no longer show or count for the person'
         ->assertInertia(fn (Assert $page) => $page
             ->has('competencies.data', 0)
             ->where('competencyCount', 0));
+});
+
+test('competencies lock once proposal submission of the current batch closes', function () {
+    $this->travelTo('2026-11-10');
+    QccBatch::factory()->active()->create(['starts_on' => '2026-10-01', 'registration_starts_on' => '2026-10-01', 'registration_ends_on' => '2026-11-09']);
+    $me = User::factory()->create();
+    $row = MemberCompetency::factory()->create(['user_id' => $me->id, 'self_level' => 2]);
+    $fresh = competencyInGroup('C002', 'Baru');
+
+    $this->actingAs($me);
+
+    $this->post(route('my-competencies.store'), ['competency_id' => $fresh->id, 'self_level' => 3])->assertForbidden();
+    $this->put(route('my-competencies.update', $row), ['self_level' => 4])->assertForbidden();
+    $this->delete(route('my-competencies.destroy', $row))->assertForbidden();
+
+    expect($row->fresh()->self_level)->toBe(2)
+        ->and(MemberCompetency::query()->where('user_id', $me->id)->count())->toBe(1);
+
+    $this->get(route('my-competencies.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('editingIsOpen', false)
+            ->where('editingClosesOn', '2026-11-09')
+            ->has('competencyOptions', 0)
+            ->has('competencies.data', 1));
+});
+
+test('competencies stay editable through the last day of proposal submission', function () {
+    $this->travelTo('2026-11-09 23:00');
+    QccBatch::factory()->active()->create(['starts_on' => '2026-10-01', 'registration_starts_on' => '2026-10-01', 'registration_ends_on' => '2026-11-09']);
+    $me = User::factory()->create();
+    $row = MemberCompetency::factory()->create(['user_id' => $me->id, 'self_level' => 2]);
+
+    $this->actingAs($me)
+        ->put(route('my-competencies.update', $row), ['self_level' => 4])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+
+    expect($row->fresh()->self_level)->toBe(4);
+
+    $this->get(route('my-competencies.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('editingIsOpen', true)
+            ->where('editingClosesOn', '2026-11-09'));
+});
+
+test('competencies stay editable without an active batch or a submission deadline', function () {
+    $this->travelTo('2026-11-10');
+    QccBatch::factory()->closed()->create(['registration_starts_on' => '2026-10-01', 'registration_ends_on' => '2026-10-31']);
+    $me = User::factory()->create();
+    $competency = competencyInGroup('C001', 'Analisis Data');
+
+    $this->actingAs($me)
+        ->post(route('my-competencies.store'), ['competency_id' => $competency->id, 'self_level' => 3])
+        ->assertSessionHasNoErrors();
+
+    QccBatch::factory()->active()->create(['starts_on' => '2026-10-01']);
+
+    $this->get(route('my-competencies.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('editingIsOpen', true)
+            ->where('editingClosesOn', null));
 });

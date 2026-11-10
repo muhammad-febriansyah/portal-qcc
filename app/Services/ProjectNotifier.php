@@ -69,7 +69,6 @@ class ProjectNotifier
                     ->where('project_id', $project->id)
                     ->where('scope', $scope));
             })
-            ->when($scope === 'proposal', fn ($query) => $query->whereDoesntHave('roles', fn ($roles) => $roles->where('name', 'Mentor')))
             ->get();
 
         if ($scope === 'proposal') {

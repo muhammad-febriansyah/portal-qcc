@@ -12,7 +12,6 @@ import {
     SlidersHorizontal,
     Users,
     UsersRound,
-    UserRoundCog,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { dashboard } from '@/routes';
@@ -27,7 +26,6 @@ import { index as organizationsIndex } from '@/routes/admin/organizations';
 import { index as rolesIndex } from '@/routes/admin/roles';
 import { index as systemSettingsIndex } from '@/routes/admin/settings';
 import { index as usersIndex } from '@/routes/admin/users';
-import { index as reviewerAssignmentsIndex } from '@/routes/admin/reviewer-assignments';
 import { index as qccProjectsIndex } from '@/routes/qcc-projects';
 import type { NavSection, SidebarItem } from '@/types';
 
@@ -135,12 +133,6 @@ const roleSections: Record<string, NavSection[]> = {
                     title: 'Proyek QCC',
                     href: qccProjectsIndex(),
                     icon: FolderKanban,
-                },
-                {
-                    title: 'Penugasan Reviewer',
-                    href: reviewerAssignmentsIndex(),
-                    icon: UserRoundCog,
-                    permission: 'review-assignments.manage',
                 },
             ],
         },

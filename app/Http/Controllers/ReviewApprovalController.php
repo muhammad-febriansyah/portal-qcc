@@ -26,7 +26,7 @@ class ReviewApprovalController extends Controller
 
         $hasAssignment = fn (string $scope): bool => ReviewAssignment::query()->active()
             ->where('reviewer_id', $user->id)->where('scope', $scope)->exists();
-        $canReviewProposal = ! $isMentor && ($user->can('projects.review') || $user->can('projects.approve'))
+        $canReviewProposal = ($user->can('projects.review') || $user->can('projects.approve'))
             && ($user->can('projects.viewAny') || $hasAssignment('proposal'));
         $canReviewSteps = ($user->can('projects.review') || $user->can('projects.approve'))
             && ($isMentor

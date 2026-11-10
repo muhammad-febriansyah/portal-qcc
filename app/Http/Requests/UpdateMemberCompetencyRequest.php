@@ -4,18 +4,20 @@ namespace App\Http\Requests;
 
 use App\Enums\CompetencyLevel;
 use App\Models\MemberCompetency;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 class UpdateMemberCompetencyRequest extends FormRequest
 {
-    public function authorize(): bool
+    public function authorize(): Response
     {
         /** @var MemberCompetency $memberCompetency */
         $memberCompetency = $this->route('memberCompetency');
 
-        return $this->user()?->can('update', $memberCompetency) ?? false;
+        return Gate::inspect('update', $memberCompetency);
     }
 
     /**

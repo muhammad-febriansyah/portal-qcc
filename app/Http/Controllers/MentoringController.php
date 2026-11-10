@@ -22,8 +22,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Owner QCC assigns mentors; active mentors can review and approve 8 Step work
- * through the dedicated step workflow.
+ * The proposer's Div/LOB head is the project's mentor, assigned on submission and locked;
+ * active mentors can review and approve 8 Step work through the dedicated step workflow.
  */
 class MentoringController extends Controller
 {
@@ -74,69 +74,9 @@ class MentoringController extends Controller
             ])->all(),
             'members' => $project->members()->wherePivot('status', 'ACTIVE')->wherePivotNull('left_at')->orderBy('users.name')->get(['users.id', 'users.name'])
                 ->map(fn (User $member): array => ['value' => (string) $member->id, 'label' => $member->name])->all(),
-            'mentor_options' => $user->can('assignMentors', $project)
-                ? User::role('Mentor')->where('is_active', true)
-                    ->whereNotIn('id', $project->mentorAssignments()->where('status', 'ACTIVE')->pluck('mentor_id'))
-                    ->orderBy('name')->get(['id', 'name'])->map(fn (User $mentor): array => ['value' => (string) $mentor->id, 'label' => $mentor->name])->all()
-                : [],
-            'can_assign' => $user->can('assignMentors', $project),
             'can_write' => $canWrite,
             'is_team_leader' => $isTeamLeader,
         ]);
-    }
-
-    public function assign(Request $request, Project $project): RedirectResponse
-    {
-        Gate::authorize('assignMentors', $project);
-
-        $data = $request->validate([
-            'mentor_id' => ['required', 'integer', Rule::exists('users', 'id')->where('is_active', true)],
-        ], ['mentor_id.required' => 'Pilih mentor.']);
-
-        $mentor = User::query()->whereKey((int) $data['mentor_id'])->firstOrFail();
-
-        DB::transaction(function () use ($request, $project, $mentor): void {
-            Project::query()->whereKey($project->id)->lockForUpdate()->first();
-
-            if (! $mentor->hasRole('Mentor')) {
-                throw ValidationException::withMessages(['mentor_id' => 'Pengguna ini bukan Mentor.']);
-            }
-
-            if ($project->mentorAssignments()->where('mentor_id', $mentor->id)->where('status', 'ACTIVE')->exists()) {
-                throw ValidationException::withMessages(['mentor_id' => 'Mentor ini sudah ditugaskan di proyek ini.']);
-            }
-
-            $assignment = ProjectMentor::query()->create([
-                'project_id' => $project->id, 'mentor_id' => $mentor->id, 'assigned_by' => $request->user()->id,
-                'status' => 'ACTIVE', 'assigned_at' => now(),
-            ]);
-
-            $this->audit->record('mentor.assigned', $assignment, after: ['mentor_id' => $mentor->id], subjectLabel: "{$mentor->name} untuk proposal PRP-".sprintf('%04d', $project->id));
-
-            $this->notifier->notify([$mentor], $project, 'Anda ditugaskan sebagai mentor', "Anda ditugaskan sebagai mentor untuk proyek {$project->title}.", route('projects.mentoring.index', $project, false), 'MENTOR_ASSIGNED', $request->user());
-            $this->notifier->notify($this->notifier->leaders($project), $project, 'Mentor ditugaskan', "{$mentor->name} ditugaskan sebagai mentor untuk proyek {$project->title}.", route('projects.mentoring.index', $project, false), 'MENTOR_ASSIGNED', $request->user());
-        });
-
-        return $this->done($project, 'Mentor berhasil ditugaskan.');
-    }
-
-    public function endAssignment(Request $request, Project $project, ProjectMentor $assignment): RedirectResponse
-    {
-        Gate::authorize('assignMentors', $project);
-        abort_unless($assignment->project_id === $project->id, 404);
-
-        DB::transaction(function () use ($project, $assignment): void {
-            $assignment = ProjectMentor::query()->lockForUpdate()->findOrFail($assignment->id);
-
-            if ($assignment->status !== 'ACTIVE') {
-                throw ValidationException::withMessages(['assignment' => 'Penugasan ini sudah berakhir.']);
-            }
-
-            $assignment->forceFill(['status' => 'ENDED', 'ended_at' => now()])->save();
-            $this->audit->record('mentor.unassigned', $assignment, subjectLabel: 'Mentor proposal PRP-'.sprintf('%04d', $project->id));
-        });
-
-        return $this->done($project, 'Penugasan mentor diakhiri.');
     }
 
     public function store(Request $request, Project $project): RedirectResponse

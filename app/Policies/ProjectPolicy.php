@@ -94,11 +94,6 @@ class ProjectPolicy
                 && $report->project_mentor_id === $project->mentorAssignments()->where('mentor_id', $user->id)->where('status', 'ACTIVE')->value('id'));
     }
 
-    public function assignMentors(User $user, Project $project): bool
-    {
-        return $user->can('projects.review') && $user->can('projects.viewAny');
-    }
-
     public function writeMentoring(User $user, Project $project): bool
     {
         return ($user->hasRole('Mentor') && $user->can('projects.view') && $this->isAssignedMentor($user, $project))
@@ -116,17 +111,18 @@ class ProjectPolicy
             && ($user->can('projects.viewAny') || $this->hasReviewAssignment($user, $project, ['proposal', 'steps', 'biweekly']));
     }
 
+    /**
+     * Mentors only decide proposals they were assigned as Div/LOB head.
+     */
     public function reviewProposal(User $user, Project $project): bool
     {
-        return ! $user->hasRole('Mentor')
-            && $user->can('projects.review')
+        return $user->can('projects.review')
             && ($user->can('projects.viewAny') || $this->hasReviewAssignment($user, $project, ['proposal']));
     }
 
     public function approveProposal(User $user, Project $project): bool
     {
-        return ! $user->hasRole('Mentor')
-            && $user->can('projects.approve')
+        return $user->can('projects.approve')
             && ($user->can('projects.viewAny') || $this->hasReviewAssignment($user, $project, ['proposal']));
     }
 

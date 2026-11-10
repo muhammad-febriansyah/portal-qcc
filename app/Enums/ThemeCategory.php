@@ -27,12 +27,27 @@ enum ThemeCategory: string
     }
 
     /**
-     * @return list<array{value: string, label: string}>
+     * What kind of project belongs in the category, shown while choosing one.
+     */
+    public function description(): string
+    {
+        return match ($this) {
+            self::NewRevenueStream => 'Proyek yang menciptakan sumber pendapatan baru melalui layanan tambahan, paket layanan terintegrasi, pemanfaatan kapabilitas atau teknologi, model bisnis baru, maupun perluasan pasar.',
+            self::QualityCustomerExperience => 'Proyek yang meningkatkan kualitas produk/layanan, akurasi proses, serta kepuasan pelanggan dengan mengurangi error, komplain, dan meningkatkan service level.',
+            self::CostEfficiency => 'Proyek yang mengurangi biaya, pemborosan (waste), dan mengoptimalkan penggunaan resource melalui proses yang lebih efisien.',
+            self::Productivity => 'Proyek yang meningkatkan output, kapasitas, efektivitas, dan produktivitas sumber daya (manpower, material, equipment, time).',
+            self::DeliveryServiceExcellence => 'Proyek yang meningkatkan ketepatan waktu, kecepatan, keandalan, dan pemenuhan layanan (SLA).',
+            self::SafetyRiskCompliance => 'Proyek yang memperkuat keselamatan kerja, pengendalian risiko, kepatuhan terhadap regulasi, dan pengendalian proses untuk memastikan operasional yang aman, andal, dan berkelanjutan.',
+        };
+    }
+
+    /**
+     * @return list<array{value: string, label: string, description: string}>
      */
     public static function options(): array
     {
         return array_map(
-            fn (self $category): array => ['value' => $category->value, 'label' => $category->label()],
+            fn (self $category): array => ['value' => $category->value, 'label' => $category->label(), 'description' => $category->description()],
             self::cases(),
         );
     }

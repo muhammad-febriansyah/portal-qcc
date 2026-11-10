@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Proposals\AssignOrganizationHead;
 use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
 use App\Enums\TeamMatchingStatus;
@@ -12,7 +13,9 @@ use App\Models\QccBatch;
 use App\Models\ReviewDecision;
 use App\Models\TeamMatchingRun;
 use App\Models\User;
+use App\Services\AuditDescriber;
 use App\Services\Teams\CandidateShortlist;
+use Database\Seeders\ProjectAccessSeeder;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
@@ -235,4 +238,80 @@ test('the proposer is told when the proposal is rejected', function () {
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Rejected)
         ->and($proposer->notifications()->where('data->decision', 'REJECT')->value('data')['message'])->toContain('Catatan reviewer: Di luar ruang lingkup batch.');
+});
+
+test('the proposer\'s Div/LOB head becomes the locked reviewer and mentor on submission', function () {
+    $this->seed(ProjectAccessSeeder::class);
+    [$project, $proposer] = preparedProposal();
+    $head = User::factory()->create(['name' => 'Kepala HCGS Cordev']);
+    $proposer->organization->update(['head_id' => $head->id]);
+
+    $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertRedirect();
+
+    expect($head->fresh()->hasRole('Mentor'))->toBeTrue();
+    $this->assertDatabaseHas('review_assignments', [
+        'project_id' => $project->id, 'reviewer_id' => $head->id, 'scope' => 'proposal', 'status' => 'ACTIVE', 'granted_by' => null,
+    ]);
+    $this->assertDatabaseHas('project_mentors', [
+        'project_id' => $project->id, 'mentor_id' => $head->id, 'status' => 'ACTIVE', 'assigned_by' => null,
+    ]);
+    expect($head->notifications()->where('data->decision', 'SUBMITTED')->count())->toBe(1);
+
+    $log = AuditLog::query()->where('event', 'review_assignment.created')->sole();
+    expect((new AuditDescriber)->describe($log))->toStartWith('Div/LOB Head otomatis ditugaskan sebagai reviewer untuk');
+
+    $this->actingAs($head->fresh())->post(route('proposals.review.start', $project))->assertRedirect();
+    $this->post(route('proposals.review.decide', $project), ['decision' => 'APPROVE'])->assertRedirect();
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Approved);
+
+    $proposer->organization->update(['head_id' => User::factory()->create()->id]);
+    app(AssignOrganizationHead::class)->handle($project->fresh());
+
+    expect($project->mentorAssignments()->pluck('mentor_id')->all())->toBe([$head->id]);
+});
+
+test('no head is assigned when the organization has none or the proposer heads it', function () {
+    $this->seed(ProjectAccessSeeder::class);
+    [$project, $proposer] = preparedProposal();
+    [$secondProject, $secondProposer] = preparedProposal();
+    $secondProposer->organization->update(['head_id' => $secondProposer->id]);
+
+    $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertRedirect();
+    $this->actingAs($secondProposer)->post(route('proposals.submit', $secondProject))->assertRedirect();
+
+    $this->assertDatabaseCount('project_mentors', 0);
+    $this->assertDatabaseCount('review_assignments', 0);
+});
+
+test('setting an organization head assigns it to waiting proposals that have no mentor yet', function () {
+    $this->seed(ProjectAccessSeeder::class);
+    [$project, $proposer] = preparedProposal();
+    $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertRedirect();
+    $head = User::factory()->create();
+    $admin = User::factory()->create();
+    $admin->givePermissionTo(Permission::findOrCreate('organizations.manage', 'web'));
+
+    $this->actingAs($admin)
+        ->patch(route('admin.organizations.update', $proposer->organization), ['head_id' => $head->id])
+        ->assertRedirect(route('admin.organizations.index'));
+
+    expect($head->fresh()->hasRole('Mentor'))->toBeTrue();
+    $this->assertDatabaseHas('project_mentors', ['project_id' => $project->id, 'mentor_id' => $head->id, 'status' => 'ACTIVE']);
+    $this->assertDatabaseHas('review_assignments', ['project_id' => $project->id, 'reviewer_id' => $head->id, 'scope' => 'proposal']);
+
+    $this->get(route('admin.organizations.index', ['search' => $proposer->organization->code]))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('organizations.data.0.head_id', $head->id)
+            ->where('organizations.data.0.head_name', $head->name)
+            ->has('headOptions'));
+});
+
+test('reviewers and mentors can no longer be assigned by hand', function () {
+    $project = Project::factory()->status(ProposalStatus::Approved)->create();
+    $owner = User::factory()->create();
+    $owner->assignRole(Role::findOrCreate('Owner QCC', 'web'));
+
+    $this->actingAs($owner);
+    $this->post('/admin/reviewer-assignments', ['project_id' => $project->id])->assertNotFound();
+    $this->post("/projects/{$project->id}/mentoring/assignments", ['mentor_id' => $owner->id])->assertNotFound();
 });

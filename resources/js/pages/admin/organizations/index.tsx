@@ -9,6 +9,14 @@ import { FormField } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { useAppName } from '@/hooks/use-app-name';
 import { Badge } from '@/components/ui/badge';
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxList,
+} from '@/components/ui/combobox';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -39,6 +47,14 @@ type OrganizationRow = {
     code: string;
     name: string;
     is_active: boolean;
+    head_id: number | null;
+    head_name: string | null;
+};
+
+type HeadOption = {
+    id: number;
+    name: string;
+    email: string;
 };
 
 type OrganizationFilters = {
@@ -61,11 +77,13 @@ type OrganizationPageProps = {
         total: number;
     };
     filters: OrganizationFilters;
+    headOptions: HeadOption[];
 };
 
 export default function OrganizationsIndex({
     organizations,
     filters,
+    headOptions,
 }: OrganizationPageProps) {
     const appName = useAppName();
     const [searchValue, setSearchValue] = useState(filters.search);
@@ -73,9 +91,15 @@ export default function OrganizationsIndex({
     const [isLoading, setIsLoading] = useState(false);
     const [editingOrganization, setEditingOrganization] =
         useState<OrganizationRow | null>(null);
-    const form = useForm({
+    const form = useForm<{
+        code: string;
+        name: string;
+        head_id: number | null;
+        is_active: boolean;
+    }>({
         code: '',
         name: '',
+        head_id: null,
         is_active: true,
     });
 
@@ -124,7 +148,7 @@ export default function OrganizationsIndex({
     function openCreateDialog(): void {
         setEditingOrganization(null);
         form.resetAndClearErrors();
-        form.setData({ code: '', name: '', is_active: true });
+        form.setData({ code: '', name: '', head_id: null, is_active: true });
         setIsDialogOpen(true);
     }
 
@@ -134,6 +158,7 @@ export default function OrganizationsIndex({
         form.setData({
             code: organization.code,
             name: organization.name,
+            head_id: organization.head_id,
             is_active: organization.is_active,
         });
         setIsDialogOpen(true);
@@ -195,6 +220,16 @@ export default function OrganizationsIndex({
                 accessorKey: 'name',
                 header: 'Nama Organisasi',
                 cell: ({ row }) => row.original.name,
+            },
+            {
+                id: 'head',
+                header: 'Div/LOB Head',
+                cell: ({ row }) =>
+                    row.original.head_name ?? (
+                        <span className="text-muted-foreground">
+                            Belum diatur
+                        </span>
+                    ),
             },
             {
                 id: 'is_active',
@@ -413,6 +448,60 @@ export default function OrganizationsIndex({
                                 autoComplete="organization"
                                 maxLength={255}
                             />
+                        </FormField>
+                        <FormField
+                            id="head_id"
+                            label="Div/LOB Head"
+                            hint="Otomatis menjadi mentor dan reviewer setiap proposal yang diajukan anggota organisasi ini."
+                            error={form.errors.head_id}
+                        >
+                            <Combobox
+                                items={headOptions}
+                                value={
+                                    headOptions.find(
+                                        (option) =>
+                                            option.id === form.data.head_id,
+                                    ) ?? null
+                                }
+                                onValueChange={(option: HeadOption | null) =>
+                                    form.setData('head_id', option?.id ?? null)
+                                }
+                                itemToStringLabel={(option: HeadOption) =>
+                                    option.name
+                                }
+                                isItemEqualToValue={(
+                                    a: HeadOption,
+                                    b: HeadOption,
+                                ) => a.id === b.id}
+                            >
+                                <ComboboxInput
+                                    id="head_id"
+                                    placeholder="Cari nama pengguna"
+                                    aria-label="Pilih Div/LOB Head"
+                                    aria-invalid={Boolean(form.errors.head_id)}
+                                    showClear
+                                />
+                                <ComboboxContent>
+                                    <ComboboxEmpty>
+                                        Pengguna tidak ditemukan.
+                                    </ComboboxEmpty>
+                                    <ComboboxList>
+                                        {(option: HeadOption) => (
+                                            <ComboboxItem
+                                                key={option.id}
+                                                value={option}
+                                            >
+                                                <span className="flex min-w-0 flex-col">
+                                                    <span>{option.name}</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {option.email}
+                                                    </span>
+                                                </span>
+                                            </ComboboxItem>
+                                        )}
+                                    </ComboboxList>
+                                </ComboboxContent>
+                            </Combobox>
                         </FormField>
                         <FormField
                             id="is_active"

@@ -32,8 +32,7 @@ test('profile information can be updated', function () {
             'email' => 'test@example.com',
             'position' => 'Staff Operasional',
             'work_location' => 'Jakarta',
-            'work_contact' => '0215550101',
-            'personal_contact' => '081234567890',
+            'phone_number' => '081234567890',
             'organization_id' => $organization->id,
         ]);
 
@@ -47,23 +46,20 @@ test('profile information can be updated', function () {
     expect($user->email)->toBe('test@example.com');
     expect($user->position)->toBe('Staff Operasional');
     expect($user->work_location)->toBe('Jakarta');
-    expect($user->work_contact)->toBe('0215550101');
-    expect($user->personal_contact)->toBe('081234567890');
+    expect($user->phone_number)->toBe('081234567890');
     expect($user->organization_id)->toBe($organization->id);
     expect($user->email_verified_at)->toBeNull();
 
     $this->actingAs($user)
         ->get(route('profile.edit'))
         ->assertInertia(fn ($page) => $page
-            ->where('profile.work_contact', '0215550101')
-            ->where('profile.personal_contact', '081234567890'));
+            ->where('profile.phone_number', '081234567890')
+            ->missing('profile.work_contact')
+            ->missing('profile.personal_contact'));
 });
 
-test('work and personal contacts are required and existing contacts stay unchanged after invalid input', function () {
-    $user = User::factory()->create([
-        'work_contact' => '02111112222',
-        'personal_contact' => '08111112222',
-    ]);
+test('the mobile number is required, must look like a phone number and stays unchanged after invalid input', function () {
+    $user = User::factory()->create(['phone_number' => '08111112222']);
     $organization = Organization::factory()->create(['is_active' => true]);
 
     $this->actingAs($user)
@@ -75,10 +71,20 @@ test('work and personal contacts are required and existing contacts stay unchang
             'work_location' => 'Jakarta',
             'organization_id' => $organization->id,
         ])
-        ->assertSessionHasErrors(['work_contact', 'personal_contact']);
+        ->assertSessionHasErrors(['phone_number' => 'Nomor handphone wajib diisi.']);
 
-    expect($user->fresh()->work_contact)->toBe('02111112222')
-        ->and($user->fresh()->personal_contact)->toBe('08111112222');
+    foreach (['0812-abc-999', '12345', '0812 3456 7890 1234 5678'] as $invalidNumber) {
+        $this->patch(route('profile.update'), [
+            'name' => $user->name,
+            'email' => $user->email,
+            'position' => 'Staff Operasional',
+            'work_location' => 'Jakarta',
+            'organization_id' => $organization->id,
+            'phone_number' => $invalidNumber,
+        ])->assertSessionHasErrors('phone_number');
+    }
+
+    expect($user->fresh()->phone_number)->toBe('08111112222');
 });
 
 test('email verification status is unchanged when the email address is unchanged', function () {
@@ -92,8 +98,7 @@ test('email verification status is unchanged when the email address is unchanged
             'email' => $user->email,
             'position' => 'Staff Operasional',
             'work_location' => 'Jakarta',
-            'work_contact' => '0215550102',
-            'personal_contact' => '081234567891',
+            'phone_number' => '081234567891',
             'organization_id' => $organization->id,
         ]);
 
@@ -114,8 +119,7 @@ test('saving the profile keeps the stored availability', function () {
             'email' => $user->email,
             'position' => 'Staff Operasional',
             'work_location' => 'HO Kebagusan',
-            'work_contact' => '0215550103',
-            'personal_contact' => '081234567892',
+            'phone_number' => '081234567892',
             'organization_id' => $organization->id,
             'availability_status' => 'AVAILABLE',
         ])
@@ -136,8 +140,7 @@ test('inactive organizations cannot be selected in a profile', function () {
             'email' => $user->email,
             'position' => 'Staff Operasional',
             'work_location' => 'Jakarta',
-            'work_contact' => '0215550104',
-            'personal_contact' => '081234567893',
+            'phone_number' => '081234567893',
             'organization_id' => $organization->id,
         ]);
 

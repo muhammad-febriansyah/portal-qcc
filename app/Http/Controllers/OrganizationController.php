@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Proposals\AssignOrganizationHead;
 use App\Http\Requests\StoreOrganizationRequest;
 use App\Http\Requests\UpdateOrganizationRequest;
 use App\Models\Organization;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,7 +37,8 @@ class OrganizationController extends Controller
         $perPage = (int) ($filters['per_page'] ?? 10);
 
         $organizations = Organization::query()
-            ->select(['id', 'code', 'name', 'is_active'])
+            ->select(['id', 'code', 'name', 'head_id', 'is_active'])
+            ->with('head:id,name,email')
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('code', 'like', "%{$search}%")
@@ -50,7 +53,20 @@ class OrganizationController extends Controller
             ->withQueryString();
 
         return Inertia::render('admin/organizations/index', [
-            'organizations' => $organizations,
+            'organizations' => $organizations->through(fn (Organization $organization): array => [
+                'id' => $organization->id,
+                'code' => $organization->code,
+                'name' => $organization->name,
+                'is_active' => $organization->is_active,
+                'head_id' => $organization->head_id,
+                'head_name' => $organization->head?->name,
+            ]),
+            'headOptions' => User::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email'])
+                ->map(fn (User $user): array => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email])
+                ->all(),
             'filters' => [
                 'search' => $search,
                 'status' => $status,
@@ -66,7 +82,8 @@ class OrganizationController extends Controller
      */
     public function store(StoreOrganizationRequest $request): RedirectResponse
     {
-        Organization::query()->create($request->validated());
+        $organization = Organization::query()->create($request->validated());
+        $this->prepareHead($organization);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Organisasi berhasil ditambahkan.']);
 
@@ -79,10 +96,27 @@ class OrganizationController extends Controller
     public function update(UpdateOrganizationRequest $request, Organization $organization): RedirectResponse
     {
         $organization->update($request->validated());
+        $this->prepareHead($organization);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Organisasi berhasil diperbarui.']);
 
         return to_route('admin.organizations.index');
+    }
+
+    /**
+     * A head gets the Mentor permissions right away, and proposals still without a mentor get
+     * the head as mentor and reviewer.
+     */
+    private function prepareHead(Organization $organization): void
+    {
+        $head = $organization->head()->first();
+
+        if ($head === null) {
+            return;
+        }
+
+        AssignOrganizationHead::grantMentorRole($head);
+        app(AssignOrganizationHead::class)->backfill($organization);
     }
 
     public function destroy(Organization $organization): RedirectResponse

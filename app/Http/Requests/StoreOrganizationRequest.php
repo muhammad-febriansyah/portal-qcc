@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Organization;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreOrganizationRequest extends FormRequest
 {
@@ -27,6 +28,7 @@ class StoreOrganizationRequest extends FormRequest
             'code' => ['required', 'string', 'alpha_dash', 'max:255', 'unique:organizations,code'],
             'name' => ['required', 'string', 'max:255'],
             'is_active' => ['required', 'boolean'],
+            'head_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('is_active', true)],
         ];
     }
 
@@ -44,6 +46,7 @@ class StoreOrganizationRequest extends FormRequest
             'name.required' => 'Nama organisasi wajib diisi.',
             'is_active.required' => 'Status organisasi wajib dipilih.',
             'is_active.boolean' => 'Status organisasi tidak valid.',
+            'head_id.exists' => 'Div/LOB Head harus pengguna aktif.',
         ];
     }
 }

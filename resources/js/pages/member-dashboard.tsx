@@ -515,8 +515,8 @@ function CompetenciesPanel({
                         <GraduationCap className="size-4" aria-hidden="true" />
                     )}
                     {inPool
-                        ? 'Anda sudah masuk Talent Pool'
-                        : 'Belum masuk Talent Pool'}
+                        ? 'Kompetensi sudah terisi'
+                        : 'Tambahkan minimal 1 kompetensi'}
                 </p>
                 <Button
                     variant="outline"

@@ -66,7 +66,10 @@ it('creates and resumes a proposal draft with its saved wizard step', function (
         ->assertInertia(fn (Assert $page) => $page
             ->component('proposals/wizard')
             ->where('project', null)
-            ->has('batches', 1));
+            ->has('batches', 1)
+            ->has('themeCategories', 6)
+            ->where('themeCategories.0.label', 'New Revenue Stream')
+            ->where('themeCategories.0.description', 'Proyek yang menciptakan sumber pendapatan baru melalui layanan tambahan, paket layanan terintegrasi, pemanfaatan kapabilitas atau teknologi, model bisnis baru, maupun perluasan pasar.'));
 
     $response = $this->post(route('proposals.store'), proposalDraftPayload($batch, [
         'proposer_id' => 999999,

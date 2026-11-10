@@ -39,8 +39,7 @@ function programParticipant(?Organization $organization = null, bool $completePr
         'organization_id' => ($organization ?? Organization::factory()->create())->id,
         'position' => 'Staf',
         'work_location' => 'Jakarta',
-        'work_contact' => '0211234567',
-        'personal_contact' => '081234567890',
+        'phone_number' => '081234567890',
         'availability_status' => 'AVAILABLE',
     ] : []);
     $user->assignRole(Role::findOrCreate('SIMer / Member', 'web'));
@@ -67,8 +66,7 @@ test('a profile records the moment it first becomes complete', function () {
         'organization_id' => Organization::factory()->create()->id,
         'position' => 'Staf',
         'work_location' => 'Jakarta',
-        'work_contact' => '0211234567',
-        'personal_contact' => '081234567890',
+        'phone_number' => '081234567890',
         'availability_status' => 'AVAILABLE',
     ])->save();
 

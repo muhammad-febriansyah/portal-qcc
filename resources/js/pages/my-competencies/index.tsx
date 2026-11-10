@@ -3,6 +3,7 @@ import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
 import {
     BadgeCheck,
+    LockKeyhole,
     PencilLine,
     Plus,
     ShieldCheck,
@@ -61,7 +62,13 @@ type Props = {
     competencyCount: number;
     competencyLimit: number;
     mustJoinTalentPool: boolean;
+    editingIsOpen: boolean;
+    editingClosesOn: string | null;
 };
+
+function formatDate(value: string): string {
+    return format(parseISO(value), 'd MMMM yyyy', { locale: indonesianLocale });
+}
 
 export default function MyCompetenciesIndex({
     competencies,
@@ -71,6 +78,8 @@ export default function MyCompetenciesIndex({
     competencyCount,
     competencyLimit,
     mustJoinTalentPool,
+    editingIsOpen,
+    editingClosesOn,
 }: Props) {
     const [searchValue, setSearchValue] = useState(filters.search);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -114,8 +123,8 @@ export default function MyCompetenciesIndex({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchValue]);
 
-    const columns = useMemo<DataTableColumnDef<CompetencyRow>[]>(
-        () => [
+    const columns = useMemo<DataTableColumnDef<CompetencyRow>[]>(() => {
+        const baseColumns: DataTableColumnDef<CompetencyRow>[] = [
             {
                 id: 'code',
                 header: 'Kompetensi',
@@ -155,6 +164,14 @@ export default function MyCompetenciesIndex({
                     </span>
                 ),
             },
+        ];
+
+        if (!editingIsOpen) {
+            return baseColumns;
+        }
+
+        return [
+            ...baseColumns,
             {
                 id: 'actions',
                 header: () => <span className="sr-only">Aksi</span>,
@@ -200,9 +217,8 @@ export default function MyCompetenciesIndex({
                     );
                 },
             },
-        ],
-        [],
-    );
+        ];
+    }, [editingIsOpen]);
 
     const sort: DataTableSort = {
         id: filters.sort === 'code' ? 'code' : filters.sort,
@@ -210,6 +226,10 @@ export default function MyCompetenciesIndex({
     };
     const hasActiveFilter = filters.search !== '';
     const reachedCompetencyLimit = competencyCount >= competencyLimit;
+    const deadlineNote =
+        editingIsOpen && editingClosesOn
+            ? ` Bisa diubah sampai ${formatDate(editingClosesOn)}.`
+            : '';
 
     return (
         <>
@@ -221,44 +241,58 @@ export default function MyCompetenciesIndex({
                         { title: 'Kompetensi Saya', href: index() },
                     ]}
                     title="Kompetensi Saya"
-                    description={`Catat kemampuan Anda agar pembentukan tim QCC dapat mempertimbangkannya. ${competencyCount}/${competencyLimit} kompetensi.`}
+                    description={`Isi kompetensi yang Anda kuasai beserta levelnya. ${competencyCount}/${competencyLimit} terisi.${deadlineNote}`}
                     actions={
-                        <Button
-                            type="button"
-                            className="h-10 px-4 text-sm"
-                            disabled={reachedCompetencyLimit}
-                            onClick={() => {
-                                setEditing(null);
-                                setIsDialogOpen(true);
-                            }}
-                        >
-                            <Plus data-icon="inline-start" aria-hidden="true" />
-                            {reachedCompetencyLimit
-                                ? 'Batas Tercapai'
-                                : 'Tambah Kompetensi'}
-                        </Button>
+                        editingIsOpen ? (
+                            <Button
+                                type="button"
+                                className="h-10 px-4 text-sm"
+                                disabled={reachedCompetencyLimit}
+                                onClick={() => {
+                                    setEditing(null);
+                                    setIsDialogOpen(true);
+                                }}
+                            >
+                                <Plus
+                                    data-icon="inline-start"
+                                    aria-hidden="true"
+                                />
+                                {reachedCompetencyLimit
+                                    ? 'Batas Tercapai'
+                                    : 'Tambah Kompetensi'}
+                            </Button>
+                        ) : null
                     }
                 />
 
-                {competencyCount > 0 ? (
+                {!editingIsOpen ? (
+                    <Alert className="mb-5">
+                        <LockKeyhole aria-hidden="true" />
+                        <AlertTitle>
+                            Pengisian kompetensi sudah ditutup
+                        </AlertTitle>
+                        <AlertDescription>
+                            {editingClosesOn
+                                ? `Batas waktunya ${formatDate(editingClosesOn)}.`
+                                : 'Batas waktunya sudah lewat.'}{' '}
+                            Kompetensi tidak bisa diubah lagi.
+                        </AlertDescription>
+                    </Alert>
+                ) : competencyCount > 0 ? (
                     <Alert className="mb-5 border-success/40 bg-success/10">
                         <BadgeCheck aria-hidden="true" />
-                        <AlertTitle>Anda sudah masuk Talent Pool</AlertTitle>
+                        <AlertTitle>Kompetensi sudah terisi</AlertTitle>
                         <AlertDescription>
-                            Owner QCC dapat menemukan Anda saat menyusun tim.
-                            Lanjutkan dengan membuat proposal QCC bila Anda
-                            punya ide perbaikan.
+                            Anda bisa dipilih masuk tim QCC. Punya ide
+                            perbaikan? Buat proposal QCC.
                         </AlertDescription>
                     </Alert>
                 ) : mustJoinTalentPool ? (
                     <Alert className="mb-5 border-warning/40 bg-warning/10">
                         <ShieldCheck aria-hidden="true" />
-                        <AlertTitle>
-                            Isi kompetensi untuk masuk Talent Pool
-                        </AlertTitle>
+                        <AlertTitle>Tambahkan minimal 1 kompetensi</AlertTitle>
                         <AlertDescription>
-                            Tambahkan minimal satu kompetensi. Pembuatan
-                            proposal QCC terbuka setelah Anda masuk Talent Pool.
+                            Setelah itu Anda bisa membuat proposal QCC.
                         </AlertDescription>
                     </Alert>
                 ) : null}
@@ -299,7 +333,9 @@ export default function MyCompetenciesIndex({
                         emptyDescription={
                             hasActiveFilter
                                 ? 'Ubah kata kunci pencarian.'
-                                : 'Tambahkan kompetensi yang Anda kuasai beserta levelnya.'
+                                : editingIsOpen
+                                  ? 'Tambahkan kompetensi yang Anda kuasai beserta levelnya.'
+                                  : 'Pengisian kompetensi sudah ditutup.'
                         }
                     />
                 </Card>

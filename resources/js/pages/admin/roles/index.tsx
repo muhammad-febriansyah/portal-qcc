@@ -118,11 +118,6 @@ const permissionLabels: Record<
         action: 'Lihat semua proyek',
         icon: Gauge,
     },
-    'review-assignments.manage': {
-        menu: 'Penugasan Reviewer',
-        action: 'Kelola penugasan reviewer',
-        icon: Users,
-    },
     'roles.manage': {
         menu: 'Role & Permission',
         action: 'Atur role dan akses',

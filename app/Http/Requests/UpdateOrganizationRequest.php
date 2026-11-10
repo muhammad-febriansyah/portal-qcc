@@ -31,6 +31,7 @@ class UpdateOrganizationRequest extends FormRequest
             'code' => ['sometimes', 'required', 'string', 'alpha_dash', 'max:255', Rule::unique('organizations', 'code')->ignore($this->route('organization'))],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'is_active' => ['sometimes', 'required', 'boolean'],
+            'head_id' => ['sometimes', 'nullable', 'integer', Rule::exists('users', 'id')->where('is_active', true)],
         ];
     }
 
@@ -48,6 +49,7 @@ class UpdateOrganizationRequest extends FormRequest
             'name.required' => 'Nama organisasi wajib diisi.',
             'is_active.required' => 'Status organisasi wajib dipilih.',
             'is_active.boolean' => 'Status organisasi tidak valid.',
+            'head_id.exists' => 'Div/LOB Head harus pengguna aktif.',
         ];
     }
 }

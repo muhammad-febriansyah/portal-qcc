@@ -113,8 +113,6 @@ Route::middleware(['auth', 'verified', 'profile.complete'])->group(function () {
     Route::prefix('projects/{project}/mentoring')->whereNumber('project')->name('projects.mentoring.')->group(function () {
         Route::get('/', [MentoringController::class, 'index'])->name('index');
         Route::get('export', [DataExportController::class, 'mentoring'])->name('export');
-        Route::post('assignments', [MentoringController::class, 'assign'])->name('assign');
-        Route::delete('assignments/{assignment}', [MentoringController::class, 'endAssignment'])->whereNumber('assignment')->name('assignments.end');
         Route::post('/', [MentoringController::class, 'store'])->name('store');
         Route::patch('{report}', [MentoringController::class, 'update'])->whereNumber('report')->name('update');
         Route::post('{report}/submit', [MentoringController::class, 'submit'])->whereNumber('report')->name('submit');

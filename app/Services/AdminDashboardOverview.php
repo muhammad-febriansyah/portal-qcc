@@ -161,9 +161,8 @@ class AdminDashboardOverview
         $items = [
             ['key' => 'no_organization', 'label' => 'Peserta belum punya LOB / Divisi', 'count' => $this->participants()->whereNull('users.organization_id')->count()],
             ['key' => 'no_sim_id', 'label' => 'Peserta belum punya SIM ID', 'count' => $this->participants()->whereNull('users.sim_id')->count()],
-            ['key' => 'incomplete_contacts', 'label' => 'Peserta belum melengkapi kontak kerja / pribadi', 'count' => $this->participants()->where(function (Builder $query): void {
-                $query->whereNull('users.work_contact')->orWhere('users.work_contact', '')
-                    ->orWhereNull('users.personal_contact')->orWhere('users.personal_contact', '');
+            ['key' => 'incomplete_contacts', 'label' => 'Peserta belum melengkapi nomor handphone', 'count' => $this->participants()->where(function (Builder $query): void {
+                $query->whereNull('users.phone_number')->orWhere('users.phone_number', '');
             })->count()],
             ['key' => 'no_competency', 'label' => 'Peserta belum mengisi kompetensi', 'count' => $participantCount - $filledCount],
         ];

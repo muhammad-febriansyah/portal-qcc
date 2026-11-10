@@ -31,8 +31,7 @@ class ProfileController extends Controller
                 'sim_id' => $user?->sim_id,
                 'position' => $user?->position,
                 'work_location' => $user?->work_location,
-                'work_contact' => $user?->work_contact,
-                'personal_contact' => $user?->personal_contact,
+                'phone_number' => $user?->phone_number,
                 'organization_id' => $user?->organization_id,
                 'organization_name' => $user?->organization()->value('name'),
                 'qcc_experience_batches' => $user->qcc_experience_batches ?? [],
@@ -73,7 +72,7 @@ class ProfileController extends Controller
 
         if ($wasIncomplete && $request->user()->hasCompleteProfile()) {
             if ($request->user()->mustFillCompetencies()) {
-                Inertia::flash('toast', ['type' => 'success', 'message' => 'Profil lengkap. Sekarang isi kompetensi Anda untuk masuk Talent Pool.']);
+                Inertia::flash('toast', ['type' => 'success', 'message' => 'Profil lengkap. Sekarang tambahkan minimal 1 kompetensi.']);
 
                 return to_route('my-competencies.index');
             }

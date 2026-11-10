@@ -49,7 +49,7 @@ use Throwable;
  * @property int $verified_count
  * @property-read Pivot $pivot
  */
-#[Fillable(['name', 'email', 'password', 'sim_id', 'organization_id', 'availability_status', 'position', 'work_location', 'work_contact', 'personal_contact', 'qcc_experience_batches', 'needs_profile_setup'])]
+#[Fillable(['name', 'email', 'password', 'sim_id', 'organization_id', 'availability_status', 'position', 'work_location', 'phone_number', 'qcc_experience_batches', 'needs_profile_setup'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'avatar_path'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -163,8 +163,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return filled($this->organization_id)
             && filled($this->position)
             && filled($this->work_location)
-            && filled($this->work_contact)
-            && filled($this->personal_contact);
+            && filled($this->phone_number);
     }
 
     public function mustCompleteProfile(): bool
@@ -173,7 +172,7 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Members (not reviewers or admins) must hold at least one competency to be in the talent pool.
+     * Members (not reviewers or admins) must hold at least one competency before they can be picked for a team.
      */
     public function mustFillCompetencies(): bool
     {

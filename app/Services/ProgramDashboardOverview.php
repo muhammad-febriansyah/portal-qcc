@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\BatchStatus;
 use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
 use App\Enums\ReportStatus;
@@ -105,11 +104,7 @@ class ProgramDashboardOverview
      */
     public function currentBatch(): ?QccBatch
     {
-        return QccBatch::query()
-            ->where('status', BatchStatus::Active->value)
-            ->orderByDesc('starts_on')
-            ->orderByDesc('id')
-            ->first();
+        return QccBatch::current();
     }
 
     /**

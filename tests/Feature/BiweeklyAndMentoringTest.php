@@ -340,20 +340,6 @@ it('stores corrective actions against the bi-weekly report and validates project
     expect($report->actions()->count())->toBe(1);
 });
 
-it('lets the Owner QCC assign a mentor, once, and tells the mentor and the leader', function () {
-    $mentor = bmMentor();
-
-    $this->actingAs($this->owner)->post(route('projects.mentoring.assign', $this->project), ['mentor_id' => $mentor->id])->assertSessionHasNoErrors();
-    $this->actingAs($this->owner)->post(route('projects.mentoring.assign', $this->project), ['mentor_id' => $mentor->id])->assertSessionHasErrors('mentor_id');
-    $this->actingAs($this->owner)->post(route('projects.mentoring.assign', $this->project), ['mentor_id' => $this->leader->id])->assertSessionHasErrors('mentor_id');
-
-    expect(ProjectMentor::query()->where('project_id', $this->project->id)->count())->toBe(1)
-        ->and($mentor->notifications()->count())->toBe(1)->and($this->leader->notifications()->count())->toBe(1)
-        ->and(AuditLog::query()->where('event', 'mentor.assigned')->count())->toBe(1);
-
-    $this->actingAs($this->leader)->post(route('projects.mentoring.assign', $this->project), ['mentor_id' => bmMentor()->id])->assertForbidden();
-});
-
 it('shows a mentor only the projects they are assigned to', function () {
     $mentor = bmMentor();
     $other = Project::factory()->status(ProposalStatus::Approved)->create();
@@ -366,7 +352,7 @@ it('shows a mentor only the projects they are assigned to', function () {
     $this->actingAs($mentor)->get(route('projects.mentoring.index', $other))->assertForbidden();
     expect(Project::query()->visibleTo($mentor)->pluck('id')->all())->toBe([$this->project->id]);
 
-    $this->actingAs($this->owner)->delete(route('projects.mentoring.assignments.end', [$this->project, ProjectMentor::query()->first()]))->assertSessionHasNoErrors();
+    ProjectMentor::query()->first()->forceFill(['status' => 'ENDED', 'ended_at' => now()])->save();
     $this->actingAs($mentor)->get(route('projects.mentoring.index', $this->project))->assertForbidden();
 });
 
@@ -499,33 +485,13 @@ it('lets the assigned Mentor give feedback on a Team Leader mentoring report', f
         ->and($report->fresh()->team_response)->toBe('Gunakan tiga shift sebagai sampel');
 });
 
-it('lets Owner assign an active Mentor to a project and records the assignment', function () {
-    $mentor = bmMentor();
-
-    $this->actingAs($this->owner)
-        ->post(route('projects.mentoring.assign', $this->project), ['mentor_id' => $mentor->id])
-        ->assertRedirect(route('projects.mentoring.index', $this->project));
-
-    $assignment = ProjectMentor::query()->sole();
-
-    expect($assignment->mentor_id)->toBe($mentor->id)
-        ->and($assignment->assigned_by)->toBe($this->owner->id)
-        ->and($assignment->status)->toBe('ACTIVE');
-    $this->assertDatabaseHas('audit_logs', [
-        'event' => 'mentor.assigned',
-        'actor_id' => $this->owner->id,
-        'subject_id' => $assignment->id,
-    ]);
-});
-
 it('hands the mentoring page its lists and what the viewer may do', function () {
     $mentor = bmMentor();
     ProjectMentor::query()->create(['project_id' => $this->project->id, 'mentor_id' => $mentor->id, 'assigned_by' => $this->owner->id, 'status' => 'ACTIVE', 'assigned_at' => now()]);
-    $spare = bmMentor();
 
     $this->actingAs($this->owner)->get(route('projects.mentoring.index', $this->project))->assertInertia(fn (Assert $page) => $page
-        ->component('projects/mentoring')->has('assignments', 1)->where('can_assign', true)->where('can_write', false)
-        ->has('mentor_options', 1)->where('mentor_options.0.value', (string) $spare->id));
+        ->component('projects/mentoring')->has('assignments', 1)->where('can_write', false)
+        ->missing('can_assign')->missing('mentor_options'));
     $this->actingAs($mentor)->get(route('projects.mentoring.index', $this->project))->assertInertia(fn (Assert $page) => $page
-        ->where('can_write', true)->where('can_assign', false)->has('mentor_options', 0));
+        ->where('can_write', true));
 });

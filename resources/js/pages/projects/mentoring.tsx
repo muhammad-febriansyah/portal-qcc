@@ -8,8 +8,6 @@ import {
     Plus,
     Send,
     Trash2,
-    UserMinus,
-    UserPlus,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { DataTable } from '@/components/data-table';
@@ -45,14 +43,12 @@ import type { BadgeVariant } from '@/lib/badge-variants';
 import { dashboard } from '@/routes';
 import {
     acknowledge,
-    assign,
     index,
     store,
     submit,
     update,
     exportMethod as exportMentoringCsv,
 } from '@/routes/projects/mentoring';
-import { end } from '@/routes/projects/mentoring/assignments';
 
 type Assignment = {
     id: number;
@@ -101,8 +97,6 @@ type Props = {
     assignments: Assignment[];
     reports: Report[];
     members: { value: string; label: string }[];
-    mentor_options: { value: string; label: string }[];
-    can_assign: boolean;
     can_write: boolean;
     is_team_leader: boolean;
 };
@@ -797,8 +791,6 @@ export default function ProjectMentoring({
     assignments,
     reports,
     members,
-    mentor_options: mentorOptions,
-    can_assign: canAssign,
     can_write: canWrite,
     is_team_leader: isTeamLeader,
 }: Props) {
@@ -806,8 +798,6 @@ export default function ProjectMentoring({
         mode: 'session' | 'ack' | 'detail';
         report: Report | null;
     } | null>(null);
-    const [mentorId, setMentorId] = useState('');
-    const [assignError, setAssignError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const filteredReports = reports.filter((report) =>
         [
@@ -995,7 +985,8 @@ export default function ProjectMentoring({
                         <p className="text-sm font-medium">Mentor proyek</p>
                         {assignments.length === 0 ? (
                             <p className="text-sm text-muted-foreground">
-                                Belum ada mentor yang ditugaskan.
+                                Belum ada mentor. Mentor otomatis diisi Div/LOB
+                                Head organisasi pengusul saat proposal diajukan.
                             </p>
                         ) : (
                             <ul className="grid gap-2">
@@ -1026,102 +1017,17 @@ export default function ProjectMentoring({
                                                 ? 'Aktif'
                                                 : 'Berakhir'}
                                         </Badge>
-                                        {canAssign &&
-                                            item.status === 'ACTIVE' && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        router.delete(
-                                                            end.url({
-                                                                project:
-                                                                    project.id,
-                                                                assignment:
-                                                                    item.id,
-                                                            }),
-                                                            {
-                                                                preserveScroll: true,
-                                                            },
-                                                        )
-                                                    }
-                                                >
-                                                    <UserMinus
-                                                        data-icon="inline-start"
-                                                        aria-hidden="true"
-                                                    />
-                                                    Akhiri
-                                                </Button>
-                                            )}
                                     </li>
                                 ))}
                             </ul>
                         )}
-                        {canAssign && (
-                            <div className="flex flex-wrap items-end gap-3">
-                                <div className="grid gap-1.5">
-                                    <Select
-                                        value={mentorId}
-                                        onValueChange={(next) =>
-                                            setMentorId(next ?? '')
-                                        }
-                                        items={mentorOptions}
-                                    >
-                                        <SelectTrigger
-                                            aria-label="Pilih mentor"
-                                            className="w-64"
-                                        >
-                                            <SelectValue placeholder="Pilih mentor" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {mentorOptions.map((option) => (
-                                                <SelectItem
-                                                    key={option.value}
-                                                    value={option.value}
-                                                >
-                                                    {option.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {assignError && (
-                                        <p className="text-sm text-destructive">
-                                            {assignError}
-                                        </p>
-                                    )}
-                                </div>
-                                <Button
-                                    disabled={mentorId === ''}
-                                    onClick={() =>
-                                        router.post(
-                                            assign.url(project.id),
-                                            { mentor_id: mentorId },
-                                            {
-                                                preserveScroll: true,
-                                                onSuccess: () =>
-                                                    setMentorId(''),
-                                                onError: (errors) =>
-                                                    setAssignError(
-                                                        errors.mentor_id ??
-                                                            null,
-                                                    ),
-                                            },
-                                        )
-                                    }
-                                >
-                                    <UserPlus
-                                        data-icon="inline-start"
-                                        aria-hidden="true"
-                                    />
-                                    Tugaskan
-                                </Button>
-                            </div>
-                        )}
                         <p className="text-xs text-muted-foreground">
-                            Mentor dapat meninjau, meminta revisi, dan
-                            menyetujui 8 Step pada proyek bimbingan aktif. Team
+                            Mentor adalah Div/LOB Head organisasi pengusul dan
+                            terkunci sejak proposal diajukan. Mentor ikut
+                            mereview proposal, lalu meninjau, meminta revisi,
+                            dan menyetujui 8 Step serta laporan bi-weekly. Team
                             Leader mengirim laporan mentoring; Mentor memberi
-                            feedback sesuai penugasan. Reviewer QCC tetap
-                            memutuskan proposal.
+                            feedback.
                         </p>
                     </CardContent>
                 </Card>

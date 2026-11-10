@@ -27,8 +27,7 @@ type PageProps = {
         sim_id: string | null;
         position: string | null;
         work_location: string | null;
-        work_contact: string | null;
-        personal_contact: string | null;
+        phone_number: string | null;
         organization_id: number | null;
         organization_name: string | null;
         qcc_experience_batches: string[];
@@ -72,8 +71,7 @@ export default function Profile() {
         profile.organization_id === null ? 'LOB / Divisi' : null,
         !profile.position ? 'Jabatan' : null,
         !profile.work_location ? 'Lokasi kerja' : null,
-        !profile.work_contact ? 'Kontak kerja' : null,
-        !profile.personal_contact ? 'Kontak pribadi' : null,
+        !profile.phone_number ? 'Nomor handphone' : null,
     ].filter((field): field is string => field !== null);
 
     return (
@@ -203,42 +201,24 @@ export default function Profile() {
                                             />
                                         </FormField>
 
-                                        <div className="grid gap-6 sm:grid-cols-2">
-                                            <FormField
-                                                id="work_contact"
-                                                label="Kontak Kerja"
+                                        <FormField
+                                            id="phone_number"
+                                            label="Nomor Handphone"
+                                            required
+                                            error={errors.phone_number}
+                                        >
+                                            <Input
+                                                type="tel"
+                                                inputMode="tel"
+                                                defaultValue={
+                                                    profile.phone_number ?? ''
+                                                }
+                                                name="phone_number"
+                                                autoComplete="tel"
+                                                placeholder="contoh: 081234567890"
                                                 required
-                                                error={errors.work_contact}
-                                            >
-                                                <Input
-                                                    defaultValue={
-                                                        profile.work_contact ??
-                                                        ''
-                                                    }
-                                                    name="work_contact"
-                                                    autoComplete="tel"
-                                                    placeholder="Nomor telepon kerja"
-                                                    required
-                                                />
-                                            </FormField>
-                                            <FormField
-                                                id="personal_contact"
-                                                label="Kontak Pribadi"
-                                                required
-                                                error={errors.personal_contact}
-                                            >
-                                                <Input
-                                                    defaultValue={
-                                                        profile.personal_contact ??
-                                                        ''
-                                                    }
-                                                    name="personal_contact"
-                                                    autoComplete="tel"
-                                                    placeholder="Nomor telepon pribadi"
-                                                    required
-                                                />
-                                            </FormField>
-                                        </div>
+                                            />
+                                        </FormField>
 
                                         <div className="grid gap-6 sm:grid-cols-2">
                                             <FormField

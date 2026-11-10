@@ -10,7 +10,7 @@ use Laravel\Fortify\Fortify;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * After login a member who is not in the talent pool yet goes to fill in competencies first.
+ * After login a member without any competency yet goes to fill in competencies first.
  */
 class LoginResponse implements LoginResponseContract
 {
@@ -24,7 +24,7 @@ class LoginResponse implements LoginResponseContract
         }
 
         if ($request->user()?->mustFillCompetencies()) {
-            Inertia::flash('toast', ['type' => 'info', 'message' => 'Isi kompetensi Anda untuk masuk Talent Pool.']);
+            Inertia::flash('toast', ['type' => 'info', 'message' => 'Tambahkan minimal 1 kompetensi.']);
 
             return redirect()->route('my-competencies.index');
         }

@@ -37,6 +37,14 @@ class MemberCompetency extends Model
         ];
     }
 
+    /**
+     * Competencies stay editable until proposal submission of the current batch closes.
+     */
+    public static function editingIsOpen(): bool
+    {
+        return QccBatch::current()?->acceptsCompetencyChanges() ?? true;
+    }
+
     /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {

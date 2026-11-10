@@ -18,6 +18,7 @@ class SubmitProposal
     public function __construct(
         private readonly AuditService $audit,
         private readonly ProjectNotifier $notifier,
+        private readonly AssignOrganizationHead $assignOrganizationHead,
     ) {}
 
     public function handle(Project $project, User $actor): void
@@ -94,6 +95,8 @@ class SubmitProposal
                 after: ['status' => ProposalStatus::Submitted->value],
                 subjectLabel: 'Proposal PRP-'.sprintf('%04d', $project->id),
             );
+
+            $this->assignOrganizationHead->handle($project);
 
             if (ProposalWorkflowNotification::enabled()) {
                 $resubmitted = $previousStatus === ProposalStatus::RevisionRequired;

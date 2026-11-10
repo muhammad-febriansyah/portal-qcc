@@ -33,8 +33,7 @@ function profilePayload(string $email, string $name = 'Sari Wulandari'): array
         'email' => $email,
         'position' => 'Staf Operasional',
         'work_location' => 'Jakarta',
-        'work_contact' => '0215550101',
-        'personal_contact' => '081234567890',
+        'phone_number' => '081234567890',
         'organization_id' => Organization::factory()->create(['is_active' => true])->id,
         'availability_status' => 'AVAILABLE',
     ];

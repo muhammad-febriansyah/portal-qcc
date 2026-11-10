@@ -26,68 +26,6 @@ beforeEach(function () {
     $this->owner->assignRole(Role::findOrCreate('Owner QCC', 'web'));
 });
 
-it('creates an audited reviewer assignment for an eligible proposal reviewer', function () {
-    $project = Project::factory()->status(ProposalStatus::Submitted)->create();
-    $reviewer = User::factory()->create();
-    $reviewer->givePermissionTo([
-        Permission::findOrCreate('projects.view', 'web'),
-        Permission::findOrCreate('projects.review', 'web'),
-    ]);
-    $this->actingAs($this->owner)
-        ->post(route('admin.reviewer-assignments.store'), [
-            'project_id' => $project->id,
-            'reviewer_id' => $reviewer->id,
-            'scope' => 'proposal',
-            'expires_at' => now()->addDays(30)->toDateString(),
-        ])
-        ->assertRedirect(route('admin.reviewer-assignments.index'));
-
-    $assignment = ReviewAssignment::query()->sole();
-    expect($assignment->status)->toBe(ReviewAssignment::ACTIVE)
-        ->and($assignment->granted_by)->toBe($this->owner->id)
-        ->and($assignment->expires_at?->format('H:i:s'))->toBe('23:59:59');
-    $this->assertDatabaseHas('audit_logs', ['event' => 'review_assignment.created', 'subject_id' => $assignment->id]);
-});
-
-it('renders the Owner assignment page with reviewers filtered by permission scope', function () {
-    $project = Project::factory()->status(ProposalStatus::Submitted)->create();
-    $reviewer = User::factory()->create();
-    $reviewer->givePermissionTo([
-        Permission::findOrCreate('projects.view', 'web'),
-        Permission::findOrCreate('projects.review', 'web'),
-    ]);
-    $this->actingAs($this->owner)
-        ->get(route('admin.reviewer-assignments.index'))
-        ->assertInertia(fn (Assert $page) => $page
-            ->component('admin/reviewer-assignments/index')
-            ->has('projects', 1)
-            ->where('projects.0.value', (string) $project->id)
-            ->has('reviewers', 1)
-            ->where('reviewers.0.value', (string) $reviewer->id)
-            ->where('reviewers.0.scopes', ['proposal', 'steps', 'biweekly']));
-});
-
-it('revokes an active assignment and writes a readable audit event', function () {
-    $project = Project::factory()->status(ProposalStatus::Submitted)->create();
-    $reviewer = User::factory()->create();
-    $reviewer->givePermissionTo([
-        Permission::findOrCreate('projects.view', 'web'),
-        Permission::findOrCreate('projects.review', 'web'),
-    ]);
-    $assignment = ReviewAssignment::factory()->create([
-        'project_id' => $project->id,
-        'reviewer_id' => $reviewer->id,
-        'scope' => 'proposal',
-    ]);
-
-    $this->actingAs($this->owner)
-        ->patch(route('admin.reviewer-assignments.revoke', $assignment))
-        ->assertRedirect();
-
-    expect($assignment->fresh()->status)->toBe(ReviewAssignment::REVOKED);
-    $this->assertDatabaseHas('audit_logs', ['event' => 'review_assignment.revoked', 'subject_id' => $assignment->id]);
-});
-
 it('limits assigned proposal reviewer inbox and proposal review action to assigned projects', function () {
     $assignedProject = Project::factory()->status(ProposalStatus::Submitted)->create(['submitted_at' => now()]);
     $otherProject = Project::factory()->status(ProposalStatus::Submitted)->create(['submitted_at' => now()]);
@@ -182,23 +120,6 @@ it('requires the scoring assignment scope before a reviewer can view scoring det
     $this->actingAs($reviewer)
         ->get(route('admin.scoring.show', $run))
         ->assertOk();
-});
-
-it('rejects assigning a reviewer who lacks permission for the selected scope', function () {
-    $project = Project::factory()->status(ProposalStatus::Submitted)->create();
-    $reviewer = User::factory()->create();
-    $reviewer->givePermissionTo(Permission::findOrCreate('projects.view', 'web'));
-
-    $this->actingAs($this->owner)
-        ->from(route('admin.reviewer-assignments.index'))
-        ->post(route('admin.reviewer-assignments.store'), [
-            'project_id' => $project->id,
-            'reviewer_id' => $reviewer->id,
-            'scope' => 'proposal',
-        ])
-        ->assertSessionHasErrors('reviewer_id');
-
-    $this->assertDatabaseCount('review_assignments', 0);
 });
 
 it('denies proposal review when assignment is expired or revoked', function (string $status, ?string $expiresAt) {

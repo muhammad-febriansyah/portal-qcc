@@ -134,8 +134,7 @@ test('a project without requirements has no candidates', function () {
 
 test('neither the shortlist nor the snapshot carries private contacts', function () {
     candidate('Rahasia Orang', $this->skill, attributes: [
-        'work_contact' => '0811-WORK-1111',
-        'personal_contact' => '0812-PRIBADI-2222',
+        'phone_number' => '0812-PRIBADI-2222',
         'sim_id' => 'SIM-PRIVATE-9',
     ]);
 
@@ -144,7 +143,6 @@ test('neither the shortlist nor the snapshot carries private contacts', function
     $encoded = json_encode([$shortlist, $snapshot]);
 
     expect($encoded)->not->toContain('rahasia.orang@rahasia.test')
-        ->and($encoded)->not->toContain('0811-WORK-1111')
         ->and($encoded)->not->toContain('0812-PRIBADI-2222')
         ->and($encoded)->not->toContain('SIM-PRIVATE-9')
         ->and(json_encode($snapshot))->not->toContain('Rahasia Orang')

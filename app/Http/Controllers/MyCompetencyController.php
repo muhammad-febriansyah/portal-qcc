@@ -7,6 +7,7 @@ use App\Http\Requests\StoreMemberCompetencyRequest;
 use App\Http\Requests\UpdateMemberCompetencyRequest;
 use App\Models\Competency;
 use App\Models\MemberCompetency;
+use App\Models\QccBatch;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -36,6 +37,8 @@ class MyCompetencyController extends Controller
         $direction = $filters['direction'] ?? 'asc';
         $perPage = (int) ($filters['per_page'] ?? 10);
         $competencyCount = $user->memberCompetencies()->count();
+        $batch = QccBatch::current();
+        $editingIsOpen = $batch?->acceptsCompetencyChanges() ?? true;
 
         $sortColumn = $sort === 'code' ? 'competency_master.code' : "member_competencies.{$sort}";
 
@@ -75,7 +78,9 @@ class MyCompetencyController extends Controller
             'competencyCount' => $competencyCount,
             'mustJoinTalentPool' => $user->mustFillCompetencies(),
             'competencyLimit' => MemberCompetency::MAX_PER_USER,
-            'competencyOptions' => $competencyCount >= MemberCompetency::MAX_PER_USER
+            'editingIsOpen' => $editingIsOpen,
+            'editingClosesOn' => $batch?->registration_ends_on?->toDateString(),
+            'competencyOptions' => ! $editingIsOpen || $competencyCount >= MemberCompetency::MAX_PER_USER
                 ? []
                 : Competency::query()
                     ->where('is_active', true)
