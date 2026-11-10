@@ -24,6 +24,7 @@ Route::redirect('/', '/login')->name('home');
 
 Route::middleware(['auth', 'verified', 'profile.complete'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('dashboard/program-details', [DashboardController::class, 'programDetails'])->name('dashboard.program-details');
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('notifications/{notification}/open', [NotificationController::class, 'open'])->name('notifications.open');
     Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');

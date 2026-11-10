@@ -144,6 +144,16 @@ class User extends Authenticatable implements MustVerifyEmail
             ->whereHas('competency', fn ($competency) => $competency->where('is_active', true));
     }
 
+    /**
+     * Proposals this person wrote, whatever their status.
+     *
+     * @return HasMany<Project, $this>
+     */
+    public function proposals(): HasMany
+    {
+        return $this->hasMany(Project::class, 'proposer_id');
+    }
+
     /** @return HasMany<ReviewAssignment, $this> */
     public function reviewAssignments(): HasMany
     {

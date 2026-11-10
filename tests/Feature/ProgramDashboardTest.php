@@ -117,7 +117,7 @@ test('owner QCC sees phase 1 figures while phases 2 and 3 stay locked', function
             ->where('program.registration.proposals_submitted', 2)
             ->where('program.registration.submitters', 2)
             ->where('program.registration.submitters_percent', 50)
-            ->where('program.registration.submissions_by_organization.0', ['name' => 'DIV FINANCE', 'count' => 2])
+            ->where('program.registration.submissions_by_organization.0', ['id' => $finance->id, 'name' => 'DIV FINANCE', 'count' => 2])
             ->where('program.registration.themes.2', ['key' => ThemeCategory::CostEfficiency->value, 'label' => 'Cost & Efficiency', 'count' => 2, 'percent' => 100])
             ->where('program.registration.trend.0.date', '2026-11-09')
             ->where('program.registration.trend.9', ['date' => '2026-11-18', 'registered' => 0, 'submitted' => 2])
@@ -242,7 +242,7 @@ test('phase 2 shows selection results, formed teams and how well they match', fu
             ->where('program.selection.teams_formed', 1)
             ->where('program.selection.teams_pending', 1)
             ->where('program.selection.funnel.2', ['key' => 'formed', 'label' => 'Tim Terbentuk', 'count' => 1])
-            ->where('program.selection.passed_by_organization.0', ['name' => 'DIV FINANCE', 'count' => 2])
+            ->where('program.selection.passed_by_organization.0', ['id' => $finance->id, 'name' => 'DIV FINANCE', 'count' => 2])
             ->where('program.selection.matching.0.count', 1)
             ->where('program.selection.team_sizes.0', ['size' => 2, 'label' => '2 Orang', 'count' => 1, 'percent' => 100])
             ->where('program.execution', null));
@@ -309,7 +309,7 @@ test('a switched-off LOB/Div keeps its proposals on the chart', function () {
 
     $this->actingAs(programOwner())->get(route('dashboard'))
         ->assertInertia(fn (Assert $page) => $page
-            ->where('program.registration.submissions_by_organization.0', ['name' => 'DIV LAMA', 'count' => 1])
+            ->where('program.registration.submissions_by_organization.0', ['id' => $closed->id, 'name' => 'DIV LAMA', 'count' => 1])
             ->where('program.registration.submissions_by_organization', fn ($rows) => collect($rows)->doesntContain('name', 'DIV NONAKTIF TANPA PROPOSAL')));
 });
 
@@ -325,4 +325,110 @@ test('proposals saved with the first theme categories move to the new ones', fun
         ThemeCategory::SafetyRiskCompliance,
         ThemeCategory::Productivity,
     ]);
+});
+
+test('a registration number opens the SIMers or proposals behind it', function () {
+    Carbon::setTestNow('2026-11-20 10:00:00');
+    $batch = programBatch();
+    $finance = Organization::factory()->create(['name' => 'DIV FINANCE', 'is_active' => true]);
+    $proposer = programParticipant($finance);
+    $proposer->update(['name' => 'Ayu Pengusul']);
+    $idle = programParticipant($finance);
+    $idle->update(['name' => 'Budi Belum']);
+    $competency = Competency::factory()->create(['code' => 'H07', 'name' => 'Data Analysis']);
+    MemberCompetency::factory()->create(['user_id' => $idle->id, 'competency_id' => $competency->id]);
+    MemberCompetency::factory()->create(['user_id' => $proposer->id, 'competency_id' => Competency::factory()->create(['is_active' => false])->id]);
+    $proposal = Project::factory()->status(ProposalStatus::Submitted)->create([
+        'batch_id' => $batch->id,
+        'proposer_id' => $proposer->id,
+        'title' => 'Digitalisasi absensi',
+        'theme_category' => ThemeCategory::Productivity,
+        'submitted_at' => now(),
+    ]);
+    $owner = programOwner();
+    $owner->givePermissionTo(Permission::findOrCreate('projects.view', 'web'), Permission::findOrCreate('projects.viewAny', 'web'));
+    $details = fn (string $metric, ?string $key = null) => $this->actingAs($owner)
+        ->getJson(route('dashboard.program-details', ['metric' => $metric, 'key' => $key]))
+        ->assertOk();
+
+    // A skill retired from the dictionary no longer counts as a filled competency profile.
+    $this->actingAs($owner)->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page) => $page->where('program.registration.competency_completed', 1));
+    $details('competency_filled')->assertJsonPath('rows.*.name', ['Budi Belum']);
+
+    $details('not_submitted')
+        ->assertJsonPath('kind', 'people')
+        ->assertJsonCount(1, 'rows')
+        ->assertJsonPath('rows.0.name', 'Budi Belum')
+        ->assertJsonPath('rows.0.organization', 'DIV FINANCE')
+        ->assertJsonPath('rows.0.competencies', 1);
+    $details('submitters')->assertJsonPath('rows.0.name', 'Ayu Pengusul')->assertJsonPath('rows.0.proposals', 1);
+    $details('competency_holders', 'H07')
+        ->assertJsonPath('title', 'Data Analysis')
+        ->assertJsonPath('rows.*.name', ['Budi Belum']);
+    $details('organization_proposals', (string) $finance->id)
+        ->assertJsonPath('kind', 'proposals')
+        ->assertJsonPath('rows.0.code', sprintf('PRP-%04d', $proposal->id))
+        ->assertJsonPath('rows.0.title', 'Digitalisasi absensi')
+        ->assertJsonPath('rows.0.url', route('proposals.show', $proposal));
+    $details('theme_proposals', ThemeCategory::Productivity->value)->assertJsonCount(1, 'rows');
+    $details('theme_proposals', ThemeCategory::CostEfficiency->value)->assertJsonCount(0, 'rows');
+    $details('organizations')->assertJsonPath('rows.0', [
+        'id' => $finance->id,
+        'name' => 'DIV FINANCE',
+        'participants' => 2,
+        'submitters' => 1,
+        'proposals' => 1,
+    ]);
+});
+
+test('a proposal row links only when the viewer may open that proposal', function () {
+    Carbon::setTestNow('2026-11-20 10:00:00');
+    $batch = programBatch();
+    Project::factory()->status(ProposalStatus::Submitted)->create(['batch_id' => $batch->id, 'proposer_id' => programParticipant()->id, 'submitted_at' => now()]);
+    $mentor = User::factory()->create();
+    $mentor->assignRole(Role::findOrCreate('Mentor', 'web'));
+
+    $this->actingAs($mentor)->getJson(route('dashboard.program-details', ['metric' => 'proposals']))
+        ->assertOk()
+        ->assertJsonCount(1, 'rows')
+        ->assertJsonPath('rows.0.url', null);
+});
+
+test('program details follow the phases the viewer may read', function () {
+    Carbon::setTestNow('2026-11-20 10:00:00');
+    programBatch();
+    $leader = programParticipant();
+    $leader->assignRole(Role::findOrCreate('Team Leader', 'web'));
+
+    $this->actingAs(programParticipant())->getJson(route('dashboard.program-details', ['metric' => 'registered']))->assertForbidden();
+    $this->actingAs($leader)->getJson(route('dashboard.program-details', ['metric' => 'registered']))->assertForbidden();
+    $this->actingAs(programOwner())->getJson(route('dashboard.program-details', ['metric' => 'passed']))->assertForbidden();
+    $this->actingAs(programOwner())->getJson(route('dashboard.program-details', ['metric' => 'unknown']))->assertUnprocessable();
+});
+
+test('a selection number opens the proposals and teams behind it', function () {
+    Carbon::setTestNow('2026-12-05 10:00:00');
+    $batch = programBatch();
+    $competency = Competency::factory()->create();
+    [$leader, $member, $soloLeader, $other] = [programParticipant(), programParticipant(), programParticipant(), programParticipant()];
+    MemberCompetency::factory()->create(['user_id' => $member->id, 'competency_id' => $competency->id, 'self_level' => 3]);
+    $withTeam = Project::factory()->status(ProposalStatus::Approved)->create(['batch_id' => $batch->id, 'proposer_id' => $leader->id, 'submitted_at' => now()]);
+    DB::table('project_requirements')->insert(['project_id' => $withTeam->id, 'competency_id' => $competency->id, 'minimum_level' => 2, 'created_at' => now(), 'updated_at' => now()]);
+    programTeam($withTeam, $leader, [$member]);
+    $leaderOnly = Project::factory()->status(ProposalStatus::Approved)->create(['batch_id' => $batch->id, 'proposer_id' => $soloLeader->id, 'submitted_at' => now()]);
+    programTeam($leaderOnly, $soloLeader);
+    $rejected = Project::factory()->status(ProposalStatus::Rejected)->create(['batch_id' => $batch->id, 'proposer_id' => $other->id, 'submitted_at' => now()]);
+    $owner = programOwner();
+    $ids = fn (string $metric, ?string $key = null) => $this->actingAs($owner)
+        ->getJson(route('dashboard.program-details', ['metric' => $metric, 'key' => $key]))
+        ->assertOk()
+        ->json('rows.*.id');
+
+    expect($ids('teams_formed'))->toBe([$withTeam->id])
+        ->and($ids('teams_pending'))->toBe([$leaderOnly->id])
+        ->and($ids('failed'))->toBe([$rejected->id])
+        ->and($ids('matching_band', 'fit'))->toBe([$withTeam->id])
+        ->and($ids('matching_band', 'gap'))->toBe([])
+        ->and($ids('team_size', '2'))->toBe([$withTeam->id]);
 });

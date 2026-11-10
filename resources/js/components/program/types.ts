@@ -28,8 +28,13 @@ export type RegistrationPhaseData = {
     submitters: number;
     submitters_percent: number | null;
     organizations_count: number;
-    submissions_by_organization: { name: string; count: number }[];
-    top_competencies: { name: string; count: number; percent: number }[];
+    submissions_by_organization: { id: number; name: string; count: number }[];
+    top_competencies: {
+        code: string;
+        name: string;
+        count: number;
+        percent: number;
+    }[];
     themes: { key: string; label: string; count: number; percent: number }[];
     trend: { date: string; registered: number; submitted: number }[];
 };
@@ -46,7 +51,7 @@ export type SelectionPhaseData = {
     teams_pending: number;
     teams_pending_percent: number;
     funnel: { key: string; label: string; count: number }[];
-    passed_by_organization: { name: string; count: number }[];
+    passed_by_organization: { id: number; name: string; count: number }[];
     matching: { key: string; label: string; count: number; percent: number }[];
     team_sizes: {
         size: number;

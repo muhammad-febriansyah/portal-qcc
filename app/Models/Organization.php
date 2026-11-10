@@ -7,6 +7,7 @@ use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int|null $head_id
@@ -38,6 +39,16 @@ class Organization extends Model
     public function head(): BelongsTo
     {
         return $this->belongsTo(User::class, 'head_id');
+    }
+
+    /**
+     * People who work in this LOB/Div.
+     *
+     * @return HasMany<User, $this>
+     */
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
     }
 
     public function auditEventPrefix(): string

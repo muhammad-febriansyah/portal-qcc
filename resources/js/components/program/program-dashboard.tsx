@@ -17,6 +17,10 @@ import {
     programColors,
     StatTiles,
 } from './program-kit';
+import {
+    ProgramDetailProvider,
+    useProgramDetail,
+} from './program-detail-dialog';
 import { phasePeriod, ProgramPhases } from './program-phases';
 import { SelectionPhase } from './selection-phase';
 import type {
@@ -31,6 +35,9 @@ const ProgramTrendChart = lazy(
 
 function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
     const isMounted = useMounted();
+    const openDetail = useProgramDetail();
+    const select = (metric: string, title: string, key?: string | number) =>
+        openDetail ? () => openDetail(metric, title, key) : undefined;
     const target = data.participant_target;
     const goal = target ?? data.participants;
     const activeOrganizations = data.submissions_by_organization.filter(
@@ -62,11 +69,19 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                         {
                             label: 'Sudah submit',
                             value: numberFormat.format(data.submitters),
+                            onSelect: select(
+                                'submitters',
+                                'Sudah submit proposal',
+                            ),
                         },
                         {
                             label: 'Belum submit',
                             value: numberFormat.format(
                                 Math.max(goal - data.submitters, 0),
+                            ),
+                            onSelect: select(
+                                'not_submitted',
+                                'Belum submit proposal',
                             ),
                         },
                     ]}
@@ -80,6 +95,10 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                                 helper: `Profil lengkap dari ${numberFormat.format(data.participants)}`,
                                 icon: Users,
                                 color: programColors.primary,
+                                onSelect: select(
+                                    'registered',
+                                    'SIMers terdaftar',
+                                ),
                             },
                             {
                                 label: 'Proposal',
@@ -89,6 +108,10 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                                 helper: `Dari ${numberFormat.format(data.submitters)} pengusul`,
                                 icon: FileText,
                                 color: programColors.tan,
+                                onSelect: select(
+                                    'proposals',
+                                    'Proposal diajukan',
+                                ),
                             },
                             {
                                 label: 'Profil kompetensi',
@@ -96,6 +119,10 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                                 helper: `${numberFormat.format(data.competency_completed)} SIMers mengisi`,
                                 icon: ListChecks,
                                 color: programColors.green,
+                                onSelect: select(
+                                    'competency_filled',
+                                    'Profil kompetensi terisi',
+                                ),
                             },
                             {
                                 label: 'LOB/Div',
@@ -105,6 +132,7 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                                 helper: `${activeOrganizations} sudah mengirim`,
                                 icon: Building2,
                                 color: programColors.violet,
+                                onSelect: select('organizations', 'LOB/Div'),
                             },
                         ]}
                     />
@@ -157,6 +185,11 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                             name: row.name,
                             value: row.count,
                             display: numberFormat.format(row.count),
+                            onSelect: select(
+                                'organization_proposals',
+                                row.name,
+                                row.id,
+                            ),
                         }))}
                     />
                 </Panel>
@@ -173,6 +206,11 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                             name: competency.name,
                             value: competency.count,
                             display: `${numberFormat.format(competency.count)} · ${competency.percent}%`,
+                            onSelect: select(
+                                'competency_holders',
+                                competency.name,
+                                competency.code,
+                            ),
                         }))}
                     />
                 </Panel>
@@ -198,6 +236,11 @@ function RegistrationPhase({ data }: { data: RegistrationPhaseData }) {
                                         ? programColors.rest
                                         : (categoryColors[index] ??
                                           programColors.rest),
+                                onSelect: select(
+                                    'theme_proposals',
+                                    theme.label,
+                                    theme.key,
+                                ),
                             }))}
                     />
                 </Panel>
@@ -219,39 +262,42 @@ export function ProgramDashboard({ overview }: { overview: ProgramOverview }) {
     const phase = overview.phases.find((item) => item.key === selected);
 
     return (
-        <div className="grid gap-4">
-            <div className="grid gap-2">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <h2 className="text-base font-semibold tracking-tight text-foreground">
-                        {overview.batch.name} · Program Monitoring
-                    </h2>
-                    <p className="text-xs text-muted-foreground">
-                        Fase berikutnya terbuka otomatis pada tanggal mulainya.
-                    </p>
+        <ProgramDetailProvider>
+            <div className="grid gap-4">
+                <div className="grid gap-2">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <h2 className="text-base font-semibold tracking-tight text-foreground">
+                            {overview.batch.name} · Program Monitoring
+                        </h2>
+                        <p className="text-xs text-muted-foreground">
+                            Fase berikutnya terbuka otomatis pada tanggal
+                            mulainya.
+                        </p>
+                    </div>
+                    <ProgramPhases
+                        phases={overview.phases}
+                        selected={selected}
+                        onSelect={setSelected}
+                    />
                 </div>
-                <ProgramPhases
-                    phases={overview.phases}
-                    selected={selected}
-                    onSelect={setSelected}
-                />
-            </div>
 
-            {selected === 'registration' && overview.registration ? (
-                <RegistrationPhase data={overview.registration} />
-            ) : selected === 'selection' && overview.selection ? (
-                <SelectionPhase data={overview.selection} />
-            ) : selected === 'execution' && overview.execution ? (
-                <ExecutionPhase data={overview.execution} />
-            ) : (
-                <PanelEmpty
-                    title={`Fase ${phase?.number ?? ''} · ${phase?.label ?? ''}`}
-                    description={
-                        phase
-                            ? `${phasePeriod(phase)}. Fase ini terbuka pada tanggal mulainya.`
-                            : 'Fase belum tersedia.'
-                    }
-                />
-            )}
-        </div>
+                {selected === 'registration' && overview.registration ? (
+                    <RegistrationPhase data={overview.registration} />
+                ) : selected === 'selection' && overview.selection ? (
+                    <SelectionPhase data={overview.selection} />
+                ) : selected === 'execution' && overview.execution ? (
+                    <ExecutionPhase data={overview.execution} />
+                ) : (
+                    <PanelEmpty
+                        title={`Fase ${phase?.number ?? ''} · ${phase?.label ?? ''}`}
+                        description={
+                            phase
+                                ? `${phasePeriod(phase)}. Fase ini terbuka pada tanggal mulainya.`
+                                : 'Fase belum tersedia.'
+                        }
+                    />
+                )}
+            </div>
+        </ProgramDetailProvider>
     );
 }

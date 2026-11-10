@@ -1,5 +1,6 @@
 import { ChevronRight, FileX2, Sparkles, UserPlus, Users } from 'lucide-react';
 import { numberFormat, PanelEmpty } from '@/components/dashboard/dashboard-kit';
+import { cn } from '@/lib/utils';
 import {
     BarList,
     ColorBars,
@@ -8,8 +9,10 @@ import {
     Meter,
     Panel,
     programColors,
+    selectableClass,
     StatTiles,
 } from './program-kit';
+import { useProgramDetail } from './program-detail-dialog';
 import type { SelectionPhaseData } from './types';
 
 const MATCHING_COLORS: Record<string, string> = {
@@ -20,6 +23,14 @@ const MATCHING_COLORS: Record<string, string> = {
 
 /** Phase 2: selection results and how far the teams of passed proposals are formed. */
 export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
+    const openDetail = useProgramDetail();
+    const select = (metric: string, title: string, key?: string | number) =>
+        openDetail ? () => openDetail(metric, title, key) : undefined;
+    const funnelMetrics: Record<string, string> = {
+        passed: 'passed',
+        matched: 'matched',
+        formed: 'teams_formed',
+    };
     const formedTeams = data.team_sizes.reduce(
         (sum, size) => sum + size.count,
         0,
@@ -38,14 +49,20 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                         {
                             label: 'Total proposal',
                             value: numberFormat.format(data.total),
+                            onSelect: select(
+                                'selection_proposals',
+                                'Total proposal',
+                            ),
                         },
                         {
                             label: 'Lolos seleksi',
                             value: numberFormat.format(data.passed),
+                            onSelect: select('passed', 'Lolos seleksi'),
                         },
                         {
                             label: 'Dalam seleksi',
                             value: numberFormat.format(data.in_selection),
+                            onSelect: select('in_selection', 'Dalam seleksi'),
                         },
                     ]}
                 />
@@ -59,6 +76,7 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                                 helper: 'Ditolak pada seleksi',
                                 icon: FileX2,
                                 color: programColors.tan,
+                                onSelect: select('failed', 'Tidak lolos'),
                             },
                             {
                                 label: 'Matching AI',
@@ -66,6 +84,7 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                                 helper: 'Proposal lolos dengan saran tim',
                                 icon: Sparkles,
                                 color: programColors.violet,
+                                onSelect: select('matched', 'Matching AI'),
                             },
                             {
                                 label: 'Tim terbentuk',
@@ -74,6 +93,10 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                                 helper: 'Dari proposal yang lolos',
                                 icon: Users,
                                 color: programColors.primary,
+                                onSelect: select(
+                                    'teams_formed',
+                                    'Tim terbentuk',
+                                ),
                             },
                             {
                                 label: 'Belum ada tim',
@@ -82,6 +105,10 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                                 helper: 'Tim masih disusun',
                                 icon: UserPlus,
                                 color: programColors.green,
+                                onSelect: select(
+                                    'teams_pending',
+                                    'Belum ada tim',
+                                ),
                             },
                         ]}
                     />
@@ -102,12 +129,41 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                                     key={stage.key}
                                     className="flex items-center gap-2"
                                 >
-                                    <span className="text-muted-foreground">
-                                        {stage.label}
-                                    </span>
-                                    <span className="font-semibold text-foreground tabular-nums">
-                                        {numberFormat.format(stage.count)}
-                                    </span>
+                                    {openDetail && funnelMetrics[stage.key] ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                openDetail(
+                                                    funnelMetrics[stage.key],
+                                                    stage.label,
+                                                )
+                                            }
+                                            className={cn(
+                                                selectableClass,
+                                                '-mx-1 flex items-center gap-2 px-1',
+                                            )}
+                                        >
+                                            <span className="text-muted-foreground">
+                                                {stage.label}
+                                            </span>
+                                            <span className="font-semibold text-foreground tabular-nums">
+                                                {numberFormat.format(
+                                                    stage.count,
+                                                )}
+                                            </span>
+                                        </button>
+                                    ) : (
+                                        <>
+                                            <span className="text-muted-foreground">
+                                                {stage.label}
+                                            </span>
+                                            <span className="font-semibold text-foreground tabular-nums">
+                                                {numberFormat.format(
+                                                    stage.count,
+                                                )}
+                                            </span>
+                                        </>
+                                    )}
                                     {index < data.funnel.length - 1 && (
                                         <ChevronRight
                                             aria-hidden="true"
@@ -134,6 +190,11 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                             name: row.name,
                             value: row.count,
                             display: numberFormat.format(row.count),
+                            onSelect: select(
+                                'passed_organization',
+                                row.name,
+                                row.id,
+                            ),
                         }))}
                     />
                 </Panel>
@@ -152,6 +213,11 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                                 color:
                                     MATCHING_COLORS[band.key] ??
                                     programColors.rest,
+                                onSelect: select(
+                                    'matching_band',
+                                    band.label,
+                                    band.key,
+                                ),
                             }))}
                         />
                     ) : (
@@ -174,6 +240,11 @@ export function SelectionPhase({ data }: { data: SelectionPhaseData }) {
                                 label: size.label,
                                 value: size.count,
                                 display: `${numberFormat.format(size.count)} · ${size.percent}%`,
+                                onSelect: select(
+                                    'team_size',
+                                    `Tim ${size.label}`,
+                                    size.size,
+                                ),
                             }))}
                         />
                     ) : (

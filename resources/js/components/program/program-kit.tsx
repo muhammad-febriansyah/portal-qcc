@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
@@ -30,6 +31,10 @@ export const categoryColors = [
     programColors.orange,
     programColors.magenta,
 ];
+
+/** Hover and focus look of a dashboard figure that opens its data. */
+export const selectableClass =
+    'cursor-pointer rounded-md text-left transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
 
 export function percentOf(value: number, total: number): number {
     return total > 0 ? Math.round((value / total) * 100) : 0;
@@ -94,6 +99,7 @@ export type Segment = {
     label: string;
     count: number;
     color: string;
+    onSelect?: () => void;
 };
 
 /**
@@ -106,7 +112,12 @@ export function BarList({
     limit = 8,
     emptyLabel,
 }: {
-    rows: { name: string; value: number; display: string }[];
+    rows: {
+        name: string;
+        value: number;
+        display: string;
+        onSelect?: () => void;
+    }[];
     label: string;
     limit?: number;
     /** Text for the folded rows without data, e.g. "belum ada proposal". */
@@ -123,28 +134,54 @@ export function BarList({
         <div className="grid gap-1">
             {filled.length > 0 ? (
                 <ul className="grid" aria-label={label}>
-                    {shown.map((row) => (
-                        <li
-                            key={row.name}
-                            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] items-center gap-3 py-1.5 text-sm"
-                        >
-                            <span className="text-foreground">{row.name}</span>
-                            <span
-                                className="h-1.5 overflow-hidden rounded-full"
-                                style={{ backgroundColor: programColors.track }}
-                            >
+                    {shown.map((row) => {
+                        const content = (
+                            <>
+                                <span className="text-foreground">
+                                    {row.name}
+                                </span>
                                 <span
-                                    className="block h-full rounded-full bg-primary"
+                                    className="h-1.5 overflow-hidden rounded-full"
                                     style={{
-                                        width: `${(row.value / max) * 100}%`,
+                                        backgroundColor: programColors.track,
                                     }}
-                                />
-                            </span>
-                            <span className="min-w-10 text-right text-foreground tabular-nums">
-                                {row.display}
-                            </span>
-                        </li>
-                    ))}
+                                >
+                                    <span
+                                        className="block h-full rounded-full bg-primary"
+                                        style={{
+                                            width: `${(row.value / max) * 100}%`,
+                                        }}
+                                    />
+                                </span>
+                                <span className="min-w-10 text-right text-foreground tabular-nums">
+                                    {row.display}
+                                </span>
+                            </>
+                        );
+                        const grid =
+                            'grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] items-center gap-3 py-1.5 text-sm';
+
+                        return (
+                            <li key={row.name}>
+                                {row.onSelect ? (
+                                    <button
+                                        type="button"
+                                        onClick={row.onSelect}
+                                        title={`Lihat data ${row.name}`}
+                                        className={cn(
+                                            grid,
+                                            selectableClass,
+                                            '-mx-2 w-[calc(100%+1rem)] px-2',
+                                        )}
+                                    >
+                                        {content}
+                                    </button>
+                                ) : (
+                                    <div className={grid}>{content}</div>
+                                )}
+                            </li>
+                        );
+                    })}
                 </ul>
             ) : (
                 <p className="py-2 text-sm text-muted-foreground">
@@ -271,7 +308,7 @@ export function HighlightCard({
     title: string;
     percent: number;
     caption: string;
-    rows: { label: string; value: string }[];
+    rows: { label: string; value: string; onSelect?: () => void }[];
 }) {
     return (
         <section
@@ -297,13 +334,33 @@ export function HighlightCard({
                     {rows.map((row) => (
                         <div
                             key={row.label}
-                            className="flex items-center justify-between gap-3 py-1.5"
+                            className={cn(
+                                'relative flex items-center justify-between gap-3 py-1.5',
+                                row.onSelect &&
+                                    '-mx-2 rounded-md px-2 transition-colors focus-within:ring-2 focus-within:ring-primary-foreground/60 hover:bg-primary-foreground/10',
+                            )}
                         >
                             <dt className="text-primary-foreground/80">
-                                {row.label}
+                                {row.onSelect ? (
+                                    <button
+                                        type="button"
+                                        onClick={row.onSelect}
+                                        className="text-left after:absolute after:inset-0 focus-visible:outline-none"
+                                    >
+                                        {row.label}
+                                    </button>
+                                ) : (
+                                    row.label
+                                )}
                             </dt>
-                            <dd className="font-semibold tabular-nums">
+                            <dd className="flex items-center gap-1 font-semibold tabular-nums">
                                 {row.value}
+                                {row.onSelect && (
+                                    <ChevronRight
+                                        aria-hidden="true"
+                                        className="size-3.5 text-primary-foreground/70"
+                                    />
+                                )}
                             </dd>
                         </div>
                     ))}
@@ -321,6 +378,7 @@ export type Tile = {
     icon: LucideIcon;
     /** One of the category colors, used lightly behind the icon. */
     color: string;
+    onSelect?: () => void;
 };
 
 /** Headline numbers as four light tiles, each with a small colored icon. */
@@ -328,7 +386,14 @@ export function StatTiles({ tiles }: { tiles: Tile[] }) {
     return (
         <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {tiles.map(({ icon: Icon, ...tile }) => (
-                <Card key={tile.label} className="min-w-0 gap-2 px-4 py-3.5">
+                <Card
+                    key={tile.label}
+                    className={cn(
+                        'relative min-w-0 gap-2 px-4 py-3.5',
+                        tile.onSelect &&
+                            'transition-colors focus-within:ring-2 focus-within:ring-ring hover:bg-muted/50',
+                    )}
+                >
                     <dt className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                         <span
                             className="flex size-6 shrink-0 items-center justify-center rounded-md"
@@ -340,8 +405,24 @@ export function StatTiles({ tiles }: { tiles: Tile[] }) {
                             <Icon className="size-3.5" aria-hidden="true" />
                         </span>
                         <span className="min-w-0 leading-tight">
-                            {tile.label}
+                            {tile.onSelect ? (
+                                <button
+                                    type="button"
+                                    onClick={tile.onSelect}
+                                    className="text-left after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none"
+                                >
+                                    {tile.label}
+                                </button>
+                            ) : (
+                                tile.label
+                            )}
                         </span>
+                        {tile.onSelect && (
+                            <ChevronRight
+                                aria-hidden="true"
+                                className="ml-auto size-3.5 shrink-0 text-muted-foreground/70"
+                            />
+                        )}
                     </dt>
                     <dd className="flex items-baseline gap-1.5">
                         <span className="text-2xl leading-tight font-semibold text-foreground tabular-nums">
@@ -375,43 +456,65 @@ export function ColorBars({
 
     return (
         <ul className="grid" aria-label={label}>
-            {segments.map((segment) => (
-                <li
-                    key={segment.key}
-                    className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_auto] items-center gap-3 py-1.5 text-sm"
-                >
-                    <span className="flex min-w-0 items-start gap-2">
+            {segments.map((segment) => {
+                const content = (
+                    <>
+                        <span className="flex min-w-0 items-start gap-2">
+                            <span
+                                aria-hidden="true"
+                                className="mt-1.5 size-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: segment.color }}
+                            />
+                            <span className="leading-tight text-foreground">
+                                {segment.label}
+                            </span>
+                        </span>
                         <span
-                            aria-hidden="true"
-                            className="mt-1.5 size-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: segment.color }}
-                        />
-                        <span className="leading-tight text-foreground">
-                            {segment.label}
+                            className="block h-1.5 overflow-hidden rounded-full"
+                            style={{ backgroundColor: programColors.track }}
+                        >
+                            <span
+                                className="block h-full rounded-full"
+                                style={{
+                                    width: `${(segment.count / max) * 100}%`,
+                                    backgroundColor: segment.color,
+                                }}
+                            />
                         </span>
-                    </span>
-                    <span
-                        className="block h-1.5 overflow-hidden rounded-full"
-                        style={{ backgroundColor: programColors.track }}
-                    >
-                        <span
-                            className="block h-full rounded-full"
-                            style={{
-                                width: `${(segment.count / max) * 100}%`,
-                                backgroundColor: segment.color,
-                            }}
-                        />
-                    </span>
-                    <span className="min-w-14 text-right tabular-nums">
-                        <span className="font-medium text-foreground">
-                            {numberFormat.format(segment.count)}
+                        <span className="min-w-14 text-right tabular-nums">
+                            <span className="font-medium text-foreground">
+                                {numberFormat.format(segment.count)}
+                            </span>
+                            <span className="ml-1 text-xs text-muted-foreground">
+                                {percentOf(segment.count, total)}%
+                            </span>
                         </span>
-                        <span className="ml-1 text-xs text-muted-foreground">
-                            {percentOf(segment.count, total)}%
-                        </span>
-                    </span>
-                </li>
-            ))}
+                    </>
+                );
+                const grid =
+                    'grid w-full grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_auto] items-center gap-3 py-1.5 text-sm';
+
+                return (
+                    <li key={segment.key}>
+                        {segment.onSelect && segment.count > 0 ? (
+                            <button
+                                type="button"
+                                onClick={segment.onSelect}
+                                title={`Lihat data ${segment.label}`}
+                                className={cn(
+                                    grid,
+                                    selectableClass,
+                                    '-mx-2 w-[calc(100%+1rem)] px-2',
+                                )}
+                            >
+                                {content}
+                            </button>
+                        ) : (
+                            <div className={grid}>{content}</div>
+                        )}
+                    </li>
+                );
+            })}
         </ul>
     );
 }
@@ -429,6 +532,7 @@ export function ColumnBars({
         value: number;
         display: string;
         title?: string;
+        onSelect?: () => void;
     }[];
     label: string;
     height?: number;
@@ -446,31 +550,57 @@ export function ColumnBars({
                 gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
             }}
         >
-            {columns.map((column) => (
-                <li
-                    key={column.key}
-                    className="grid min-w-0 gap-1.5 text-center"
-                    title={column.title}
-                >
-                    <span className="text-xs font-semibold text-foreground tabular-nums">
-                        {column.display}
-                    </span>
-                    <span
-                        className="flex items-end overflow-hidden rounded-md"
-                        style={{ height, backgroundColor: programColors.track }}
-                    >
+            {columns.map((column) => {
+                const content = (
+                    <>
+                        <span className="text-xs font-semibold text-foreground tabular-nums">
+                            {column.display}
+                        </span>
                         <span
-                            className="block w-full rounded-md bg-primary transition-[height] duration-500"
+                            className="flex items-end overflow-hidden rounded-md"
                             style={{
-                                height: `${Math.min(100, (column.value / max) * 100)}%`,
+                                height,
+                                backgroundColor: programColors.track,
                             }}
-                        />
-                    </span>
-                    <span className="line-clamp-2 text-[11px] leading-tight text-muted-foreground">
-                        {column.label}
-                    </span>
-                </li>
-            ))}
+                        >
+                            <span
+                                className="block w-full rounded-md bg-primary transition-[height] duration-500"
+                                style={{
+                                    height: `${Math.min(100, (column.value / max) * 100)}%`,
+                                }}
+                            />
+                        </span>
+                        <span className="line-clamp-2 text-[11px] leading-tight text-muted-foreground">
+                            {column.label}
+                        </span>
+                    </>
+                );
+
+                return (
+                    <li
+                        key={column.key}
+                        title={column.title}
+                        className="min-w-0"
+                    >
+                        {column.onSelect && column.value > 0 ? (
+                            <button
+                                type="button"
+                                onClick={column.onSelect}
+                                className={cn(
+                                    'grid w-full gap-1.5 p-1 text-center',
+                                    selectableClass,
+                                )}
+                            >
+                                {content}
+                            </button>
+                        ) : (
+                            <div className="grid gap-1.5 text-center">
+                                {content}
+                            </div>
+                        )}
+                    </li>
+                );
+            })}
         </ol>
     );
 }

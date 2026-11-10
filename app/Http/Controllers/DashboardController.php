@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Services\AdminDashboardOverview;
 use App\Services\MemberDashboardOverview;
+use App\Services\ProgramDashboardDetails;
 use App\Services\ProgramDashboardOverview;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -34,5 +37,23 @@ class DashboardController extends Controller
             'adminOverview' => $user->can('dashboard.admin') ? $overview->get() : null,
             'program' => $program,
         ]);
+    }
+
+    /**
+     * The records behind one number of the program dashboard, for its detail popup.
+     */
+    public function programDetails(Request $request, ProgramDashboardOverview $programOverview, ProgramDashboardDetails $details): JsonResponse
+    {
+        $validated = $request->validate([
+            'metric' => ['required', 'string', Rule::in(array_keys(ProgramDashboardDetails::METRICS))],
+            'key' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $batch = $programOverview->currentBatch();
+
+        abort_if($batch === null, 404);
+        abort_unless($details->canView($request->user(), $batch, $validated['metric']), 403);
+
+        return response()->json($details->get($request->user(), $batch, $validated['metric'], $validated['key'] ?? null));
     }
 }

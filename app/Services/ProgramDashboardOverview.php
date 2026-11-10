@@ -44,6 +44,13 @@ class ProgramDashboardOverview
     /** Longest trend drawn, so a mistyped phase end cannot build a huge series. */
     private const MAX_TREND_DAYS = 180;
 
+    /** Bands of how well a team covers the competencies its project asked for. */
+    public const COVERAGE_BANDS = [
+        'fit' => 'Sesuai (≥80%)',
+        'partial' => 'Cukup Sesuai (60–79%)',
+        'gap' => 'Perlu Penyesuaian (<60%)',
+    ];
+
     /** How many of the most-held skills the registration phase lists. */
     private const TOP_COMPETENCIES = 10;
 
@@ -97,6 +104,61 @@ class ProgramDashboardOverview
             'selection' => $readable('selection') ? $this->selection($batch) : null,
             'execution' => $readable('execution') ? $this->execution($batch, $today, $ownProjectsOf) : null,
         ];
+    }
+
+    /**
+     * Whether the figures of this phase of the batch can be read today.
+     */
+    public function phaseIsReadable(QccBatch $batch, string $phaseKey): bool
+    {
+        $phase = collect($this->phases($batch, today(config('app.timezone'))))->firstWhere('key', $phaseKey);
+
+        return (bool) ($phase['viewable'] ?? false);
+    }
+
+    /**
+     * Approved proposals of the batch with what team formation needs: needs, proposer and active members.
+     *
+     * @return Collection<int, Project>
+     */
+    public function approvedProposals(QccBatch $batch): Collection
+    {
+        return $this->submittedProposals($batch)
+            ->where('proposal_status', ProposalStatus::Approved->value)
+            ->with([
+                'requirements:id,project_id,competency_id,minimum_level',
+                'proposer:id,organization_id',
+                'members' => fn ($members) => $members
+                    ->wherePivot('status', 'ACTIVE')
+                    ->wherePivotNull('left_at')
+                    ->select('users.id'),
+            ])
+            ->get(['id', 'proposer_id']);
+    }
+
+    /**
+     * An approved proposal has its team once enough active members joined.
+     */
+    public function hasFormedTeam(Project $project): bool
+    {
+        return $project->members->count() >= self::MIN_TEAM_MEMBERS;
+    }
+
+    /**
+     * Ids of the approved proposals with a finished AI matching run.
+     *
+     * @param  Collection<int, Project>  $projects
+     * @return list<int>
+     */
+    public function matchedProjectIds(Collection $projects): array
+    {
+        return DB::table('team_matching_runs')
+            ->whereIn('project_id', $projects->pluck('id'))
+            ->where('status', TeamMatchingStatus::Ready->value)
+            ->distinct()
+            ->pluck('project_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
     }
 
     /**
@@ -155,9 +217,11 @@ class ProgramDashboardOverview
         $registeredIds = $this->participants()->whereNotNull('profile_completed_at')->pluck('users.id');
         $registered = $registeredIds->count();
         $competencyCompleted = DB::table('member_competencies')
-            ->whereIn('user_id', $registeredIds)
+            ->join('competency_master', 'competency_master.id', '=', 'member_competencies.competency_id')
+            ->where('competency_master.is_active', true)
+            ->whereIn('member_competencies.user_id', $registeredIds)
             ->distinct()
-            ->count('user_id');
+            ->count('member_competencies.user_id');
 
         $submitted = $this->submittedProposals($batch);
         $proposalsSubmitted = (clone $submitted)->count();
@@ -184,7 +248,7 @@ class ProgramDashboardOverview
     /**
      * @return Builder<User>
      */
-    private function participants(): Builder
+    public function participants(): Builder
     {
         return User::query()
             ->where('is_active', true)
@@ -196,7 +260,7 @@ class ProgramDashboardOverview
      *
      * @return Builder<Project>
      */
-    private function submittedProposals(QccBatch $batch): Builder
+    public function submittedProposals(QccBatch $batch): Builder
     {
         return Project::query()
             ->where('batch_id', $batch->id)
@@ -207,7 +271,7 @@ class ProgramDashboardOverview
     /**
      * Submitted proposals counted by the proposer's LOB/Div, busiest first.
      *
-     * @return list<array{name: string, count: int}>
+     * @return list<array{id: int, name: string, count: int}>
      */
     private function submissionsByOrganization(QccBatch $batch): array
     {
@@ -227,7 +291,7 @@ class ProgramDashboardOverview
      * shows when it has proposals, so no proposal drops out of the chart.
      *
      * @param  array<int|string, int|string>  $counts
-     * @return list<array{name: string, count: int}>
+     * @return list<array{id: int, name: string, count: int}>
      */
     private function organizationCounts(array $counts): array
     {
@@ -237,7 +301,7 @@ class ProgramDashboardOverview
             ->where(fn (Builder $query) => $query->where('is_active', true)->orWhereIn('id', $withProposals))
             ->orderBy('name')
             ->get(['id', 'name'])
-            ->map(fn (Organization $organization): array => ['name' => $organization->name, 'count' => (int) ($counts[$organization->id] ?? 0)])
+            ->map(fn (Organization $organization): array => ['id' => $organization->id, 'name' => $organization->name, 'count' => (int) ($counts[$organization->id] ?? 0)])
             ->sortBy([['count', 'desc'], ['name', 'asc']])
             ->values()
             ->all();
@@ -247,7 +311,7 @@ class ProgramDashboardOverview
      * The skills most registered SIMers hold, with how many of them hold each one.
      *
      * @param  list<int>  $registeredIds
-     * @return list<array{name: string, count: int, percent: int}>
+     * @return list<array{code: string, name: string, count: int, percent: int}>
      */
     private function topCompetencies(array $registeredIds, int $registered): array
     {
@@ -262,6 +326,7 @@ class ProgramDashboardOverview
             ->limit(self::TOP_COMPETENCIES)
             ->get()
             ->map(fn (object $row): array => [
+                'code' => (string) $row->code,
                 'name' => (string) $row->name,
                 'count' => (int) $row->total,
                 'percent' => $this->percent((int) $row->total, $registered),
@@ -366,24 +431,9 @@ class ProgramDashboardOverview
         $passed = (int) ($statusCounts[ProposalStatus::Approved->value] ?? 0);
         $failed = (int) ($statusCounts[ProposalStatus::Rejected->value] ?? 0);
 
-        $approved = $this->submittedProposals($batch)
-            ->where('proposal_status', ProposalStatus::Approved->value)
-            ->with([
-                'requirements:id,project_id,competency_id,minimum_level',
-                'proposer:id,organization_id',
-                'members' => fn ($members) => $members
-                    ->wherePivot('status', 'ACTIVE')
-                    ->wherePivotNull('left_at')
-                    ->select('users.id'),
-            ])
-            ->get(['id', 'proposer_id']);
-
-        $formed = $approved->filter(fn (Project $project): bool => $project->members->count() >= self::MIN_TEAM_MEMBERS);
-        $matched = DB::table('team_matching_runs')
-            ->whereIn('project_id', $approved->pluck('id'))
-            ->where('status', TeamMatchingStatus::Ready->value)
-            ->distinct()
-            ->count('project_id');
+        $approved = $this->approvedProposals($batch);
+        $formed = $approved->filter(fn (Project $project): bool => $this->hasFormedTeam($project));
+        $matched = count($this->matchedProjectIds($approved));
 
         return [
             'total' => $total,
@@ -409,7 +459,7 @@ class ProgramDashboardOverview
 
     /**
      * @param  Collection<int, Project>  $projects
-     * @return list<array{name: string, count: int}>
+     * @return list<array{id: int, name: string, count: int}>
      */
     private function countByOrganization(Collection $projects): array
     {
@@ -419,21 +469,45 @@ class ProgramDashboardOverview
     }
 
     /**
-     * How well each formed team covers the competencies its project asked for. A need counts as
-     * covered when one active member holds that competency at the minimum level. A project
-     * without needs counts as fully covered.
+     * How many formed teams fall in each coverage band.
      *
      * @param  Collection<int, Project>  $projects
      * @return list<array{key: string, label: string, count: int, percent: int}>
      */
     private function matchingBands(Collection $projects): array
     {
+        $bands = ['fit' => 0, 'partial' => 0, 'gap' => 0];
+
+        foreach ($this->coverageBands($projects) as $band) {
+            $bands[$band]++;
+        }
+
+        $total = $projects->count();
+
+        return array_map(fn (string $key): array => [
+            'key' => $key,
+            'label' => self::COVERAGE_BANDS[$key],
+            'count' => $bands[$key],
+            'percent' => $this->percent($bands[$key], $total),
+        ], array_keys(self::COVERAGE_BANDS));
+    }
+
+    /**
+     * The coverage band of each team: "fit", "partial" or "gap", keyed by project id. A need counts
+     * as covered when one active member holds that competency at the minimum level. A project
+     * without needs counts as fully covered.
+     *
+     * @param  Collection<int, Project>  $projects
+     * @return array<int, string>
+     */
+    public function coverageBands(Collection $projects): array
+    {
         $levels = DB::table('member_competencies')
             ->whereIn('user_id', $projects->flatMap(fn (Project $project) => $project->members->pluck('id'))->unique())
             ->get(['user_id', 'competency_id', 'self_level'])
             ->groupBy('user_id');
 
-        $bands = ['fit' => 0, 'partial' => 0, 'gap' => 0];
+        $bands = [];
 
         foreach ($projects as $project) {
             $requirements = $project->requirements;
@@ -444,20 +518,14 @@ class ProgramDashboardOverview
             ))->count();
             $coverage = $requirements->isEmpty() ? 100 : $this->percent($covered, $requirements->count());
 
-            $bands[match (true) {
+            $bands[$project->id] = match (true) {
                 $coverage >= 80 => 'fit',
                 $coverage >= 60 => 'partial',
                 default => 'gap',
-            }]++;
+            };
         }
 
-        $total = $projects->count();
-
-        return [
-            ['key' => 'fit', 'label' => 'Sesuai (≥80%)', 'count' => $bands['fit'], 'percent' => $this->percent($bands['fit'], $total)],
-            ['key' => 'partial', 'label' => 'Cukup Sesuai (60–79%)', 'count' => $bands['partial'], 'percent' => $this->percent($bands['partial'], $total)],
-            ['key' => 'gap', 'label' => 'Perlu Penyesuaian (<60%)', 'count' => $bands['gap'], 'percent' => $this->percent($bands['gap'], $total)],
-        ];
+        return $bands;
     }
 
     /**
