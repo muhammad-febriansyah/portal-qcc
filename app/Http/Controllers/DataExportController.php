@@ -23,6 +23,7 @@ use App\Services\AuditService;
 use App\Services\CsvExportService;
 use App\Services\ExcelExportService;
 use App\Services\ProposalListingQuery;
+use App\Services\ProposalPresentationBuilder;
 use App\Services\ScoringListingQuery;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -60,6 +61,28 @@ class DataExportController extends Controller
         return $this->csv->download('daftar_proposal', 'daftar-proposal.csv', [
             'Kode', 'Judul Proposal', 'Batch', 'Pengusul', 'Organisasi', 'Jumlah Anggota', 'Status', 'Diperbarui',
         ], $rows, $rows->count(), $filters, $audit);
+    }
+
+    /**
+     * The proposal as a PowerPoint deck built from the program's presentation template.
+     */
+    public function proposalPresentation(Project $project, ProposalPresentationBuilder $builder, AuditService $audit): BinaryFileResponse
+    {
+        Gate::authorize('view', $project);
+
+        $path = $builder->build($project);
+
+        $audit->record('data.exported', after: [
+            'type' => 'proposal_presentation',
+            'format' => 'pptx',
+            'filters' => ['project_id' => $project->id],
+            'row_count' => 1,
+        ], subjectLabel: sprintf('Ekspor PPT · PRP-%04d', $project->id));
+
+        return response()->download($path, $builder->filename($project), [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'Cache-Control' => 'no-store, private',
+        ])->deleteFileAfterSend(true);
     }
 
     public function projects(Request $request, AuditService $audit): StreamedResponse

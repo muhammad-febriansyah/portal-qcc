@@ -49,6 +49,7 @@ Route::middleware(['auth', 'verified', 'profile.complete'])->group(function () {
     Route::get('proposals/{project}', [ProposalController::class, 'show'])
         ->whereNumber('project')
         ->name('proposals.show');
+    Route::get('proposals/{project}/presentation', [DataExportController::class, 'proposalPresentation'])->whereNumber('project')->name('proposals.presentation');
     Route::get('proposals/{project}/candidates', [ProposalController::class, 'candidates'])->name('proposals.candidates');
     Route::post('proposals/{project}/matching', [ProposalController::class, 'startMatching'])->whereNumber('project')->name('proposals.matching.start');
     Route::post('proposals/{project}/team', [ProposalController::class, 'confirmTeam'])->whereNumber('project')->name('proposals.team.confirm');

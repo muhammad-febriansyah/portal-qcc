@@ -10,6 +10,7 @@ import {
     FileText,
     PencilLine,
     Paperclip,
+    Presentation,
     ClipboardCheck,
     CheckCircle2,
     UsersRound,
@@ -40,7 +41,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { BadgeVariant } from '@/lib/badge-variants';
 import { dashboard } from '@/routes';
-import { candidates, edit, index } from '@/routes/proposals';
+import { candidates, edit, index, presentation } from '@/routes/proposals';
 import proposalRoutes from '@/routes/proposals';
 import type { BreadcrumbItem } from '@/types';
 
@@ -177,6 +178,19 @@ export default function ProposalShow({ proposal }: Props) {
                     description={`${proposal.code} · ${proposal.batch ?? 'Tanpa batch'}`}
                     actions={
                         <>
+                            <Button
+                                variant="outline"
+                                render={
+                                    <a
+                                        href={presentation.url(proposal.id)}
+                                        download
+                                    />
+                                }
+                                nativeButton={false}
+                            >
+                                <Presentation data-icon="inline-start" />
+                                Export PPT
+                            </Button>
                             {proposal.can_edit_draft && (
                                 <Button
                                     variant="outline"
