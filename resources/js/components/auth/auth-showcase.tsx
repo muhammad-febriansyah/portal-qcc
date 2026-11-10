@@ -126,7 +126,7 @@ function QccStepRing() {
                     return (
                         <li
                             key={step}
-                            className="absolute -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_8px_14px_rgba(1,145,194,0.18)]"
+                            className="absolute -translate-x-1/2 -translate-y-1/2 opacity-55 drop-shadow-[0_6px_10px_rgba(1,145,194,0.1)]"
                             style={{
                                 left: `${point.x}%`,
                                 top: `${point.y}%`,
