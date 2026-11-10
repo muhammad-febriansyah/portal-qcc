@@ -312,6 +312,18 @@ function fileSize(bytes: number): string {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** What each QCC step usually produces, shown above the step's deliverable field. */
+const stepDeliverableExamples: Record<number, string> = {
+    1: 'Data kondisi aktual, tema improvement terpilih',
+    2: 'Target SMART, KPI keberhasilan',
+    3: 'Daftar potensi penyebab, diagram Fishbone (5M+1E)',
+    4: 'Hasil validasi penyebab, diagram Pareto',
+    5: 'Action plan 5W+1H',
+    6: 'Bukti implementasi, dokumentasi before-after',
+    7: 'Perbandingan baseline vs aktual, pencapaian target, benefit improvement',
+    8: 'SOP/standar kerja terbaru, rencana sustainability, tindak lanjut',
+};
+
 export default function ProposalWizard({
     project,
     step,
@@ -914,9 +926,25 @@ export default function ProposalWizard({
                                 <legend className="sr-only">
                                     {`${qccStep.number}. ${qccStep.name}`}
                                 </legend>
-                                <p className="text-sm font-semibold text-foreground md:col-span-2 xl:col-span-3">
-                                    {qccStep.number}. {qccStep.name}
-                                </p>
+                                <div className="grid gap-1 md:col-span-2 xl:col-span-3">
+                                    <p className="text-sm font-semibold text-foreground">
+                                        {qccStep.number}. {qccStep.name}
+                                    </p>
+                                    {stepDeliverableExamples[
+                                        qccStep.number
+                                    ] && (
+                                        <p className="text-xs text-muted-foreground">
+                                            <span className="font-medium text-foreground">
+                                                Contoh deliverable:
+                                            </span>{' '}
+                                            {
+                                                stepDeliverableExamples[
+                                                    qccStep.number
+                                                ]
+                                            }
+                                        </p>
+                                    )}
+                                </div>
                                 <FormField
                                     id={`step-start-${qccStep.number}`}
                                     label="Tanggal mulai"
@@ -980,7 +1008,7 @@ export default function ProposalWizard({
                                                 event.target.value,
                                             )
                                         }
-                                        placeholder="Contoh: Data baseline dan diagram Pareto"
+                                        placeholder="Tulis hasil step ini"
                                         maxLength={500}
                                         className={controlClassName}
                                     />
