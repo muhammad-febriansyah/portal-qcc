@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\Proposals\AssignOrganizationHead;
+use App\Actions\Proposals\AssignOrganizationMentors;
 use App\Http\Requests\StoreOrganizationRequest;
 use App\Http\Requests\UpdateOrganizationRequest;
 use App\Models\Organization;
@@ -37,8 +37,8 @@ class OrganizationController extends Controller
         $perPage = (int) ($filters['per_page'] ?? 10);
 
         $organizations = Organization::query()
-            ->select(['id', 'code', 'name', 'head_id', 'is_active'])
-            ->with('head:id,name,email')
+            ->select(['id', 'code', 'name', 'is_active'])
+            ->with('mentors:id,name,email')
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('code', 'like', "%{$search}%")
@@ -58,10 +58,10 @@ class OrganizationController extends Controller
                 'code' => $organization->code,
                 'name' => $organization->name,
                 'is_active' => $organization->is_active,
-                'head_id' => $organization->head_id,
-                'head_name' => $organization->head?->name,
+                'mentor_ids' => $organization->mentors->pluck('id')->all(),
+                'mentor_names' => $organization->mentors->pluck('name')->all(),
             ]),
-            'headOptions' => User::query()
+            'mentorOptions' => User::query()
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name', 'email'])
@@ -82,8 +82,8 @@ class OrganizationController extends Controller
      */
     public function store(StoreOrganizationRequest $request): RedirectResponse
     {
-        $organization = Organization::query()->create($request->validated());
-        $this->prepareHead($organization);
+        $organization = Organization::query()->create($request->safe()->except('mentor_ids'));
+        $this->syncMentors($organization, $request->validated('mentor_ids'));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Organisasi berhasil ditambahkan.']);
 
@@ -95,8 +95,8 @@ class OrganizationController extends Controller
      */
     public function update(UpdateOrganizationRequest $request, Organization $organization): RedirectResponse
     {
-        $organization->update($request->validated());
-        $this->prepareHead($organization);
+        $organization->update($request->safe()->except('mentor_ids'));
+        $this->syncMentors($organization, $request->validated('mentor_ids'));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Organisasi berhasil diperbarui.']);
 
@@ -104,19 +104,26 @@ class OrganizationController extends Controller
     }
 
     /**
-     * A head gets the Mentor permissions right away, and proposals still without a mentor get
-     * the head as mentor and reviewer.
+     * Mentors get the Mentor permissions right away, and proposals still without a mentor get
+     * the organization's mentors as mentors and reviewers.
+     *
+     * @param  list<int>|null  $mentorIds  Null leaves the current mentors untouched.
      */
-    private function prepareHead(Organization $organization): void
+    private function syncMentors(Organization $organization, ?array $mentorIds): void
     {
-        $head = $organization->head()->first();
-
-        if ($head === null) {
+        if ($mentorIds === null) {
             return;
         }
 
-        AssignOrganizationHead::grantMentorRole($head);
-        app(AssignOrganizationHead::class)->backfill($organization);
+        $organization->mentors()->sync($mentorIds);
+        $mentors = $organization->mentors()->get();
+
+        if ($mentors->isEmpty()) {
+            return;
+        }
+
+        $mentors->each(fn (User $mentor) => AssignOrganizationMentors::grantMentorRole($mentor));
+        app(AssignOrganizationMentors::class)->backfill($organization);
     }
 
     public function destroy(Organization $organization): RedirectResponse

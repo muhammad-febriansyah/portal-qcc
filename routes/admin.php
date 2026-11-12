@@ -33,6 +33,9 @@ Route::middleware(['auth', 'verified'])
         Route::post('settings/test-ai', [SystemSettingsController::class, 'testAi'])
             ->middleware('throttle:5,1')
             ->name('settings.test-ai');
+        Route::delete('settings/demo-data', [SystemSettingsController::class, 'destroyDemoData'])
+            ->middleware('throttle:3,1')
+            ->name('settings.demo-data.destroy');
 
         Route::get('roles', [RolePermissionController::class, 'index'])
             ->name('roles.index');

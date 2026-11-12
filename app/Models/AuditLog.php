@@ -93,6 +93,7 @@ class AuditLog extends Model
         'team.leader_changed' => 'Leader tim diganti',
         'system_setting.created' => 'Pengaturan sistem ditambahkan',
         'system_setting.updated' => 'Pengaturan sistem diperbarui',
+        'system_setting.demo_data_purged' => 'Data dummy dihapus',
         'audit.pruned' => 'Audit log diarsipkan',
         'evidence.created' => 'Evidence ditambahkan',
         'evidence.updated' => 'Status evidence diperbarui',

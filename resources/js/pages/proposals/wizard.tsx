@@ -5,6 +5,7 @@ import {
     ChevronLeft,
     ChevronRight,
     FileText,
+    MessageSquareWarning,
     Save,
     Trash2,
     TriangleAlert,
@@ -107,6 +108,12 @@ type ProjectDraft = {
     step_timeline: string[];
     step_deliverables: string[];
     wizard_step: number;
+    status?: string;
+    revision_feedback?: {
+        reason: string | null;
+        actor: string | null;
+        decided_at: string | null;
+    } | null;
     updated_at: string | null;
     attachments: ExistingAttachment[];
     can_submit: boolean;
@@ -200,7 +207,7 @@ const steps: StepDefinition[] = [
         number: 7,
         label: 'Pratinjau & Ajukan',
         description:
-            'Periksa seluruh isi proposal sebelum diajukan ke Owner QCC.',
+            'Periksa seluruh isi proposal sebelum diajukan ke mentor LOB/Div.',
     },
 ];
 
@@ -336,6 +343,7 @@ export default function ProposalWizard({
     levelOptions = [],
     attachmentLimit = { maxFiles: 5, maxSizeMb: 50 },
 }: Props) {
+    const isRevision = project?.status === 'REVISION_REQUIRED';
     const [requirementsDirty, setRequirementsDirty] = useState(false);
     const [pendingFiles, setPendingFiles] = useState<UploadItem[]>([]);
     const [activeStep, setActiveStep] = useState(project?.wizard_step ?? step);
@@ -1048,8 +1056,10 @@ export default function ProposalWizard({
                     <UsersRound aria-hidden="true" />
                     <AlertTitle>Setelah diajukan</AlertTitle>
                     <AlertDescription>
-                        Owner QCC akan menyeleksi proposal dan menyusun tim
-                        berdasarkan kebutuhan kompetensi yang kamu pilih.
+                        Mentor LOB/Div akan mereview proposal, lalu
+                        menyetujuinya atau meminta revisi. Setelah disetujui,
+                        Owner QCC menyusun tim berdasarkan kebutuhan kompetensi
+                        yang kamu pilih.
                     </AlertDescription>
                 </Alert>
                 <dl className="grid gap-3">
@@ -1145,16 +1155,28 @@ export default function ProposalWizard({
                 breadcrumbs={[
                     { title: 'Proposal QCC', href: proposalsIndex.url() },
                     {
-                        title: project ? 'Lanjutkan Draft' : 'Buat Proposal',
+                        title: isRevision
+                            ? 'Revisi Proposal'
+                            : project
+                              ? 'Lanjutkan Draft'
+                              : 'Buat Proposal',
                         href: project
                             ? proposalsIndex.url()
                             : proposalCreate.url(),
                     },
                 ]}
                 title={
-                    project ? 'Lanjutkan Draft Proposal' : 'Buat Proposal QCC'
+                    isRevision
+                        ? 'Revisi Proposal'
+                        : project
+                          ? 'Lanjutkan Draft Proposal'
+                          : 'Buat Proposal QCC'
                 }
-                description="Isi proposal, tentukan kebutuhan kompetensi, lalu ajukan. Owner QCC akan menyeleksi proposal dan menyusun tim."
+                description={
+                    isRevision
+                        ? 'Perbaiki proposal sesuai feedback mentor, lalu ajukan kembali untuk direview.'
+                        : 'Isi proposal, tentukan kebutuhan kompetensi, lalu ajukan. Mentor LOB/Div akan mereview dan menyetujui proposal.'
+                }
                 actions={[
                     <Button
                         key="drafts"
@@ -1166,6 +1188,37 @@ export default function ProposalWizard({
                     </Button>,
                 ]}
             />
+
+            {isRevision && (
+                <Alert className="mb-5 border-warning/40 bg-warning/10">
+                    <MessageSquareWarning aria-hidden="true" />
+                    <AlertTitle>Feedback mentor</AlertTitle>
+                    <AlertDescription>
+                        <span className="block whitespace-pre-line">
+                            {project?.revision_feedback?.reason ??
+                                'Mentor belum mencatat feedback revisi.'}
+                        </span>
+                        {project?.revision_feedback?.actor && (
+                            <span className="mt-1 block text-xs">
+                                {project.revision_feedback.actor}
+                                {project.revision_feedback.decided_at &&
+                                    isValid(
+                                        parseISO(
+                                            project.revision_feedback
+                                                .decided_at,
+                                        ),
+                                    ) &&
+                                    ` · ${parseISO(
+                                        project.revision_feedback.decided_at,
+                                    ).toLocaleString('id-ID', {
+                                        dateStyle: 'long',
+                                        timeStyle: 'short',
+                                    })}`}
+                            </span>
+                        )}
+                    </AlertDescription>
+                </Alert>
+            )}
 
             {batches.length === 0 && !project ? (
                 <Card>
@@ -1382,7 +1435,7 @@ export default function ProposalWizard({
                                                 ) : (
                                                     <CheckCircle2 data-icon="inline-start" />
                                                 )}
-                                                Ajukan Proposal
+                                                {isRevision ? 'Ajukan Revisi' : 'Ajukan Proposal'}
                                             </Button>
                                         )}
                                 </div>

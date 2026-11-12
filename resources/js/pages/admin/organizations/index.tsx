@@ -11,11 +11,15 @@ import { useAppName } from '@/hooks/use-app-name';
 import { Badge } from '@/components/ui/badge';
 import {
     Combobox,
+    ComboboxChip,
+    ComboboxChips,
+    ComboboxChipsInput,
     ComboboxContent,
     ComboboxEmpty,
-    ComboboxInput,
     ComboboxItem,
     ComboboxList,
+    ComboboxValue,
+    useComboboxAnchor,
 } from '@/components/ui/combobox';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -47,11 +51,11 @@ type OrganizationRow = {
     code: string;
     name: string;
     is_active: boolean;
-    head_id: number | null;
-    head_name: string | null;
+    mentor_ids: number[];
+    mentor_names: string[];
 };
 
-type HeadOption = {
+type MentorOption = {
     id: number;
     name: string;
     email: string;
@@ -77,14 +81,15 @@ type OrganizationPageProps = {
         total: number;
     };
     filters: OrganizationFilters;
-    headOptions: HeadOption[];
+    mentorOptions: MentorOption[];
 };
 
 export default function OrganizationsIndex({
     organizations,
     filters,
-    headOptions,
+    mentorOptions,
 }: OrganizationPageProps) {
+    const mentorAnchor = useComboboxAnchor();
     const appName = useAppName();
     const [searchValue, setSearchValue] = useState(filters.search);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -94,12 +99,12 @@ export default function OrganizationsIndex({
     const form = useForm<{
         code: string;
         name: string;
-        head_id: number | null;
+        mentor_ids: number[];
         is_active: boolean;
     }>({
         code: '',
         name: '',
-        head_id: null,
+        mentor_ids: [],
         is_active: true,
     });
 
@@ -148,7 +153,12 @@ export default function OrganizationsIndex({
     function openCreateDialog(): void {
         setEditingOrganization(null);
         form.resetAndClearErrors();
-        form.setData({ code: '', name: '', head_id: null, is_active: true });
+        form.setData({
+            code: '',
+            name: '',
+            mentor_ids: [],
+            is_active: true,
+        });
         setIsDialogOpen(true);
     }
 
@@ -158,7 +168,7 @@ export default function OrganizationsIndex({
         form.setData({
             code: organization.code,
             name: organization.name,
-            head_id: organization.head_id,
+            mentor_ids: organization.mentor_ids,
             is_active: organization.is_active,
         });
         setIsDialogOpen(true);
@@ -222,10 +232,12 @@ export default function OrganizationsIndex({
                 cell: ({ row }) => row.original.name,
             },
             {
-                id: 'head',
-                header: 'Div/LOB Head',
+                id: 'mentors',
+                header: 'Mentor',
                 cell: ({ row }) =>
-                    row.original.head_name ?? (
+                    row.original.mentor_names.length > 0 ? (
+                        row.original.mentor_names.join(' / ')
+                    ) : (
                         <span className="text-muted-foreground">
                             Belum diatur
                         </span>
@@ -450,43 +462,69 @@ export default function OrganizationsIndex({
                             />
                         </FormField>
                         <FormField
-                            id="head_id"
-                            label="Div/LOB Head"
-                            hint="Otomatis menjadi mentor dan reviewer setiap proposal yang diajukan anggota organisasi ini."
-                            error={form.errors.head_id}
+                            id="mentor_ids"
+                            label="Mentor"
+                            hint="Otomatis menjadi mentor dan reviewer setiap proposal yang diajukan anggota organisasi ini. Bila ada dua mentor, salah satunya cukup untuk mereview."
+                            error={
+                                form.errors.mentor_ids ??
+                                Object.entries(form.errors).find(([key]) =>
+                                    key.startsWith('mentor_ids.'),
+                                )?.[1]
+                            }
                         >
                             <Combobox
-                                items={headOptions}
-                                value={
-                                    headOptions.find(
-                                        (option) =>
-                                            option.id === form.data.head_id,
-                                    ) ?? null
+                                multiple
+                                items={mentorOptions}
+                                value={mentorOptions.filter((option) =>
+                                    form.data.mentor_ids.includes(option.id),
+                                )}
+                                onValueChange={(options: MentorOption[]) =>
+                                    form.setData(
+                                        'mentor_ids',
+                                        options.map((option) => option.id),
+                                    )
                                 }
-                                onValueChange={(option: HeadOption | null) =>
-                                    form.setData('head_id', option?.id ?? null)
-                                }
-                                itemToStringLabel={(option: HeadOption) =>
+                                itemToStringLabel={(option: MentorOption) =>
                                     option.name
                                 }
                                 isItemEqualToValue={(
-                                    a: HeadOption,
-                                    b: HeadOption,
+                                    a: MentorOption,
+                                    b: MentorOption,
                                 ) => a.id === b.id}
                             >
-                                <ComboboxInput
-                                    id="head_id"
-                                    placeholder="Cari nama pengguna"
-                                    aria-label="Pilih Div/LOB Head"
-                                    aria-invalid={Boolean(form.errors.head_id)}
-                                    showClear
-                                />
-                                <ComboboxContent>
+                                <ComboboxChips ref={mentorAnchor}>
+                                    <ComboboxValue>
+                                        {(values: MentorOption[]) => (
+                                            <>
+                                                {values.map((option) => (
+                                                    <ComboboxChip
+                                                        key={option.id}
+                                                    >
+                                                        {option.name}
+                                                    </ComboboxChip>
+                                                ))}
+                                                <ComboboxChipsInput
+                                                    id="mentor_ids"
+                                                    placeholder={
+                                                        values.length > 0
+                                                            ? ''
+                                                            : 'Cari nama pengguna'
+                                                    }
+                                                    aria-label="Pilih mentor"
+                                                    aria-invalid={Boolean(
+                                                        form.errors.mentor_ids,
+                                                    )}
+                                                />
+                                            </>
+                                        )}
+                                    </ComboboxValue>
+                                </ComboboxChips>
+                                <ComboboxContent anchor={mentorAnchor}>
                                     <ComboboxEmpty>
                                         Pengguna tidak ditemukan.
                                     </ComboboxEmpty>
                                     <ComboboxList>
-                                        {(option: HeadOption) => (
+                                        {(option: MentorOption) => (
                                             <ComboboxItem
                                                 key={option.id}
                                                 value={option}

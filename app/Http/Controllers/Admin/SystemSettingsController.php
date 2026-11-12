@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\System\PurgeDemoData;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateSystemPoliciesRequest;
 use App\Http\Requests\UpdateSystemSettingsRequest;
@@ -26,7 +27,7 @@ use Throwable;
 
 class SystemSettingsController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, PurgeDemoData $purgeDemoData): Response
     {
         Gate::authorize('system-settings.view');
 
@@ -80,7 +81,41 @@ class SystemSettingsController extends Controller
                 ],
             ],
             'canManage' => $request->user()->can('system-settings.manage'),
+            'demoData' => $this->canPurgeDemoData($request) ? $purgeDemoData->summary() : null,
         ]);
+    }
+
+    /**
+     * Delete every demo account and the demo QCC data seeded for trials.
+     */
+    public function destroyDemoData(Request $request, PurgeDemoData $purgeDemoData): RedirectResponse
+    {
+        abort_unless($this->canPurgeDemoData($request), 403);
+
+        $request->validate(
+            ['confirmation' => ['required', 'string', 'in:HAPUS']],
+            ['confirmation.required' => 'Ketik HAPUS untuk mengonfirmasi.', 'confirmation.in' => 'Ketik HAPUS untuk mengonfirmasi.'],
+        );
+
+        $result = $purgeDemoData->handle($request->user());
+
+        $message = "Data dummy dihapus: {$result['users']} akun, {$result['projects']} proyek, {$result['batches']} batch.";
+
+        if ($result['deactivated'] > 0) {
+            $message .= " {$result['deactivated']} akun dummy dinonaktifkan karena masih dipakai data asli.";
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $message]);
+
+        return to_route('admin.settings.index');
+    }
+
+    /**
+     * Only Super Admins may remove demo data, and only with system settings access.
+     */
+    private function canPurgeDemoData(Request $request): bool
+    {
+        return $request->user()->hasRole('Super Admin') && $request->user()->can('system-settings.manage');
     }
 
     public function testEmail(Request $request): RedirectResponse

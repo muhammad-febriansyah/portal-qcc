@@ -1,6 +1,6 @@
 <?php
 
-use App\Actions\Proposals\AssignOrganizationHead;
+use App\Actions\Proposals\AssignOrganizationMentors;
 use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
 use App\Enums\TeamMatchingStatus;
@@ -132,8 +132,8 @@ test('proposal can be submitted revised resubmitted and approved with visible hi
 
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Approved)
         ->and($notices($proposer, 'APPROVE'))->toBe(1)
-        ->and($proposer->notifications()->where('data->decision', 'APPROVE')->value('data')['message'])->toContain('lolos seleksi. Owner QCC akan menyusun tim proyeknya.')
-        ->and($proposer->notifications()->where('data->decision', 'REQUEST_REVISION')->value('data')['message'])->toContain('Catatan reviewer: Perjelas baseline pengukuran.')
+        ->and($proposer->notifications()->where('data->decision', 'APPROVE')->value('data')['message'])->toContain('disetujui mentor. Owner QCC akan menyusun tim proyeknya.')
+        ->and($proposer->notifications()->where('data->decision', 'REQUEST_REVISION')->value('data')['message'])->toContain('Feedback mentor: Perjelas baseline pengukuran.')
         ->and($project->fresh()->steps)->toHaveCount(8)
         ->and($project->fresh()->steps->first()->target_date?->toDateString())->toBe(now()->addWeek()->toDateString())
         ->and(ReviewDecision::query()->where('project_id', $project->id)->count())->toBe(6);
@@ -153,8 +153,8 @@ test('proposal transitions reject missing review reasons and invalid state chang
     $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertRedirect();
     $this->actingAs($reviewer)->post(route('proposals.review.start', $project))->assertRedirect();
 
-    $this->post(route('proposals.review.decide', $project), ['decision' => 'REJECT'])
-        ->assertSessionHasErrors('reason');
+    $this->post(route('proposals.review.decide', $project), ['decision' => 'REQUEST_REVISION'])
+        ->assertSessionHasErrors(['reason' => 'Feedback untuk SIMer wajib diisi saat meminta revisi.']);
 
     $this->post(route('proposals.review.start', $project))->assertSessionHasErrors('proposal');
 
@@ -228,23 +228,59 @@ test('a proposal is decided without a team and the team is formed only after it 
             ->where('can_manage_approved_team', false));
 });
 
-test('the proposer is told when the proposal is rejected', function () {
+test('the mentor only approves or asks for a revision, and the proposer gets the feedback', function () {
     [$project, $proposer, $reviewer] = preparedProposal();
 
     $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertSessionHasNoErrors();
     $this->actingAs($reviewer)->post(route('proposals.review.start', $project))->assertRedirect();
+
     $this->post(route('proposals.review.decide', $project), ['decision' => 'REJECT', 'reason' => 'Di luar ruang lingkup batch.'])
+        ->assertSessionHasErrors('decision');
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::UnderReview);
+
+    $this->post(route('proposals.review.decide', $project), ['decision' => 'REQUEST_REVISION', 'reason' => 'Tambahkan data baseline 3 bulan terakhir.'])
         ->assertSessionHasNoErrors();
 
-    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Rejected)
-        ->and($proposer->notifications()->where('data->decision', 'REJECT')->value('data')['message'])->toContain('Catatan reviewer: Di luar ruang lingkup batch.');
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::RevisionRequired)
+        ->and($proposer->notifications()->where('data->decision', 'REQUEST_REVISION')->value('data')['message'])->toContain('Feedback mentor: Tambahkan data baseline 3 bulan terakhir.');
+
+    $this->actingAs($proposer)
+        ->get(route('proposals.edit', $project))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('project.status', ProposalStatus::RevisionRequired->value)
+            ->where('project.revision_feedback.reason', 'Tambahkan data baseline 3 bulan terakhir.')
+            ->where('project.revision_feedback.actor', $reviewer->name));
+
+    $timeline = collect($project->step_timeline_json);
+    $this->patch(route('proposals.update', $project), [
+        ...$project->only(['batch_id', 'theme', 'background', 'current_situation', 'improvement_plan', 'target', 'scope', 'cost_projection']),
+        'title' => 'Judul setelah revisi',
+        'theme_category' => $project->theme_category->value,
+        'learning_goals' => $project->learning_goals_json,
+        'step_start_dates' => $timeline->pluck('start_date')->all(),
+        'step_timeline' => $timeline->pluck('target_date')->all(),
+        'wizard_step' => 1,
+        'advance' => false,
+    ])->assertSessionHasNoErrors();
+    expect($project->fresh()->title)->toBe('Judul setelah revisi');
+
+    $this->post(route('proposals.submit', $project))->assertSessionHasNoErrors();
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Submitted);
+
+    $this->actingAs($reviewer)->post(route('proposals.review.start', $project))->assertRedirect();
+    $this->post(route('proposals.review.decide', $project), ['decision' => 'APPROVE', 'reason' => 'Siap lanjut ke penyusunan tim.'])
+        ->assertSessionHasNoErrors();
+
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Approved)
+        ->and($proposer->notifications()->where('data->decision', 'APPROVE')->value('data')['message'])->toContain('Feedback mentor: Siap lanjut ke penyusunan tim.');
 });
 
-test('the proposer\'s Div/LOB head becomes the locked reviewer and mentor on submission', function () {
+test('the proposer\'s LOB/Div mentor becomes the locked reviewer and mentor on submission', function () {
     $this->seed(ProjectAccessSeeder::class);
     [$project, $proposer] = preparedProposal();
     $head = User::factory()->create(['name' => 'Kepala HCGS Cordev']);
-    $proposer->organization->update(['head_id' => $head->id]);
+    $proposer->organization->mentors()->sync([$head->id]);
 
     $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertRedirect();
 
@@ -258,14 +294,14 @@ test('the proposer\'s Div/LOB head becomes the locked reviewer and mentor on sub
     expect($head->notifications()->where('data->decision', 'SUBMITTED')->count())->toBe(1);
 
     $log = AuditLog::query()->where('event', 'review_assignment.created')->sole();
-    expect((new AuditDescriber)->describe($log))->toStartWith('Div/LOB Head otomatis ditugaskan sebagai reviewer untuk');
+    expect((new AuditDescriber)->describe($log))->toStartWith('Mentor LOB/Div otomatis ditugaskan sebagai reviewer untuk');
 
     $this->actingAs($head->fresh())->post(route('proposals.review.start', $project))->assertRedirect();
     $this->post(route('proposals.review.decide', $project), ['decision' => 'APPROVE'])->assertRedirect();
     expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Approved);
 
-    $proposer->organization->update(['head_id' => User::factory()->create()->id]);
-    app(AssignOrganizationHead::class)->handle($project->fresh());
+    $proposer->organization->mentors()->sync([User::factory()->create()->id]);
+    app(AssignOrganizationMentors::class)->handle($project->fresh());
 
     expect($project->mentorAssignments()->pluck('mentor_id')->all())->toBe([$head->id]);
 });
@@ -274,7 +310,7 @@ test('no head is assigned when the organization has none or the proposer heads i
     $this->seed(ProjectAccessSeeder::class);
     [$project, $proposer] = preparedProposal();
     [$secondProject, $secondProposer] = preparedProposal();
-    $secondProposer->organization->update(['head_id' => $secondProposer->id]);
+    $secondProposer->organization->mentors()->sync([$secondProposer->id]);
 
     $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertRedirect();
     $this->actingAs($secondProposer)->post(route('proposals.submit', $secondProject))->assertRedirect();
@@ -283,7 +319,29 @@ test('no head is assigned when the organization has none or the proposer heads i
     $this->assertDatabaseCount('review_assignments', 0);
 });
 
-test('setting an organization head assigns it to waiting proposals that have no mentor yet', function () {
+test('either of two LOB mentors may review, and only the mentors are told about the proposal', function () {
+    $this->seed(ProjectAccessSeeder::class);
+    [$project, $proposer] = preparedProposal();
+    $firstMentor = User::factory()->create(['name' => 'DODDI WALYADI']);
+    $secondMentor = User::factory()->create(['name' => 'MOH. BADROS SOLEH']);
+    $owner = User::factory()->create();
+    $owner->assignRole('Owner QCC');
+    $proposer->organization->mentors()->sync([$firstMentor->id, $secondMentor->id]);
+
+    $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertSessionHasNoErrors();
+
+    expect($project->mentorAssignments()->pluck('mentor_id')->sort()->values()->all())->toBe([$firstMentor->id, $secondMentor->id])
+        ->and($firstMentor->notifications()->where('data->decision', 'SUBMITTED')->count())->toBe(1)
+        ->and($secondMentor->notifications()->where('data->decision', 'SUBMITTED')->count())->toBe(1)
+        ->and($owner->notifications()->count())->toBe(0);
+
+    $this->actingAs($secondMentor->fresh())->post(route('proposals.review.start', $project))->assertRedirect();
+    $this->post(route('proposals.review.decide', $project), ['decision' => 'APPROVE'])->assertSessionHasNoErrors();
+
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Approved);
+});
+
+test('setting organization mentors assigns them to waiting proposals that have no mentor yet', function () {
     $this->seed(ProjectAccessSeeder::class);
     [$project, $proposer] = preparedProposal();
     $this->actingAs($proposer)->post(route('proposals.submit', $project))->assertRedirect();
@@ -292,7 +350,7 @@ test('setting an organization head assigns it to waiting proposals that have no 
     $admin->givePermissionTo(Permission::findOrCreate('organizations.manage', 'web'));
 
     $this->actingAs($admin)
-        ->patch(route('admin.organizations.update', $proposer->organization), ['head_id' => $head->id])
+        ->patch(route('admin.organizations.update', $proposer->organization), ['mentor_ids' => [$head->id]])
         ->assertRedirect(route('admin.organizations.index'));
 
     expect($head->fresh()->hasRole('Mentor'))->toBeTrue();
@@ -301,9 +359,9 @@ test('setting an organization head assigns it to waiting proposals that have no 
 
     $this->get(route('admin.organizations.index', ['search' => $proposer->organization->code]))
         ->assertInertia(fn (Assert $page) => $page
-            ->where('organizations.data.0.head_id', $head->id)
-            ->where('organizations.data.0.head_name', $head->name)
-            ->has('headOptions'));
+            ->where('organizations.data.0.mentor_ids', [$head->id])
+            ->where('organizations.data.0.mentor_names', [$head->name])
+            ->has('mentorOptions'));
 });
 
 test('reviewers and mentors can no longer be assigned by hand', function () {

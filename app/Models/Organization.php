@@ -6,12 +6,9 @@ use App\Concerns\Auditable;
 use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * @property int|null $head_id
- */
 class Organization extends Model
 {
     /** @use HasFactory<OrganizationFactory> */
@@ -20,7 +17,6 @@ class Organization extends Model
     protected $fillable = [
         'code',
         'name',
-        'head_id',
         'is_active',
     ];
 
@@ -32,13 +28,14 @@ class Organization extends Model
     }
 
     /**
-     * The Div or LOB head who mentors and reviews the organization's proposals.
+     * The mentors who review and mentor the organization's proposals. Most have one; a few
+     * (LOB CCCM, KISS) share two, and either of them may review.
      *
-     * @return BelongsTo<User, $this>
+     * @return BelongsToMany<User, $this>
      */
-    public function head(): BelongsTo
+    public function mentors(): BelongsToMany
     {
-        return $this->belongsTo(User::class, 'head_id');
+        return $this->belongsToMany(User::class, 'organization_mentors')->withTimestamps();
     }
 
     /**

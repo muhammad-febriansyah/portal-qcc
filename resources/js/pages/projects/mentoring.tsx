@@ -1022,9 +1022,9 @@ export default function ProjectMentoring({
                             </ul>
                         )}
                         <p className="text-xs text-muted-foreground">
-                            Mentor adalah Div/LOB Head organisasi pengusul dan
-                            terkunci sejak proposal diajukan. Mentor ikut
-                            mereview proposal, lalu meninjau, meminta revisi,
+                            Mentor adalah mentor LOB/Div organisasi pengusul dan
+                            terkunci sejak proposal diajukan. Mentor mereview
+                            dan menyetujui proposal, lalu meninjau, meminta revisi,
                             dan menyetujui 8 Step serta laporan bi-weekly. Team
                             Leader mengirim laporan mentoring; Mentor memberi
                             feedback.

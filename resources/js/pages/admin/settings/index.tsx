@@ -2,6 +2,7 @@ import { Form, Head, useForm } from '@inertiajs/react';
 import {
     Bell,
     Brain,
+    DatabaseZap,
     FileLock2,
     Globe2,
     Image,
@@ -10,6 +11,7 @@ import {
     Plug,
     Send,
     Settings2,
+    Trash2,
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { FormField } from '@/components/form-field';
@@ -49,6 +51,7 @@ import {
     testEmail as testSystemEmail,
     update as updateSystemSettings,
 } from '@/routes/admin/settings';
+import { destroy as destroyDemoData } from '@/routes/admin/settings/demo-data';
 import { update as updateSystemPolicies } from '@/routes/admin/settings/policies';
 
 type PolicySettings = {
@@ -106,6 +109,7 @@ type Props = {
     };
     policies: PolicySettings;
     canManage: boolean;
+    demoData: { users: number; projects: number; batches: number } | null;
 };
 
 const attachmentTypes = [
@@ -122,7 +126,25 @@ export default function SystemSettingsIndex({
     general,
     policies,
     canManage,
+    demoData,
 }: Props) {
+    const demoPurgeForm = useForm({ confirmation: '' });
+    const [isDemoPurgeDialogOpen, setIsDemoPurgeDialogOpen] = useState(false);
+    const demoDataTotal = demoData
+        ? demoData.users + demoData.projects + demoData.batches
+        : 0;
+
+    function submitDemoPurge(event: FormEvent<HTMLFormElement>): void {
+        event.preventDefault();
+        demoPurgeForm.delete(destroyDemoData.url(), {
+            preserveScroll: true,
+            onSuccess: () => {
+                setIsDemoPurgeDialogOpen(false);
+                demoPurgeForm.reset();
+            },
+        });
+    }
+
     const [apiKeyConfigured, setApiKeyConfigured] = useState(
         policies.ai.hasApiKey,
     );
@@ -195,6 +217,12 @@ export default function SystemSettingsIndex({
                             <LockKeyhole aria-hidden="true" />
                             Kebijakan Sistem
                         </TabsTrigger>
+                        {demoData && (
+                            <TabsTrigger value="demo-data">
+                                <DatabaseZap aria-hidden="true" />
+                                Data Dummy
+                            </TabsTrigger>
+                        )}
                     </TabsList>
 
                     <TabsContent value="general">
@@ -980,8 +1008,139 @@ export default function SystemSettingsIndex({
                             </div>
                         </form>
                     </TabsContent>
+
+                    {demoData && (
+                        <TabsContent value="demo-data">
+                            <Card className="border-destructive/30">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <DatabaseZap
+                                            aria-hidden="true"
+                                            className="size-4"
+                                        />
+                                        Hapus akun & data dummy
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Menghapus akun demo (email
+                                        @example.test), batch demo, serta semua
+                                        proposal dan proyek milik akun demo
+                                        beserta lampirannya. Akun dan data asli
+                                        tidak disentuh. Akun yang sedang Anda
+                                        pakai tetap disimpan.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="grid gap-5">
+                                    <dl className="grid gap-3 sm:grid-cols-3">
+                                        {[
+                                            {
+                                                label: 'Akun dummy',
+                                                value: demoData.users,
+                                            },
+                                            {
+                                                label: 'Proposal & proyek',
+                                                value: demoData.projects,
+                                            },
+                                            {
+                                                label: 'Batch demo',
+                                                value: demoData.batches,
+                                            },
+                                        ].map((item) => (
+                                            <div
+                                                key={item.label}
+                                                className="rounded-lg border bg-muted/30 px-4 py-3"
+                                            >
+                                                <dt className="text-xs text-muted-foreground">
+                                                    {item.label}
+                                                </dt>
+                                                <dd className="text-2xl font-semibold tabular-nums">
+                                                    {item.value}
+                                                </dd>
+                                            </div>
+                                        ))}
+                                    </dl>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <Button
+                                            type="button"
+                                            variant="destructive"
+                                            disabled={demoDataTotal === 0}
+                                            onClick={() => {
+                                                demoPurgeForm.resetAndClearErrors();
+                                                setIsDemoPurgeDialogOpen(true);
+                                            }}
+                                        >
+                                            <Trash2 aria-hidden="true" />
+                                            Hapus data dummy
+                                        </Button>
+                                        <p className="text-xs text-muted-foreground">
+                                            {demoDataTotal === 0
+                                                ? 'Tidak ada data dummy tersisa.'
+                                                : 'Tindakan ini permanen dan tidak bisa dibatalkan.'}
+                                        </p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    )}
                 </Tabs>
             </div>
+            <Dialog
+                open={isDemoPurgeDialogOpen}
+                onOpenChange={setIsDemoPurgeDialogOpen}
+            >
+                <DialogContent className="gap-6 sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Hapus semua data dummy?</DialogTitle>
+                        <p className="text-sm text-muted-foreground">
+                            {demoData?.users ?? 0} akun,{' '}
+                            {demoData?.projects ?? 0} proposal/proyek, dan{' '}
+                            {demoData?.batches ?? 0} batch demo akan dihapus
+                            permanen. Ketik <strong>HAPUS</strong> untuk
+                            melanjutkan.
+                        </p>
+                    </DialogHeader>
+                    <form onSubmit={submitDemoPurge} className="grid gap-6">
+                        <FormField
+                            id="demo-purge-confirmation"
+                            label="Konfirmasi"
+                            required
+                            error={demoPurgeForm.errors.confirmation}
+                        >
+                            <Input
+                                id="demo-purge-confirmation"
+                                value={demoPurgeForm.data.confirmation}
+                                onChange={(event) =>
+                                    demoPurgeForm.setData(
+                                        'confirmation',
+                                        event.target.value,
+                                    )
+                                }
+                                autoComplete="off"
+                                placeholder="HAPUS"
+                            />
+                        </FormField>
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsDemoPurgeDialogOpen(false)}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="destructive"
+                                disabled={
+                                    demoPurgeForm.processing ||
+                                    demoPurgeForm.data.confirmation !== 'HAPUS'
+                                }
+                            >
+                                {demoPurgeForm.processing && <Spinner />}
+                                Hapus permanen
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
             <Dialog
                 open={isTestEmailDialogOpen}
                 onOpenChange={setIsTestEmailDialogOpen}

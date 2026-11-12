@@ -156,11 +156,12 @@ class AuditDescriber
             'proposal.reject' => "{$actor} menolak proposal {$subject}",
             'system_setting.created' => "{$actor} menambahkan pengaturan sistem {$subject}".$fields,
             'system_setting.updated' => "{$actor} mengubah pengaturan sistem {$subject}".$fields,
+            'system_setting.demo_data_purged' => "{$actor} menghapus akun dan data dummy",
             'evidence.created' => "{$actor} mengunggah evidence {$subject}",
             'evidence.updated' => "{$actor} memperbarui status evidence {$subject}".$fields,
             'evidence_link.created' => "{$actor} mengaitkan {$subject} ke proyek atau step",
             'review_assignment.created' => ($log->after_json['granted_by'] ?? null) === null
-                ? "Div/LOB Head otomatis ditugaskan sebagai reviewer untuk {$subject}"
+                ? "Mentor LOB/Div otomatis ditugaskan sebagai reviewer untuk {$subject}"
                 : "{$actor} menugaskan reviewer untuk {$subject}",
             'review_assignment.updated' => "{$actor} memperbarui penugasan reviewer {$subject}".$fields,
             'review_assignment.revoked' => "{$actor} mencabut penugasan reviewer {$subject}",

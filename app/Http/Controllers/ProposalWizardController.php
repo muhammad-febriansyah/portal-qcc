@@ -17,6 +17,7 @@ use App\Models\QccBatch;
 use App\Services\EvidenceFileInspector;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -85,6 +86,9 @@ class ProposalWizardController extends Controller
             'batch:id,name',
             'attachments' => fn ($query) => $query->latest('created_at'),
         ]);
+        $revisionRequest = $project->proposal_status === ProposalStatus::RevisionRequired
+            ? $project->reviewDecisions()->with('actor:id,name')->where('decision', 'REQUEST_REVISION')->latest('decided_at')->latest('id')->first()
+            : null;
 
         return Inertia::render('proposals/wizard', [
             'project' => [
@@ -105,6 +109,12 @@ class ProposalWizardController extends Controller
                 'step_timeline' => $this->timelineValues($project, 'target_date'),
                 'step_deliverables' => $this->timelineValues($project, 'deliverable'),
                 'wizard_step' => $project->wizard_step,
+                'status' => $project->proposal_status->value,
+                'revision_feedback' => $revisionRequest === null ? null : [
+                    'reason' => $revisionRequest->reason,
+                    'actor' => $revisionRequest->actor?->name,
+                    'decided_at' => $revisionRequest->decided_at === null ? null : Carbon::parse($revisionRequest->decided_at)->toIso8601String(),
+                ],
                 'updated_at' => $project->updated_at?->toIso8601String(),
                 'can_submit' => $request->user()?->can('submit', $project) ?? false,
                 'attachments' => $project->attachments->map(fn (ProjectAttachment $attachment): array => [

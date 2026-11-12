@@ -301,14 +301,17 @@ export default function ProposalShow({ proposal }: Props) {
                     )}
                     {proposal.status === 'REVISION_REQUIRED' && (
                         <Alert className="border-warning/40 bg-warning/10">
-                            <AlertTitle>Proposal perlu revisi</AlertTitle>
+                            <AlertTitle>
+                                Proposal perlu revisi · feedback mentor
+                            </AlertTitle>
                             <AlertDescription>
-                                {latestRevision?.reason
-                                    ? `"${latestRevision.reason}"`
-                                    : 'Reviewer belum mencatat alasan revisi.'}
+                                <span className="block whitespace-pre-line">
+                                    {latestRevision?.reason ??
+                                        'Mentor belum mencatat feedback revisi.'}
+                                </span>
                                 {latestRevision?.decided_at && (
                                     <span className="mt-1 block text-xs">
-                                        {latestRevision.actor ?? 'Reviewer'} ·{' '}
+                                        {latestRevision.actor ?? 'Mentor'} ·{' '}
                                         {format(
                                             parseISO(latestRevision.decided_at),
                                             'd MMMM yyyy, HH:mm',
@@ -733,10 +736,10 @@ export default function ProposalShow({ proposal }: Props) {
             <Dialog open={decisionOpen} onOpenChange={setDecisionOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Keputusan review</DialogTitle>
+                        <DialogTitle>Keputusan mentor</DialogTitle>
                         <DialogDescription>
-                            Pilih hasil review proposal. Alasan wajib untuk
-                            revisi atau penolakan.
+                            Setujui proposal, atau kembalikan ke SIMer untuk
+                            direvisi. Feedback wajib diisi saat meminta revisi.
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={submitDecision} className="space-y-4">
@@ -757,14 +760,36 @@ export default function ProposalShow({ proposal }: Props) {
                                 <option value="REQUEST_REVISION">
                                     Minta revisi
                                 </option>
-                                <option value="REJECT">Tolak</option>
                             </select>
+                            {(decisionForm.errors as Record<string, string>)
+                                .decision && (
+                                <p className="text-sm text-destructive">
+                                    {
+                                        (
+                                            decisionForm.errors as Record<
+                                                string,
+                                                string
+                                            >
+                                        ).decision
+                                    }
+                                </p>
+                            )}
                         </div>
-                        {decisionForm.data.decision !== 'APPROVE' && (
-                            <div className="space-y-2">
+                        <div className="space-y-2">
                                 <Label htmlFor="review-reason">
-                                    Alasan{' '}
-                                    <span className="text-destructive">*</span>
+                                    Feedback untuk SIMer
+                                    {decisionForm.data.decision ===
+                                    'REQUEST_REVISION' ? (
+                                        <span className="text-destructive">
+                                            {' '}
+                                            *
+                                        </span>
+                                    ) : (
+                                        <span className="font-normal text-muted-foreground">
+                                            {' '}
+                                            (opsional)
+                                        </span>
+                                    )}
                                 </Label>
                                 <Textarea
                                     id="review-reason"
@@ -777,7 +802,12 @@ export default function ProposalShow({ proposal }: Props) {
                                     }
                                     maxLength={5000}
                                     rows={4}
-                                    placeholder="Tuliskan masukan yang perlu diketahui pengaju."
+                                    placeholder={
+                                        decisionForm.data.decision ===
+                                        'REQUEST_REVISION'
+                                            ? 'Bagian mana yang perlu diperbaiki dan seperti apa perbaikannya.'
+                                            : 'Catatan untuk SIMer sebelum tim disusun.'
+                                    }
                                 />
                                 {decisionForm.errors.reason && (
                                     <p className="text-sm text-destructive">
@@ -785,7 +815,6 @@ export default function ProposalShow({ proposal }: Props) {
                                     </p>
                                 )}
                             </div>
-                        )}
                         {(decisionForm.errors as Record<string, string>)
                             .proposal && (
                             <p className="text-sm text-destructive">
