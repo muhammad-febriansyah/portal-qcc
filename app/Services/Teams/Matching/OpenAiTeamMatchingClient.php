@@ -44,8 +44,10 @@ class OpenAiTeamMatchingClient implements TeamMatchingClient
                 ],
             ];
 
-            if ($this->supportsReasoningEffort($credentials['model'])) {
-                $body['reasoning'] = ['effort' => 'low'];
+            $effort = $this->reasoningEffort($credentials['model']);
+
+            if ($effort !== null) {
+                $body['reasoning'] = ['effort' => $effort];
             }
 
             $response = $httpRequest->post(
@@ -71,10 +73,23 @@ class OpenAiTeamMatchingClient implements TeamMatchingClient
         ];
     }
 
-    private function supportsReasoningEffort(string $model): bool
+    /**
+     * Picking a team from a short, ranked list needs little reasoning, so each model gets the
+     * lightest effort it accepts: "none" for GPT-5.1 and later, "minimal" for GPT-5, mini and
+     * nano, "low" for the o-series. Models without the setting get none.
+     */
+    private function reasoningEffort(string $model): ?string
     {
-        return preg_match('/^(?:gpt-5(?:[.-]|$)|o[134](?:-|$))/', $model) === 1
-            && ! str_starts_with($model, 'gpt-5-pro');
+        if (str_starts_with($model, 'gpt-5-pro') || str_contains($model, '-chat')) {
+            return null;
+        }
+
+        return match (true) {
+            preg_match('/^gpt-5\.\d/', $model) === 1 => 'none',
+            preg_match('/^gpt-5(?:-|$)/', $model) === 1 => 'minimal',
+            preg_match('/^o[134](?:-|$)/', $model) === 1 => 'low',
+            default => null,
+        };
     }
 
     /**

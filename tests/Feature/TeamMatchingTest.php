@@ -434,15 +434,15 @@ test('the OpenAI request uses a strict schema and carries no names or contacts',
     expect($run->fresh()->status)->toBe(TeamMatchingStatus::Ready);
 });
 
-test('GPT-5 team matching uses low reasoning effort to keep routine matching fast', function () {
+test('team matching asks each model for its lightest reasoning effort', function (string $model, ?string $effort) {
     aiIsReady();
     config([
-        'scoring.openai.model' => 'gpt-5.1',
+        'scoring.openai.model' => $model,
         'scoring.openai.base_url' => 'https://api.openai.test/v1',
     ]);
     Http::preventStrayRequests();
     Http::fake(['https://api.openai.test/v1/responses' => Http::response([
-        'model' => 'gpt-5.1',
+        'model' => $model,
         'usage' => ['total_tokens' => 5],
         'output' => [['content' => [['type' => 'output_text', 'text' => json_encode(aiAnswer([
             aiMember($this->a, 'LEADER', $this->skill->id),
@@ -454,9 +454,16 @@ test('GPT-5 team matching uses low reasoning effort to keep routine matching fas
 
     app()->call([new RunTeamMatching($run->id), 'handle']);
 
-    Http::assertSent(fn (Request $request): bool => $request->data()['reasoning']['effort'] === 'low');
+    Http::assertSent(fn (Request $request): bool => ($request->data()['reasoning']['effort'] ?? null) === $effort);
     expect($run->fresh()->status)->toBe(TeamMatchingStatus::Ready);
-});
+})->with([
+    'GPT-5.1' => ['gpt-5.1', 'none'],
+    'GPT-5 dated' => ['gpt-5-2025-08-07', 'minimal'],
+    'GPT-5 mini' => ['gpt-5-mini', 'minimal'],
+    'o4-mini' => ['o4-mini', 'low'],
+    'GPT-4.1' => ['gpt-4.1', null],
+    'GPT-5 pro' => ['gpt-5-pro', null],
+]);
 
 test('the candidate page tells the user when AI is not ready and shows the latest suggestion', function () {
     $searcher = matchSearcher();
