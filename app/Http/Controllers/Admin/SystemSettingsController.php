@@ -81,7 +81,7 @@ class SystemSettingsController extends Controller
                 ],
             ],
             'canManage' => $request->user()->can('system-settings.manage'),
-            'demoData' => $this->canPurgeDemoData($request) ? $purgeDemoData->summary() : null,
+            'demoData' => $this->canPurgeDemoData($request) ? $purgeDemoData->summary($request->user()) : null,
         ]);
     }
 

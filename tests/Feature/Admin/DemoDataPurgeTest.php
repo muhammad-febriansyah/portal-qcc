@@ -42,7 +42,7 @@ test('a Super Admin removes demo accounts and demo data but keeps real ones', fu
 
     $this->actingAs($admin)
         ->get(route('admin.settings.index'))
-        ->assertInertia(fn (Assert $page) => $page->where('demoData', ['users' => 2, 'projects' => 2, 'batches' => 1]));
+        ->assertInertia(fn (Assert $page) => $page->where('demoData', ['users' => 2, 'projects' => 2, 'batches' => 1, 'viewer_is_demo' => false]));
 
     $this->delete(route('admin.settings.demo-data.destroy'), ['confirmation' => 'HAPUS'])
         ->assertRedirect(route('admin.settings.index'));
@@ -63,7 +63,12 @@ test('the Super Admin running the purge keeps their own demo account', function 
     $admin = superAdmin('demo.super-admin.01@example.test');
 
     $this->actingAs($admin)
-        ->delete(route('admin.settings.demo-data.destroy'), ['confirmation' => 'HAPUS'])
+        ->get(route('admin.settings.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('demoData.users', 0)
+            ->where('demoData.viewer_is_demo', true));
+
+    $this->delete(route('admin.settings.demo-data.destroy'), ['confirmation' => 'HAPUS'])
         ->assertRedirect();
 
     expect($admin->fresh())->not->toBeNull();

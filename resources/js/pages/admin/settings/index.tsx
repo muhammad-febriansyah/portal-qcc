@@ -12,9 +12,11 @@ import {
     Send,
     Settings2,
     Trash2,
+    TriangleAlert,
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { FormField } from '@/components/form-field';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import {
@@ -109,7 +111,12 @@ type Props = {
     };
     policies: PolicySettings;
     canManage: boolean;
-    demoData: { users: number; projects: number; batches: number } | null;
+    demoData: {
+        users: number;
+        projects: number;
+        batches: number;
+        viewer_is_demo: boolean;
+    } | null;
 };
 
 const attachmentTypes = [
@@ -1077,6 +1084,23 @@ export default function SystemSettingsIndex({
                                                 : 'Tindakan ini permanen dan tidak bisa dibatalkan.'}
                                         </p>
                                     </div>
+                                    {demoData.viewer_is_demo && (
+                                        <Alert className="border-warning/40 bg-warning/10">
+                                            <TriangleAlert aria-hidden="true" />
+                                            <AlertTitle>
+                                                Akun yang Anda pakai juga akun
+                                                dummy
+                                            </AlertTitle>
+                                            <AlertDescription>
+                                                Akun ini tidak ikut terhapus
+                                                karena sedang dipakai. Berikan
+                                                role Super Admin ke akun asli di
+                                                menu Anggota, masuk dengan akun
+                                                itu, lalu hapus akun ini dari
+                                                menu Anggota.
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
                                 </CardContent>
                             </Card>
                         </TabsContent>

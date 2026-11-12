@@ -29,15 +29,24 @@ class PurgeDemoData
     public function __construct(private readonly AuditService $audit) {}
 
     /**
-     * @return array{users: int, projects: int, batches: int}
+     * What a purge run by this person would remove. Their own account is never removed, so it
+     * is not counted; when it is itself a demo account that is reported separately.
+     *
+     * @return array{users: int, projects: int, batches: int, viewer_is_demo: bool}
      */
-    public function summary(): array
+    public function summary(User $viewer): array
     {
         return [
-            'users' => $this->demoUsers()->count(),
+            'users' => $this->demoUsers()->whereKeyNot($viewer->id)->count(),
             'projects' => $this->demoProjects()->count(),
             'batches' => $this->demoBatches()->count(),
+            'viewer_is_demo' => self::isDemoAccount($viewer),
         ];
+    }
+
+    public static function isDemoAccount(User $user): bool
+    {
+        return str_ends_with(strtolower($user->email), self::DEMO_EMAIL_DOMAIN);
     }
 
     /**
