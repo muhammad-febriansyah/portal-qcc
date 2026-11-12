@@ -471,3 +471,22 @@ test('a logged in account is signed out once it is deactivated', function () {
     $this->get(route('dashboard'))->assertRedirect(route('login'));
     $this->assertGuest();
 });
+
+test('the user list shows each person\'s LOB/Div mentors, never themselves', function () {
+    $hcgs = Organization::factory()->create(['name' => 'DIV HCGS CORDEV']);
+    $mentor = User::factory()->create(['name' => 'LUSIANA KARTIKA', 'organization_id' => $hcgs->id]);
+    User::factory()->create(['name' => 'RIKA YUNIARTA', 'organization_id' => $hcgs->id]);
+    User::factory()->create(['name' => 'TANPA ORGANISASI', 'organization_id' => null]);
+    $hcgs->mentors()->attach($mentor);
+
+    $this->actingAs(userManager());
+
+    $this->get(route('admin.users.index', ['search' => 'RIKA']))
+        ->assertInertia(fn (Assert $page) => $page->where('users.data.0.mentor_names', ['LUSIANA KARTIKA']));
+
+    $this->get(route('admin.users.index', ['search' => 'LUSIANA']))
+        ->assertInertia(fn (Assert $page) => $page->where('users.data.0.mentor_names', []));
+
+    $this->get(route('admin.users.index', ['search' => 'TANPA']))
+        ->assertInertia(fn (Assert $page) => $page->where('users.data.0.mentor_names', []));
+});

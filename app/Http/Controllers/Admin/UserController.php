@@ -46,7 +46,7 @@ class UserController extends Controller
 
         $users = User::query()
             ->select(['id', 'name', 'sim_id', 'email', 'organization_id', 'is_active', 'updated_at'])
-            ->with(['organization:id,name', 'roles:id,name'])
+            ->with(['organization:id,name', 'organization.mentors:id,name', 'roles:id,name'])
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('name', 'like', "%{$search}%")
@@ -69,6 +69,12 @@ class UserController extends Controller
                 'email' => $user->email,
                 'organization_id' => $user->organization_id,
                 'organization_name' => $user->organization?->name,
+                // The LOB/Div mentors who review this person's proposals; a mentor is not their own mentor.
+                'mentor_names' => ($user->organization?->mentors ?? collect())
+                    ->reject(fn (User $mentor): bool => $mentor->is($user))
+                    ->pluck('name')
+                    ->values()
+                    ->all(),
                 'role' => $user->roles->pluck('name')->sort()->first(),
                 'is_active' => $user->is_active,
                 'is_self' => $user->is($request->user()),

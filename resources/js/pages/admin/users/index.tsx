@@ -56,6 +56,7 @@ import { destroy as destroyBulkUsers } from '@/routes/admin/users/bulk';
 
 type UserRow = UserFormValues & {
     organization_name: string | null;
+    mentor_names: string[];
     is_active: boolean;
     is_self: boolean;
     updated_at: string | null;
@@ -326,6 +327,22 @@ export default function UsersIndex({
                 id: 'organization_name',
                 header: 'Organisasi',
                 cell: ({ row }) => row.original.organization_name ?? '—',
+            },
+            {
+                id: 'mentor_names',
+                header: 'Mentor',
+                cell: ({ row }) =>
+                    row.original.mentor_names.length > 0 ? (
+                        <span className="flex flex-col">
+                            {row.original.mentor_names.map((name) => (
+                                <span key={name}>{name}</span>
+                            ))}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground">
+                            Belum diatur
+                        </span>
+                    ),
             },
             {
                 id: 'role',
