@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
 use App\Models\Project;
+use App\Models\ProjectMentor;
 use App\Models\ReviewDecision;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
@@ -44,6 +46,8 @@ class ProposalPresentationBuilder
         'hal_yang_dipelajari_1' => [5.31, 0.5, 14, 9],
         'hal_yang_dipelajari_2' => [5.31, 0.5, 14, 9],
         'hal_yang_dipelajari_3' => [5.31, 0.5, 14, 9],
+        // One line per mentor (two for LOB CCCM and KISS), above the mentor's title.
+        'nama_approver' => [3.3, 0.45, 15, 10],
     ];
 
     /**
@@ -65,7 +69,7 @@ class ProposalPresentationBuilder
                 throw new RuntimeException('Template presentasi tidak dapat dibuka.');
             }
 
-            $project->loadMissing(['batch', 'proposer.organization', 'reviewDecisions.actor']);
+            $project->loadMissing(['batch', 'proposer.organization.mentors', 'reviewDecisions', 'mentorAssignments.mentor']);
             $values = $this->values($project);
             $schedule = $this->schedule($project);
 
@@ -112,8 +116,8 @@ class ProposalPresentationBuilder
         $proposer = $project->proposer;
         $batch = $project->batch;
         $learning = array_values(array_filter((array) $project->learning_goals_json, 'filled'));
-        $decision = $project->reviewDecisions
-            ->whereIn('decision', ['APPROVE', 'REJECT'])
+        $approval = $project->reviewDecisions
+            ->where('decision', 'APPROVE')
             ->sortByDesc('decided_at')
             ->first();
 
@@ -140,34 +144,36 @@ class ProposalPresentationBuilder
             'nama_pengusul' => $proposer?->name ?? '-',
             'jabatan_pengusul' => $proposer?->position ?? '-',
             'tanggal_pengajuan' => $project->submitted_at === null ? 'Belum diajukan' : 'Diajukan '.$this->date($project->submitted_at),
-            'status_pengajuan' => $project->submitted_at === null ? 'DRAF' : 'SUDAH DIAJUKAN',
-            ...$this->decisionValues($project, $decision),
+            ...$this->mentorValues($project, $approval),
         ];
     }
 
     /**
+     * The mentor card: the LOB/Div mentors who review the proposal. The proposal status is not
+     * shown; only the approval date appears once the proposal is approved.
+     *
      * @return array<string, string>
      */
-    private function decisionValues(Project $project, ?ReviewDecision $decision): array
+    private function mentorValues(Project $project, ?ReviewDecision $approval): array
     {
-        if ($decision === null) {
-            return [
-                'judul_keputusan' => 'KEPUTUSAN SELEKSI',
-                'nama_approver' => 'Menunggu keputusan',
-                'jabatan_approver' => 'Owner QCC',
-                'tanggal_keputusan' => '-',
-                'status_keputusan' => Str::upper($project->proposal_status->label()),
-            ];
+        $organization = $project->proposer?->organization;
+        $mentors = $project->mentorAssignments
+            ->where('status', 'ACTIVE')
+            ->map(fn (ProjectMentor $assignment): ?string => $assignment->mentor?->name)
+            ->filter()
+            ->values();
+
+        if ($mentors->isEmpty()) {
+            $mentors = ($organization?->mentors ?? collect())->pluck('name');
         }
 
-        $approved = $decision->decision === 'APPROVE';
+        $approved = $project->proposal_status === ProposalStatus::Approved && $approval !== null;
 
         return [
-            'judul_keputusan' => $approved ? 'DISETUJUI OLEH' : 'DITOLAK OLEH',
-            'nama_approver' => $decision->actor?->name ?? '-',
-            'jabatan_approver' => $decision->actor?->position ?? '-',
-            'tanggal_keputusan' => ($approved ? 'Disetujui ' : 'Ditolak ').$this->date($decision->decided_at),
-            'status_keputusan' => $approved ? 'LOLOS SELEKSI' : 'TIDAK LOLOS',
+            'judul_keputusan' => 'MENTOR',
+            'nama_approver' => $mentors->isEmpty() ? 'Belum ditentukan' : $mentors->unique()->implode("\n"),
+            'jabatan_approver' => $organization === null ? 'Mentor LOB/Div' : 'Mentor '.$organization->name,
+            'tanggal_keputusan' => $approved ? 'Disetujui '.$this->date($approval->decided_at) : '',
         ];
     }
 

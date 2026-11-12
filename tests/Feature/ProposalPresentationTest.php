@@ -4,6 +4,7 @@ use App\Enums\ProposalStatus;
 use App\Enums\ThemeCategory;
 use App\Models\Organization;
 use App\Models\Project;
+use App\Models\ProjectMentor;
 use App\Models\QccBatch;
 use App\Models\ReviewDecision;
 use App\Models\User;
@@ -53,6 +54,11 @@ test('a proposal downloads as a filled presentation', function () {
         ],
         'submitted_at' => '2026-11-05 09:00:00',
     ]);
+    $mentor = User::factory()->create(['name' => 'Citra Mentor']);
+    $secondMentor = User::factory()->create(['name' => 'Dodi Mentor']);
+    foreach ([$mentor, $secondMentor] as $assigned) {
+        ProjectMentor::query()->create(['project_id' => $project->id, 'mentor_id' => $assigned->id, 'status' => 'ACTIVE', 'assigned_at' => now()]);
+    }
     ReviewDecision::query()->create([
         'project_id' => $project->id,
         'actor_id' => $owner->id,
@@ -77,7 +83,11 @@ test('a proposal downloads as a filled presentation', function () {
         ->and($slides[5])->toContain('Jan-27', '4 Jan 2027', '15 Jan 2027', 'Tema terpilih', '-')
         // Step 1 runs through weeks 1-3 of January, step 2 through weeks 3-4.
         ->and(substr_count($slides[5], '<a:srgbClr val="1F4E79"/></a:solidFill></a:tcPr>'))->toBe(5)
-        ->and($slides[6])->toContain('DISETUJUI OLEH', 'Budi Owner', 'Koordinator QCC', 'Disetujui 7 Nov 2026', 'LOLOS SELEKSI');
+        ->and($slides[6])->toContain('MENTOR', 'Citra Mentor', 'Dodi Mentor', 'Mentor DIV IT', 'Disetujui 7 Nov 2026')
+        ->and($slides[6])->not->toContain('Budi Owner')
+        ->and($slides[6])->not->toContain('Owner QCC')
+        ->and($slides[6])->not->toContain('LOLOS SELEKSI')
+        ->and($slides[6])->not->toContain('SUDAH DIAJUKAN');
 });
 
 test('a long text gets a smaller font and is cut to fit its card', function () {
@@ -93,7 +103,9 @@ test('a long text gets a smaller font and is cut to fit its card', function () {
 
     expect($slides[2])->toMatch('/sz="1[0-3]00"[^>]*>(?:(?!<\/a:rPr>).)*<\/a:rPr><a:t xml:space="preserve">Data proses/s')
         ->and($slides[3])->toContain('…')
-        ->and($slides[6])->toContain('KEPUTUSAN SELEKSI', 'Menunggu keputusan', 'Belum diajukan');
+        ->and($slides[6])->toContain('MENTOR', 'Belum ditentukan', 'Belum diajukan')
+        ->and($slides[6])->not->toContain('DRAF')
+        ->and($slides[6])->not->toContain('Owner QCC');
 });
 
 test('only people who may open the proposal can download it', function () {
@@ -101,4 +113,16 @@ test('only people who may open the proposal can download it', function () {
     $stranger = presentationViewer();
 
     $this->actingAs($stranger)->get(route('proposals.presentation', $project))->assertForbidden();
+});
+
+test('the mentor card falls back to the organization mentors before anyone is assigned', function () {
+    $proposer = presentationViewer();
+    $proposer->organization->mentors()->attach(User::factory()->create(['name' => 'Eka Mentor']));
+    $project = Project::factory()->status(ProposalStatus::Draft)->create(['proposer_id' => $proposer->id]);
+
+    $response = $this->actingAs($proposer)->get(route('proposals.presentation', $project))->assertOk();
+    $slides = presentationSlides($response->baseResponse->getFile()->getPathname());
+
+    expect($slides[6])->toContain('Eka Mentor', 'Mentor DIV IT')
+        ->and($slides[6])->not->toContain('Disetujui');
 });
