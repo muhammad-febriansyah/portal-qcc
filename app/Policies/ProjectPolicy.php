@@ -128,10 +128,13 @@ class ProjectPolicy
 
     public function reviewStep(User $user, Project $project): bool
     {
-        if ($user->hasRole('Mentor')) {
-            return $user->can('projects.view')
-                && $user->can('projects.review')
-                && $this->isAssignedMentor($user, $project);
+        if ($user->hasRole('Mentor') && $this->isAssignedMentor($user, $project)
+            && $user->can('projects.view') && $user->can('projects.review')) {
+            return true;
+        }
+
+        if ($user->actsOnlyAsMentor()) {
+            return false;
         }
 
         return $user->can('projects.review')
@@ -140,11 +143,13 @@ class ProjectPolicy
 
     public function approveStep(User $user, Project $project): bool
     {
-        if ($user->hasRole('Mentor')) {
-            return $user->can('projects.view')
-                && $user->can('projects.review')
-                && $user->can('projects.approve')
-                && $this->isAssignedMentor($user, $project);
+        if ($user->hasRole('Mentor') && $this->isAssignedMentor($user, $project)
+            && $user->can('projects.view') && $user->can('projects.review') && $user->can('projects.approve')) {
+            return true;
+        }
+
+        if ($user->actsOnlyAsMentor()) {
+            return false;
         }
 
         return $user->can('projects.approve')
@@ -162,7 +167,7 @@ class ProjectPolicy
 
     public function approve(User $user, Project $project): bool
     {
-        return ! $user->hasRole('Mentor')
+        return ! $user->actsOnlyAsMentor()
             && $user->can('projects.approve')
             && ($user->can('projects.viewAny') || $this->hasReviewAssignment($user, $project, ['proposal', 'steps']));
     }

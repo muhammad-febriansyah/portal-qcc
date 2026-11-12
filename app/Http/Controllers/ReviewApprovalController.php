@@ -22,7 +22,7 @@ class ReviewApprovalController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        $isMentor = $user->hasRole('Mentor');
+        $isMentor = $user->actsOnlyAsMentor();
 
         $hasAssignment = fn (string $scope): bool => ReviewAssignment::query()->active()
             ->where('reviewer_id', $user->id)->where('scope', $scope)->exists();

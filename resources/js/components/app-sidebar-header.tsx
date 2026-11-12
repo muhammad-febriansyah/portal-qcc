@@ -256,7 +256,7 @@ function UserMenu() {
         return null;
     }
 
-    const primaryRole = auth.roles[0];
+    const primaryRole = auth.roles.join(' · ');
 
     return (
         <DropdownMenu>

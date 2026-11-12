@@ -84,7 +84,7 @@ class MentoringController extends Controller
         Gate::authorize('writeMentoring', $project);
 
         $data = $this->validated($request, $project);
-        $assignment = $request->user()->hasRole('Mentor')
+        $assignment = $request->user()->mentorsProject($project)
             ? $project->mentorAssignments()->where('mentor_id', $request->user()->id)->where('status', 'ACTIVE')->firstOrFail()
             : $project->mentorAssignments()->whereKey((int) $data['project_mentor_id'])->where('status', 'ACTIVE')->firstOrFail();
 
@@ -144,14 +144,15 @@ class MentoringController extends Controller
             $report->saveOrFail();
             $this->audit->record('mentoring.submitted', $report, subjectLabel: $this->label($project, $report));
 
-            $recipients = $request->user()->hasRole('Mentor') ? $this->notifier->team($project)->all() : [$report->assignment?->mentor];
+            $mentorAuthored = $report->created_by === $report->assignment?->mentor_id;
+            $recipients = $mentorAuthored ? $this->notifier->team($project)->all() : [$report->assignment?->mentor];
             $recipients = array_values(array_filter($recipients));
-            $title = $request->user()->hasRole('Mentor') ? 'Feedback mentor baru' : 'Laporan mentoring baru';
-            $message = $request->user()->hasRole('Mentor') ? "Mentor mengirim feedback sesi \"{$report->topic}\" untuk proyek {$project->title}." : "Team Leader mengirim laporan mentoring \"{$report->topic}\" untuk proyek {$project->title}.";
+            $title = $mentorAuthored ? 'Feedback mentor baru' : 'Laporan mentoring baru';
+            $message = $mentorAuthored ? "Mentor mengirim feedback sesi \"{$report->topic}\" untuk proyek {$project->title}." : "Team Leader mengirim laporan mentoring \"{$report->topic}\" untuk proyek {$project->title}.";
             $this->notifier->notify($recipients, $project, $title, $message, route('projects.mentoring.index', $project, false), 'MENTORING_SUBMITTED', $request->user());
         });
 
-        return $this->done($project, $request->user()->hasRole('Mentor')
+        return $this->done($project, $report->created_by === $report->assignment?->mentor_id
             ? 'Feedback mentoring dikirim ke tim.'
             : 'Laporan mentoring dikirim ke mentor.');
     }
@@ -187,7 +188,7 @@ class MentoringController extends Controller
         return $request->validate([
             'session_at' => ['required', 'date_format:Y-m-d\TH:i'],
             'topic' => ['required', 'string', 'max:255'],
-            'project_mentor_id' => [$request->user()->hasRole('Team Leader') ? 'required' : 'nullable', 'integer', Rule::exists('project_mentors', 'id')->where('project_id', $project->id)->where('status', 'ACTIVE')],
+            'project_mentor_id' => [$request->user()->hasRole('Team Leader') && ! $request->user()->mentorsProject($project) ? 'required' : 'nullable', 'integer', Rule::exists('project_mentors', 'id')->where('project_id', $project->id)->where('status', 'ACTIVE')],
             'findings' => ['nullable', 'string', 'max:20000'],
             'suggestions' => ['nullable', 'string', 'max:20000'],
             'next_steps' => ['nullable', 'string', 'max:20000'],

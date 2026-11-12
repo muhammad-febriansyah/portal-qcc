@@ -345,13 +345,20 @@ export default function UsersIndex({
                     ),
             },
             {
-                id: 'role',
+                id: 'roles',
                 header: 'Role',
                 cell: ({ row }) =>
-                    row.original.role ? (
-                        <Badge variant={roleBadgeVariant(row.original.role)}>
-                            {row.original.role}
-                        </Badge>
+                    row.original.roles.length > 0 ? (
+                        <span className="flex flex-wrap gap-1">
+                            {row.original.roles.map((role) => (
+                                <Badge
+                                    key={role}
+                                    variant={roleBadgeVariant(role)}
+                                >
+                                    {role}
+                                </Badge>
+                            ))}
+                        </span>
                     ) : (
                         '—'
                     ),

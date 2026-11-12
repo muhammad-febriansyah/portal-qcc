@@ -1,8 +1,11 @@
 <?php
 
+use App\Enums\ProposalStatus;
 use App\Models\Organization;
 use App\Models\Project;
+use App\Models\ProjectMentor;
 use App\Models\User;
+use Database\Seeders\ProjectAccessSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -27,7 +30,7 @@ function validUserPayload(array $overrides = []): array
         'sim_id' => 'SIM-0001',
         'email' => 'budi@example.com',
         'organization_id' => Organization::factory()->create(['is_active' => true])->id,
-        'role' => 'SIMer / Member',
+        'roles' => ['SIMer / Member'],
         ...$overrides,
     ];
 }
@@ -92,7 +95,7 @@ test('the user list can be searched and filtered by role and status', function (
         ->assertInertia(fn (Assert $page) => $page
             ->has('users.data', 1)
             ->where('users.data.0.sim_id', 'SIM-777')
-            ->where('users.data.0.role', 'Mentor'));
+            ->where('users.data.0.roles', ['Mentor']));
 
     $this->get(route('admin.users.index', ['role' => 'Mentor']))
         ->assertInertia(fn (Assert $page) => $page->has('users.data', 1));
@@ -125,7 +128,7 @@ test('the user list loads organizations and roles without extra queries per row'
 });
 
 test('creating a member stores a verified active account with password matching normalized SIM ID', function () {
-    $payload = validUserPayload(['email' => ' Budi@Example.com ', 'sim_id' => ' sim-0042 ', 'role' => 'Mentor']);
+    $payload = validUserPayload(['email' => ' Budi@Example.com ', 'sim_id' => ' sim-0042 ', 'roles' => ['Mentor']]);
 
     $this->actingAs(userManager())
         ->post(route('admin.users.store'), $payload)
@@ -168,19 +171,21 @@ test('creating a member validates its fields', function () {
     $this->actingAs(userManager());
 
     $this->post(route('admin.users.store'), [])
-        ->assertSessionHasErrors(['name', 'sim_id', 'email', 'organization_id', 'role']);
+        ->assertSessionHasErrors(['name', 'sim_id', 'email', 'organization_id', 'roles']);
     $this->post(route('admin.users.store'), validUserPayload(['email' => 'taken@example.com']))
         ->assertSessionHasErrors('email');
     $this->post(route('admin.users.store'), validUserPayload(['email' => 'not-an-email']))
         ->assertSessionHasErrors('email');
     $this->post(route('admin.users.store'), validUserPayload(['organization_id' => $inactiveOrganization->id]))
         ->assertSessionHasErrors('organization_id');
-    $this->post(route('admin.users.store'), validUserPayload(['role' => '']))
-        ->assertSessionHasErrors('role');
-    $this->post(route('admin.users.store'), validUserPayload(['role' => 'Hacker']))
-        ->assertSessionHasErrors('role');
-    $this->post(route('admin.users.store'), validUserPayload(['role' => ['Mentor', 'Team Leader']]))
-        ->assertSessionHasErrors('role');
+    $this->post(route('admin.users.store'), validUserPayload(['roles' => []]))
+        ->assertSessionHasErrors('roles');
+    $this->post(route('admin.users.store'), validUserPayload(['roles' => 'Mentor']))
+        ->assertSessionHasErrors('roles');
+    $this->post(route('admin.users.store'), validUserPayload(['roles' => ['Hacker']]))
+        ->assertSessionHasErrors('roles.0');
+    $this->post(route('admin.users.store'), validUserPayload(['roles' => ['Mentor', 'Mentor']]))
+        ->assertSessionHasErrors('roles.0');
     $this->post(route('admin.users.store'), validUserPayload(['sim_id' => 'SIM-TAKEN']))
         ->assertSessionHasNoErrors();
     $this->post(route('admin.users.store'), validUserPayload(['email' => 'second@example.com', 'sim_id' => 'sim-taken']))
@@ -198,7 +203,7 @@ test('updating a member changes identity, organization and roles but not the pas
         ->put(route('admin.users.update', $target), validUserPayload([
             'name' => 'Nama Baru',
             'email' => 'old@example.com',
-            'role' => 'Team Leader',
+            'roles' => ['Team Leader'],
         ]))
         ->assertSessionHasNoErrors();
 
@@ -254,9 +259,9 @@ test('the last active super admin cannot lose the super admin role', function ()
     $this->actingAs($admin)
         ->put(route('admin.users.update', $admin), validUserPayload([
             'email' => $admin->email,
-            'role' => 'Mentor',
+            'roles' => ['Mentor'],
         ]))
-        ->assertSessionHasErrors('role');
+        ->assertSessionHasErrors('roles');
 
     expect($admin->fresh()->hasRole('Super Admin'))->toBeTrue();
 });
@@ -269,7 +274,7 @@ test('a super admin can lose the role when another active super admin exists', f
     $this->actingAs($admin)
         ->put(route('admin.users.update', $second), validUserPayload([
             'email' => $second->email,
-            'role' => 'Mentor',
+            'roles' => ['Mentor'],
         ]))
         ->assertSessionHasNoErrors();
 
@@ -489,4 +494,49 @@ test('the user list shows each person\'s LOB/Div mentors, never themselves', fun
 
     $this->get(route('admin.users.index', ['search' => 'TANPA']))
         ->assertInertia(fn (Assert $page) => $page->where('users.data.0.mentor_names', []));
+});
+
+test('a member can hold two roles and gets the access of both', function () {
+    $this->seed(ProjectAccessSeeder::class);
+    $target = User::factory()->create(['email' => 'lusiana.kartika@sim.co.id']);
+    $target->assignRole('Owner QCC');
+
+    $this->actingAs(userManager())
+        ->put(route('admin.users.update', $target), validUserPayload([
+            'email' => $target->email,
+            'roles' => ['Owner QCC', 'Mentor'],
+        ]))
+        ->assertSessionHasNoErrors();
+
+    $target = $target->fresh();
+    expect($target->getRoleNames()->sort()->values()->all())->toBe(['Mentor', 'Owner QCC'])
+        ->and($target->can('projects.viewAny'))->toBeTrue()
+        ->and($target->actsOnlyAsMentor())->toBeFalse();
+    $this->assertDatabaseHas('audit_logs', ['event' => 'user.role_changed', 'subject_id' => $target->id]);
+
+    $this->get(route('admin.users.index', ['search' => 'lusiana']))
+        ->assertInertia(fn (Assert $page) => $page->where('users.data.0.roles', ['Mentor', 'Owner QCC']));
+
+    $this->get(route('admin.users.index', ['role' => 'Mentor', 'search' => 'lusiana']))
+        ->assertInertia(fn (Assert $page) => $page->has('users.data', 1));
+});
+
+test('mentor-only limits apply to plain mentors, not to an Owner QCC who also mentors', function () {
+    $this->seed(ProjectAccessSeeder::class);
+    $project = Project::factory()->status(ProposalStatus::Approved)->create();
+    $ownerMentor = User::factory()->create();
+    $ownerMentor->assignRole(['Owner QCC', 'Mentor']);
+    $plainMentor = User::factory()->create();
+    $plainMentor->assignRole('Mentor');
+
+    expect($ownerMentor->can('reviewStep', $project))->toBeTrue()
+        ->and($ownerMentor->can('approveStep', $project))->toBeTrue()
+        ->and($ownerMentor->can('approve', $project))->toBeTrue()
+        ->and($plainMentor->can('reviewStep', $project))->toBeFalse()
+        ->and($plainMentor->can('approve', $project))->toBeFalse();
+
+    ProjectMentor::query()->create(['project_id' => $project->id, 'mentor_id' => $plainMentor->id, 'status' => 'ACTIVE', 'assigned_at' => now()]);
+
+    expect($plainMentor->fresh()->can('reviewStep', $project))->toBeTrue()
+        ->and($plainMentor->fresh()->can('approveStep', $project))->toBeTrue();
 });

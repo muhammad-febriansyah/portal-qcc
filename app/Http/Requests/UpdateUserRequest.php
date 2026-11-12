@@ -56,8 +56,8 @@ class UpdateUserRequest extends StoreUserRequest
                     $validator->errors()->add('organization_id', 'Organisasi yang dipilih tidak tersedia.');
                 }
 
-                if (app(GuardLastSuperAdmin::class)->wouldRemoveLastAdmin($target, true, [(string) $this->input('role')])) {
-                    $validator->errors()->add('role', 'Role Super Admin tidak dapat dilepas dari Super Admin aktif terakhir.');
+                if (app(GuardLastSuperAdmin::class)->wouldRemoveLastAdmin($target, true, array_values(array_map('strval', (array) $this->input('roles', []))))) {
+                    $validator->errors()->add('roles', 'Role Super Admin tidak dapat dilepas dari Super Admin aktif terakhir.');
                 }
             },
         ];

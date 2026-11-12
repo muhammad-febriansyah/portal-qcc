@@ -226,6 +226,25 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasAnyRole(['Owner QCC', 'Mentor']) || $this->can('dashboard.admin');
     }
 
+    /**
+     * A Mentor without an overseeing role. Mentor-only limits (reviewing only the projects
+     * they mentor, no scoring decisions) apply to them, even when given extra permissions, but
+     * not to someone who is a Mentor alongside Owner QCC or Super Admin.
+     */
+    public function actsOnlyAsMentor(): bool
+    {
+        return $this->hasRole('Mentor') && ! $this->hasAnyRole(['Owner QCC', 'Super Admin']);
+    }
+
+    /**
+     * Whether this person is an active, assigned mentor of the project.
+     */
+    public function mentorsProject(Project $project): bool
+    {
+        return $this->hasRole('Mentor')
+            && $project->mentorAssignments()->where('mentor_id', $this->id)->where('status', 'ACTIVE')->exists();
+    }
+
     public function isInTalentPool(): bool
     {
         return $this->memberCompetencies()->exists();

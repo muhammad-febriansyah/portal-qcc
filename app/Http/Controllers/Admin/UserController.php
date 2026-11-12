@@ -75,7 +75,7 @@ class UserController extends Controller
                     ->pluck('name')
                     ->values()
                     ->all(),
-                'role' => $user->roles->pluck('name')->sort()->first(),
+                'roles' => $user->roles->pluck('name')->sort()->values()->all(),
                 'is_active' => $user->is_active,
                 'is_self' => $user->is($request->user()),
                 'updated_at' => $user->updated_at?->toIso8601String(),
@@ -117,8 +117,8 @@ class UserController extends Controller
             $user->email_verified_at = now();
             $user->is_active = true;
             $user->save();
-            $user->syncRoles([$data['role']]);
-            $audit->record('user.role_changed', $user, before: ['role' => null], after: ['role' => $data['role']]);
+            $user->syncRoles($data['roles']);
+            $audit->record('user.role_changed', $user, before: ['role' => null], after: ['role' => self::roleLabel($data['roles'])]);
 
             return $user;
         });
@@ -139,7 +139,7 @@ class UserController extends Controller
         $data = $request->validated();
 
         DB::transaction(function () use ($user, $data, $audit): void {
-            $previousRole = $user->getRoleNames()->sort()->first();
+            $previousRole = self::roleLabel($user->getRoleNames()->all());
 
             $user->update([
                 'name' => $data['name'],
@@ -147,10 +147,11 @@ class UserController extends Controller
                 'email' => $data['email'],
                 'organization_id' => $data['organization_id'],
             ]);
-            $user->syncRoles([$data['role']]);
+            $user->syncRoles($data['roles']);
+            $newRole = self::roleLabel($data['roles']);
 
-            if ($previousRole !== $data['role']) {
-                $audit->record('user.role_changed', $user, before: ['role' => $previousRole], after: ['role' => $data['role']]);
+            if ($previousRole !== $newRole) {
+                $audit->record('user.role_changed', $user, before: ['role' => $previousRole], after: ['role' => $newRole]);
             }
         });
 
@@ -279,5 +280,17 @@ class UserController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => count($userIds).' akun berhasil dihapus.']);
 
         return back();
+    }
+
+    /**
+     * Roles as one readable value for the audit log, e.g. "Mentor, Owner QCC".
+     *
+     * @param  array<int, string>  $roles
+     */
+    private static function roleLabel(array $roles): ?string
+    {
+        sort($roles);
+
+        return $roles === [] ? null : implode(', ', $roles);
     }
 }

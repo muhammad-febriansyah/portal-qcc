@@ -2,6 +2,7 @@ import { Form } from '@inertiajs/react';
 import { useState } from 'react';
 import { FormField } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -32,7 +33,7 @@ export type UserFormValues = {
     sim_id: string | null;
     email: string;
     organization_id: number | null;
-    role: string | null;
+    roles: string[];
 };
 
 type Props = {
@@ -53,7 +54,17 @@ function UserForm({
     const [organizationId, setOrganizationId] = useState<string>(
         user?.organization_id ? String(user.organization_id) : '',
     );
-    const [role, setRole] = useState<string>(user?.role ?? '');
+    const [roles, setRoles] = useState<string[]>(user?.roles ?? []);
+
+    function toggleRole(name: string, checked: boolean): void {
+        setRoles((current) =>
+            checked
+                ? roleOptions.filter(
+                      (option) => option === name || current.includes(option),
+                  )
+                : current.filter((role) => role !== name),
+        );
+    }
 
     const selectableOrganizations = organizationOptions.filter(
         (organization) =>
@@ -157,31 +168,51 @@ function UserForm({
                     </FormField>
 
                     <FormField
-                        id="user-role"
+                        id="user-roles"
                         label="Role"
                         required
-                        error={errors.role}
+                        hint="Boleh lebih dari satu. Menu dan akses pengguna menjadi gabungan semua role yang dipilih."
+                        error={
+                            errors.roles ??
+                            Object.entries(errors).find(([key]) =>
+                                key.startsWith('roles.'),
+                            )?.[1]
+                        }
                     >
-                        <Select
-                            name="role"
-                            value={role}
-                            onValueChange={(value) => setRole(value ?? '')}
-                            items={roleOptions.map((name) => ({
-                                value: name,
-                                label: name,
-                            }))}
+                        <div
+                            role="group"
+                            aria-label="Role"
+                            className="grid gap-2 rounded-lg border p-3 sm:grid-cols-2"
                         >
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Pilih role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {roleOptions.map((name) => (
-                                    <SelectItem key={name} value={name}>
+                            {roleOptions.map((name) => {
+                                const inputId = `user-role-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+
+                                return (
+                                    <label
+                                        key={name}
+                                        htmlFor={inputId}
+                                        className="flex cursor-pointer items-center gap-2 text-sm"
+                                    >
+                                        <Checkbox
+                                            id={inputId}
+                                            checked={roles.includes(name)}
+                                            onCheckedChange={(checked) =>
+                                                toggleRole(name, checked === true)
+                                            }
+                                        />
                                         {name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                                    </label>
+                                );
+                            })}
+                            {roles.map((name) => (
+                                <input
+                                    key={name}
+                                    type="hidden"
+                                    name="roles[]"
+                                    value={name}
+                                />
+                            ))}
+                        </div>
                     </FormField>
 
                     <DialogFooter>
