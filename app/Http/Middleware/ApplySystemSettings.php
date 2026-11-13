@@ -41,7 +41,7 @@ class ApplySystemSettings
             'app.notifications.channels.in_app' => filter_var($settings['notifications_in_app'] ?? '1', FILTER_VALIDATE_BOOLEAN),
             'app.notifications.channels.email' => filter_var($settings['notifications_email'] ?? '0', FILTER_VALIDATE_BOOLEAN),
             'qcc.attachments.allowed_types' => json_decode($settings['attachments_allowed_types'] ?? '["pdf","docx","xlsx","png","jpg","jpeg","webp"]', true),
-            'qcc.attachments.max_size_mb' => (int) ($settings['attachments_max_size_mb'] ?? 50),
+            'qcc.attachments.max_size_mb' => (int) ($settings['attachments_max_size_mb'] ?? 100),
             'qcc.attachments.max_files' => (int) ($settings['attachments_max_files'] ?? 5),
             'qcc.attachments.retention_days' => (int) ($settings['attachments_retention_days'] ?? 365),
         ]);

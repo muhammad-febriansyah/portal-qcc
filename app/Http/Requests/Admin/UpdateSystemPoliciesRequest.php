@@ -42,7 +42,7 @@ class UpdateSystemPoliciesRequest extends FormRequest
                 'required',
                 Rule::in(blank(config('filesystems.disks.s3.bucket')) ? ['local'] : ['local', 's3']),
             ],
-            'attachments_max_size_mb' => ['required', 'integer', 'min:1', 'max:50'],
+            'attachments_max_size_mb' => ['required', 'integer', 'min:1', 'max:100'],
             'attachments_max_files' => ['required', 'integer', 'min:1', 'max:10'],
             'attachments_retention_days' => ['required', 'integer', 'min:1', 'max:3650'],
             'ai_enabled' => ['required', 'boolean'],

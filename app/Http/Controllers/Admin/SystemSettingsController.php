@@ -63,7 +63,7 @@ class SystemSettingsController extends Controller
                     'storageDisk' => $settings->get('attachments_storage_disk', config('filesystems.default', 'local')),
                     'storageOptions' => blank(config('filesystems.disks.s3.bucket')) ? ['local'] : ['local', 's3'],
                     'allowedTypes' => json_decode($settings->get('attachments_allowed_types', '["pdf","docx","xlsx","png","jpg","jpeg","webp"]'), true),
-                    'maxSizeMb' => (int) $settings->get('attachments_max_size_mb', 50),
+                    'maxSizeMb' => (int) $settings->get('attachments_max_size_mb', 100),
                     'maxFiles' => (int) $settings->get('attachments_max_files', 5),
                     'retentionDays' => (int) $settings->get('attachments_retention_days', 365),
                 ],

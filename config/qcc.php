@@ -2,6 +2,13 @@
 
 return [
 
+    'attachments' => [
+        'allowed_types' => ['pdf', 'docx', 'xlsx', 'png', 'jpg', 'jpeg', 'webp'],
+        'max_size_mb' => (int) env('QCC_ATTACHMENTS_MAX_SIZE_MB', 100),
+        'max_files' => (int) env('QCC_ATTACHMENTS_MAX_FILES', 5),
+        'retention_days' => (int) env('QCC_ATTACHMENTS_RETENTION_DAYS', 365),
+    ],
+
     'steps' => [
         /*
         | Whether a step can only be submitted after the one before it is approved.
