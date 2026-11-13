@@ -37,22 +37,28 @@ class ProposalPresentationBuilder
 
     private const CLOSING = 4;
 
-    public const PRIMARY = '0179A3';
+    /** Colours of the QCC Batch 4 template: labels and gantt bars, navy headings, card border. */
+    public const PRIMARY = '1F4E79';
 
-    private const TEXT = '1E293B';
+    private const NAVY = '17365D';
 
-    private const MUTED = '64748B';
+    private const TEXT = '2B3440';
 
-    private const BORDER = 'E2E8F0';
+    private const MUTED = '64707D';
 
-    private const TINT = 'E6F3F8';
+    private const TABLE_HEADER = 'D9E1F2';
+
+    private const TABLE_LINE = 'A9B6C6';
 
     /** Content area of a frame slide, in inches. */
     private const LEFT = 0.6;
 
     private const WIDTH = 12.13;
 
-    private const TOP = 1.8;
+    /** Cards start under the title; the schedule under its subtitle. */
+    private const TOP = 1.6;
+
+    private const TABLE_TOP = 1.75;
 
     private const BOTTOM = 6.95;
 
@@ -64,7 +70,7 @@ class ProposalPresentationBuilder
 
     private const CARD_PADDING_Y = 0.16;
 
-    private const LABEL_SIZE = 10.5;
+    private const LABEL_SIZE = 12;
 
     private const LABEL_GAP = 6;
 
@@ -157,7 +163,7 @@ class ProposalPresentationBuilder
         $pages = [];
 
         foreach ($this->sectionPages($this->sections($project)) as $index => $cards) {
-            $pages[] = ['title' => 'Proposal Proyek', 'subtitle' => $index === 0 ? 'Isi proposal yang diajukan.' : 'Isi proposal (lanjutan).', 'body' => $cards];
+            $pages[] = ['title' => $index === 0 ? 'Proposal Proyek' : 'Proposal Proyek (lanjutan)', 'subtitle' => '', 'body' => $cards];
         }
 
         foreach ($this->schedulePages($project) as $index => $table) {
@@ -165,7 +171,7 @@ class ProposalPresentationBuilder
         }
 
         $slides = [['xml' => $this->fill($package->templateSlide(self::COVER), $values), 'rels' => $package->templateRelationships(self::COVER)]];
-        $number = 2;
+        $number = 1;
 
         foreach ($pages as $page) {
             $xml = $this->fill($frame, [
@@ -359,7 +365,7 @@ class ProposalPresentationBuilder
     {
         $id = $this->shapeId++;
         $label = '<a:p><a:pPr algn="l"><a:spcAft><a:spcPts val="'.(self::LABEL_GAP * 100).'"/></a:spcAft><a:buNone/></a:pPr>'
-            .'<a:r>'.SlideText::runProperties(self::LABEL_SIZE, self::PRIMARY, true, false, 40).'<a:t>'.SlideText::escape($label).'</a:t></a:r></a:p>';
+            .'<a:r>'.SlideText::runProperties(self::LABEL_SIZE, self::PRIMARY, true).'<a:t>'.SlideText::escape($label).'</a:t></a:r></a:p>';
         $body = implode('', array_map(
             fn (array $paragraph): string => SlideText::paragraphXml($paragraph, self::BODY_SIZE, self::TEXT),
             $paragraphs,
@@ -367,8 +373,9 @@ class ProposalPresentationBuilder
 
         return '<p:sp><p:nvSpPr><p:cNvPr id="'.$id.'" name="Card '.$id.'"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
             .'<p:spPr><a:xfrm><a:off x="'.SlideText::emu($x).'" y="'.SlideText::emu($y).'"/><a:ext cx="'.SlideText::emu($width).'" cy="'.SlideText::emu($height).'"/></a:xfrm>'
-            .'<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 3500"/></a:avLst></a:prstGeom>'
-            .'<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="'.self::BORDER.'"/></a:solidFill></a:ln></p:spPr>'
+            .'<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 8000"/></a:avLst></a:prstGeom>'
+            // Flat white card: no border and no shadow.
+            .'<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln><a:noFill/></a:ln></p:spPr>'
             .'<p:txBody><a:bodyPr wrap="square" lIns="'.SlideText::emu(self::CARD_PADDING_X).'" tIns="'.SlideText::emu(self::CARD_PADDING_Y).'" rIns="'.SlideText::emu(self::CARD_PADDING_X).'" bIns="'.SlideText::emu(self::CARD_PADDING_Y).'" anchor="t" rtlCol="0"><a:noAutofit/></a:bodyPr><a:lstStyle/>'
             .$label.$body.'</p:txBody></p:sp>';
     }
@@ -382,7 +389,7 @@ class ProposalPresentationBuilder
     {
         $schedule = $this->schedule($project);
         $deliverableWidth = self::WIDTH - self::STEP_COLUMN - self::SCHEDULE_MONTHS * 4 * self::WEEK_COLUMN - 2 * self::DATE_COLUMN;
-        $room = self::BOTTOM - self::TOP - 2 * self::HEADER_ROW;
+        $room = self::BOTTOM - self::TABLE_TOP - 2 * self::HEADER_ROW;
         $pages = [];
         $rows = '';
         $used = 0.0;
@@ -432,7 +439,7 @@ class ProposalPresentationBuilder
         $weekRow = $this->cell('', header: true, vMerge: true);
 
         for ($week = 0; $week < $weeks; $week++) {
-            $weekRow .= $this->cell((string) ($week % 4 + 1), fill: self::TINT, color: self::PRIMARY, bold: true, narrow: true);
+            $weekRow .= $this->cell((string) ($week % 4 + 1), header: true, narrow: true);
         }
 
         $weekRow .= str_repeat($this->cell('', header: true, vMerge: true), 3);
@@ -440,7 +447,7 @@ class ProposalPresentationBuilder
         $height = 2 * self::HEADER_ROW + $rowsHeight;
 
         return '<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="'.$id.'" name="Jadwal '.$id.'"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>'
-            .'<p:xfrm><a:off x="'.SlideText::emu(self::LEFT).'" y="'.SlideText::emu(self::TOP).'"/><a:ext cx="'.SlideText::emu(self::WIDTH).'" cy="'.SlideText::emu($height).'"/></p:xfrm>'
+            .'<p:xfrm><a:off x="'.SlideText::emu(self::LEFT).'" y="'.SlideText::emu(self::TABLE_TOP).'"/><a:ext cx="'.SlideText::emu(self::WIDTH).'" cy="'.SlideText::emu($height).'"/></p:xfrm>'
             .'<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1"/><a:tblGrid>'.$grid.'</a:tblGrid>'
             .'<a:tr h="'.$header.'">'.$monthRow.'</a:tr><a:tr h="'.$header.'">'.$weekRow.'</a:tr>'.$rows
             .'</a:tbl></a:graphicData></a:graphic></p:graphicFrame>';
@@ -476,7 +483,7 @@ class ProposalPresentationBuilder
         bool $narrow = false,
     ): string {
         if ($header) {
-            [$fill, $color, $bold] = [self::PRIMARY, 'FFFFFF', true];
+            [$fill, $color, $bold] = [self::TABLE_HEADER, self::NAVY, true];
         }
 
         $attributes = ($gridSpan > 1 ? ' gridSpan="'.$gridSpan.'"' : '').($rowSpan > 1 ? ' rowSpan="'.$rowSpan.'"' : '')
@@ -484,7 +491,7 @@ class ProposalPresentationBuilder
         $paragraph = $text === ''
             ? '<a:p><a:pPr algn="'.$align.'"/><a:endParaRPr lang="id-ID" sz="'.(self::TABLE_SIZE * 100).'" dirty="0"/></a:p>'
             : '<a:p><a:pPr algn="'.$align.'"/><a:r>'.SlideText::runProperties(self::TABLE_SIZE, $color, $bold).'<a:t>'.SlideText::escape($text).'</a:t></a:r></a:p>';
-        $border = fn (string $side): string => '<a:'.$side.' w="6350"><a:solidFill><a:srgbClr val="'.self::BORDER.'"/></a:solidFill></a:'.$side.'>';
+        $border = fn (string $side): string => '<a:'.$side.' w="6350"><a:solidFill><a:srgbClr val="'.self::TABLE_LINE.'"/></a:solidFill></a:'.$side.'>';
 
         return '<a:tc'.$attributes.'><a:txBody><a:bodyPr/><a:lstStyle/>'.$paragraph.'</a:txBody>'
             // Week cells are 0.2" wide: no side margins, so viewers keep them at their set width.

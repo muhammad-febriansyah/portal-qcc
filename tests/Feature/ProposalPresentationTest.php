@@ -112,18 +112,19 @@ test('a proposal downloads as a filled presentation', function () {
     $slides = presentationSlides($response->baseResponse->getFile()->getPathname());
     $content = slideWith($slides, 'JUDUL PROYEK');
     $schedule = slideWith($slides, 'Jadwal Proyek');
-    $approval = slideWith($slides, 'APPROVAL');
+    $approval = slideWith($slides, 'Persetujuan Proposal');
     // Body rows of the gantt table; the two header rows come first.
     $bodyRows = implode('', array_slice(explode('<a:tr ', $schedule), 3));
 
     expect(implode('', $slides))->not->toContain('{{')
-        ->and($slides[1])->toContain('Digitalisasi verifikasi &amp; arsip', 'Ayu Pengusul  |  SIM ID 2551 | DIV IT', 'Kategori tema: Productivity', 'SIMGROUP  |  QCC BATCH 4', '2026–2027')
+        ->and($slides[1])->toContain('Digitalisasi verifikasi &amp; arsip', 'Ayu Pengusul  |  SIM ID 2551  |  DIV IT', 'Kategori tema: Productivity', 'SIMGROUP  |  QCC BATCH 4', '2026–2027')
         ->and($content)->toContain('masih manual</a:t>', ' b="1"', '<a:buChar char="•"/>', 'Banyak salah input')
         ->and(slideText(slideWith($slides, '3 HAL YANG AKAN DIPELAJARI')))->toContain('1. Analisis data', '3. SOP')
         ->and($content)->not->toContain('**')
-        // Bordered white cards without shadows.
-        ->and($content)->toContain('<a:ln w="9525"><a:solidFill><a:srgbClr val="E2E8F0"/>')
-        ->and(implode('', $slides))->not->toContain('effectRef idx="2"')
+        // Flat white cards (no border, no shadow) and the QCC logo of the Batch 4 template.
+        ->and($content)->toContain('<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln><a:noFill/></a:ln>', '<a:blip r:embed=')
+        ->and(implode('', $slides))->not->toMatch('/effectRef idx="[1-9]"/')
+        ->and(implode('', $slides))->not->toContain('Aptos')
         ->and(slideText($schedule))->toContain('Jan-27', '4 Jan 2027', '15 Jan 2027', 'Tema terpilih')
         // Step 1 runs through weeks 1-3 of January, step 2 through weeks 3-4.
         ->and(substr_count($bodyRows, '<a:srgbClr val="'.ProposalPresentationBuilder::PRIMARY.'"/></a:solidFill></a:tcPr>'))->toBe(5)
@@ -146,7 +147,7 @@ test('long text continues on the next card instead of being cut', function () {
     $slides = presentationSlides($response->baseResponse->getFile()->getPathname());
 
     $text = implode(' ', array_map(slideText(...), $slides));
-    $approval = slideText(slideWith($slides, 'APPROVAL'));
+    $approval = slideText(slideWith($slides, 'Persetujuan Proposal'));
 
     // Every word arrives, nothing ends in an ellipsis, and the overflow is labelled.
     expect(substr_count($text, 'verifikasi'))->toBe(30)
@@ -174,7 +175,7 @@ test('the mentor card falls back to the organization mentors before anyone is as
     $response = $this->actingAs($proposer)->get(route('proposals.presentation', $project))->assertOk();
     $slides = presentationSlides($response->baseResponse->getFile()->getPathname());
 
-    $approval = slideText(slideWith($slides, 'APPROVAL'));
+    $approval = slideText(slideWith($slides, 'Persetujuan Proposal'));
 
     expect($approval)->toContain('Eka Mentor', 'DIV IT HEAD')
         ->and($approval)->not->toContain('Disetujui');
