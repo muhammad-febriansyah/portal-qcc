@@ -490,7 +490,12 @@ test('the user list shows each person\'s LOB/Div mentors, never themselves', fun
         ->assertInertia(fn (Assert $page) => $page->where('users.data.0.mentor_names', ['LUSIANA KARTIKA']));
 
     $this->get(route('admin.users.index', ['search' => 'LUSIANA']))
-        ->assertInertia(fn (Assert $page) => $page->where('users.data.0.mentor_names', []));
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('users.data.0.mentor_names', [])
+            ->where('users.data.0.mentor_of', ['DIV HCGS CORDEV']));
+
+    $this->get(route('admin.users.index', ['search' => 'RIKA']))
+        ->assertInertia(fn (Assert $page) => $page->where('users.data.0.mentor_of', []));
 
     $this->get(route('admin.users.index', ['search' => 'TANPA']))
         ->assertInertia(fn (Assert $page) => $page->where('users.data.0.mentor_names', []));

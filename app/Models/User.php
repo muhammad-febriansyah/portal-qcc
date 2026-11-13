@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -158,6 +159,17 @@ class User extends Authenticatable implements MustVerifyEmail
     public function reviewAssignments(): HasMany
     {
         return $this->hasMany(ReviewAssignment::class, 'reviewer_id');
+    }
+
+    /**
+     * The LOBs/Divs this person mentors, set in Master Organisasi. Holding the Mentor role
+     * alone does not make someone the mentor of an organization.
+     *
+     * @return BelongsToMany<Organization, $this>
+     */
+    public function mentoredOrganizations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class, 'organization_mentors')->withTimestamps();
     }
 
     /**
