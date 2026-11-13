@@ -4,7 +4,6 @@ import type { ComponentProps } from 'react';
 import { ArrowRight, BadgeCheck, Lock, Mail, User } from 'lucide-react';
 import AuthShowcase, {
     authInputClassName,
-    PortalLogo,
 } from '@/components/auth/auth-showcase';
 import { FormField } from '@/components/form-field';
 import PasswordInput from '@/components/password-input';
@@ -12,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { login } from '@/routes';
-import { store } from '@/routes/register';
 
 type Props = {
     passwordRules: string;
@@ -59,8 +57,7 @@ function IconField({
 export default function Register({ passwordRules }: Props) {
     return (
         <AuthShowcase title="Daftar">
-            <div className="w-full max-w-[350px]">
-                <PortalLogo />
+            <div className="w-full">
                 <h2 className="mt-8 text-[26px] leading-tight font-bold tracking-[-0.02em] sm:text-[28px]">
                     Daftar sebagai SIMer
                 </h2>
@@ -70,7 +67,8 @@ export default function Register({ passwordRules }: Props) {
                 </p>
 
                 <Form
-                    {...store.form()}
+                    action="/register"
+                    method="post"
                     resetOnSuccess={['password', 'password_confirmation']}
                     disableWhileProcessing
                     className="mt-6 grid gap-4"
@@ -89,7 +87,7 @@ export default function Register({ passwordRules }: Props) {
                                     required
                                     autoFocus
                                     autoComplete="off"
-                                    placeholder="Contoh: SIM12345"
+                                    placeholder="Contoh: 12345"
                                     className="uppercase placeholder:normal-case"
                                 />
                             </FormField>
@@ -160,7 +158,7 @@ export default function Register({ passwordRules }: Props) {
 
                             <Button
                                 type="submit"
-                                className="relative mt-2 h-12 w-full rounded-[10px] text-base font-semibold shadow-[0_6px_14px_rgba(11,92,240,0.18)] transition-[transform,box-shadow] hover:shadow-[0_8px_18px_rgba(11,92,240,0.24)] active:translate-y-px"
+                                className="relative mt-2 h-12 w-full rounded-[10px] text-base font-semibold transition-[transform,box-shadow] active:translate-y-px"
                                 disabled={processing}
                                 data-test="register-button"
                             >

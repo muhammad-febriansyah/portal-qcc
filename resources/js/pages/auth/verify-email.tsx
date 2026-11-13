@@ -1,6 +1,6 @@
 import { Form, Link, router, usePage } from '@inertiajs/react';
 import { MailCheck } from 'lucide-react';
-import AuthShowcase, { PortalLogo } from '@/components/auth/auth-showcase';
+import AuthShowcase from '@/components/auth/auth-showcase';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { logout } from '@/routes';
@@ -15,10 +15,8 @@ export default function VerifyEmail({ status }: Props) {
 
     return (
         <AuthShowcase title="Verifikasi email">
-            <div className="w-full max-w-[350px]">
-                <PortalLogo />
-
-                <span className="mt-8 flex size-12 items-center justify-center rounded-xl bg-[#eef5fe] text-primary">
+            <div className="w-full">
+                <span className="mt-8 flex size-12 items-center justify-center rounded-xl bg-[#e8f4f9] text-primary">
                     <MailCheck className="size-6" strokeWidth={1.8} />
                 </span>
 
@@ -37,7 +35,7 @@ export default function VerifyEmail({ status }: Props) {
                 {status === 'verification-link-sent' && (
                     <div
                         role="status"
-                        className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+                        className="mt-5 rounded-xl border border-success/20 bg-success/10 px-4 py-3 text-sm font-medium text-success"
                     >
                         Email verifikasi baru sudah dikirim. Periksa juga folder
                         spam.
@@ -48,7 +46,7 @@ export default function VerifyEmail({ status }: Props) {
                     {({ processing }) => (
                         <Button
                             type="submit"
-                            className="h-12 w-full rounded-[10px] text-base font-semibold shadow-[0_6px_14px_rgba(11,92,240,0.18)]"
+                            className="h-12 w-full rounded-[10px] text-base font-semibold"
                             disabled={processing}
                             data-test="resend-verification-button"
                         >

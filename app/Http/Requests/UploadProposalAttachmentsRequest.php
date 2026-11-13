@@ -20,8 +20,8 @@ class UploadProposalAttachmentsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'files' => ['required', 'array', 'min:1', 'max:10'],
-            'files.*' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,docx,xlsx', 'max:51200'],
+            'files' => ['required', 'array', 'min:1', 'max:'.config('qcc.attachments.max_files')],
+            'files.*' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,docx,xlsx', 'max:'.(config('qcc.attachments.max_size_mb') * 1024)],
         ];
     }
 
@@ -30,9 +30,9 @@ class UploadProposalAttachmentsRequest extends FormRequest
     {
         return [
             'files.required' => 'Pilih minimal satu lampiran.',
-            'files.max' => 'Maksimal 10 lampiran per unggahan.',
+            'files.max' => 'Maksimal '.config('qcc.attachments.max_files').' lampiran per unggahan.',
             'files.*.mimes' => 'Lampiran harus berupa PDF, JPG, PNG, DOCX, atau XLSX.',
-            'files.*.max' => 'Ukuran setiap lampiran maksimal 50 MB.',
+            'files.*.max' => 'Ukuran setiap lampiran maksimal '.config('qcc.attachments.max_size_mb').' MB.',
         ];
     }
 }

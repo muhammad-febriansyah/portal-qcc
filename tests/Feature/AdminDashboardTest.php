@@ -201,7 +201,7 @@ test('building the overview takes a small, fixed number of queries', function ()
     expect($queries)->toBeLessThan(30);
 });
 
-test('overview counts competency levels per group, preferring the verified level', function () {
+test('overview counts competency levels by the level people filled in, on current skills only', function () {
     $admin = dashboardAdmin();
     $member = User::factory()->create(['is_active' => true]);
     $competency = Competency::factory()->create();
@@ -212,13 +212,19 @@ test('overview counts competency levels per group, preferring the verified level
         'self_level' => 1,
         'verified_level' => 3,
     ]);
+    MemberCompetency::factory()->create([
+        'user_id' => $member->id,
+        'competency_id' => Competency::factory()->create(['is_active' => false])->id,
+        'self_level' => 4,
+    ]);
     Cache::forget(AdminDashboardOverview::CACHE_KEY);
 
-    $levels = app(AdminDashboardOverview::class)->get()['competency_levels'];
-    $groupIndex = array_search($competency->group->name, $levels['groups'], true);
+    $levels = collect(app(AdminDashboardOverview::class)->get()['competency_levels'])->keyBy('level');
 
-    expect($levels['levels'][3]['data'][$groupIndex])->toBe(1)
-        ->and($levels['levels'][1]['data'][$groupIndex])->toBe(0);
+    expect($levels)->toHaveCount(4)
+        ->and($levels[1]['count'])->toBe(1)
+        ->and($levels[3]['count'])->toBe(0)
+        ->and($levels[4]['count'])->toBe(0);
 });
 
 test('overview lists participants per organization and flags what needs attention', function () {
@@ -230,5 +236,17 @@ test('overview lists participants per organization and flags what needs attentio
     $keys = array_column($overview['attention'], 'key');
 
     expect(array_column($overview['members_by_organization'], 'label'))->toContain('Tanpa organisasi')
-        ->and($keys)->toContain('no_organization', 'no_sim_id', 'no_competency');
+        ->and($keys)->toContain('no_organization', 'no_sim_id', 'incomplete_contacts', 'no_competency');
+});
+
+test('overview flags active batches missing biweekly or mentoring schedules', function () {
+    dashboardAdmin();
+    QccBatch::factory()->active()->create();
+    Cache::forget(AdminDashboardOverview::CACHE_KEY);
+
+    $overview = app(AdminDashboardOverview::class)->get();
+    $attention = collect($overview['attention'])->firstWhere('key', 'batch_schedules_incomplete');
+
+    expect($attention)->not->toBeNull()
+        ->and($attention['count'])->toBeGreaterThanOrEqual(1);
 });

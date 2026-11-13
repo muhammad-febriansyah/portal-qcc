@@ -171,7 +171,7 @@ class BiweeklyReportController extends Controller
                     $this->notifier->reviewers($project, 'biweekly'),
                     $project,
                     'Laporan bi-weekly baru',
-                    "Laporan periode {$report->period_no} proyek {$project->title} menunggu review.",
+                    "Laporan bi-weekly periode {$report->period_no} proyek {$project->title} menunggu review.",
                     route('projects.biweekly.index', $project, false),
                     'BIWEEKLY_SUBMITTED',
                     $request->user(),
@@ -238,7 +238,7 @@ class BiweeklyReportController extends Controller
                 $report->submitter ? [$report->submitter] : $this->notifier->leaders($project),
                 $project,
                 $status === ReportStatus::Approved ? 'Laporan bi-weekly disetujui' : 'Laporan bi-weekly perlu revisi',
-                $status === ReportStatus::Approved ? "Laporan periode {$report->period_no} disetujui." : "Laporan periode {$report->period_no}: {$reason}",
+                $status === ReportStatus::Approved ? "Laporan bi-weekly periode {$report->period_no} proyek {$project->title} disetujui." : "Laporan bi-weekly periode {$report->period_no} proyek {$project->title} perlu direvisi. Catatan reviewer: {$reason}",
                 route('projects.biweekly.index', $project, false),
                 $status === ReportStatus::Approved ? 'BIWEEKLY_APPROVED' : 'BIWEEKLY_REVISION',
                 $request->user(),
@@ -297,7 +297,7 @@ class BiweeklyReportController extends Controller
                 $this->audit->record('action_item.updated', $existing, before: $before, after: $existing->only(['title', 'description', 'pic_id', 'due_date']));
                 if ($existing->pic_id !== $previousPicId) {
                     $this->notifier->notify(
-                        $existing->pic ? [$existing->pic] : [], $project, 'Tindakan bi-weekly ditugaskan', "{$existing->title} ditugaskan kepadamu.",
+                        $existing->pic ? [$existing->pic] : [], $project, 'Tindakan bi-weekly ditugaskan', "Tindakan \"{$existing->title}\" pada proyek {$project->title} ditugaskan kepada Anda.",
                         route('projects.biweekly.index', $project, false), 'ACTION_ASSIGNED', $request->user(),
                     );
                 }
@@ -306,7 +306,7 @@ class BiweeklyReportController extends Controller
                 $keptIds[] = $created->id;
                 $this->audit->record('action_item.created', $created, after: $created->only(['title', 'description', 'pic_id', 'due_date']));
                 $this->notifier->notify(
-                    $created->pic ? [$created->pic] : [], $project, 'Tindakan bi-weekly ditugaskan', "{$created->title} ditugaskan kepadamu.",
+                    $created->pic ? [$created->pic] : [], $project, 'Tindakan bi-weekly ditugaskan', "Tindakan \"{$created->title}\" pada proyek {$project->title} ditugaskan kepada Anda.",
                     route('projects.biweekly.index', $project, false), 'ACTION_ASSIGNED', $request->user(),
                 );
             }

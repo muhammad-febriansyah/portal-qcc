@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Http\Responses\LoginResponse;
 use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -13,6 +14,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
+use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 
@@ -23,7 +25,7 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
     }
 
     /**
@@ -44,10 +46,14 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::createUsersUsing(CreateNewUser::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
 
+        // People sign in with their office email or their SIM ID ("1493" or "SIM1493").
         Fortify::authenticateUsing(function (Request $request): ?User {
-            $user = User::query()
-                ->where(Fortify::username(), $request->input(Fortify::username()))
-                ->first();
+            $login = trim((string) $request->input(Fortify::username()));
+            $simId = User::normalizeSimId($login);
+
+            $user = str_contains($login, '@')
+                ? User::query()->where('email', strtolower($login))->first()
+                : User::query()->where('sim_id', $simId)->first();
 
             if ($user && $user->is_active && Hash::check((string) $request->input('password'), $user->password)) {
                 return $user;
@@ -94,11 +100,22 @@ class FortifyServiceProvider extends ServiceProvider
      */
     private function configureRateLimiting(): void
     {
-
         RateLimiter::for('login', function (Request $request) {
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
 
             return Limit::perMinute(5)->by($throttleKey);
+        });
+
+        RateLimiter::for('register', function (Request $request) {
+            return Limit::perHour(5)
+                ->by($request->ip() ?? 'unknown')
+                ->response(fn (Request $request, array $headers) => $request->expectsJson()
+                    ? response()->json([
+                        'message' => 'Terlalu banyak percobaan pendaftaran. Silakan coba kembali dalam satu jam.',
+                    ], 429, $headers)
+                    : back()->withErrors([
+                        'email' => 'Terlalu banyak percobaan pendaftaran. Silakan coba kembali dalam satu jam.',
+                    ])->withHeaders($headers));
         });
 
     }

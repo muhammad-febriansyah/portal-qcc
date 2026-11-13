@@ -1,5 +1,5 @@
 import { Form } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { FormField } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
 import {
@@ -7,7 +7,6 @@ import {
     ComboboxContent,
     ComboboxEmpty,
     ComboboxInput,
-    ComboboxItem,
     ComboboxList,
 } from '@/components/ui/combobox';
 import {
@@ -18,24 +17,17 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { CompetencyOptionItem } from '@/components/competency-option-item';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { store, update } from '@/routes/my-competencies';
 
 export type LevelOption = { value: number; label: string };
-export type GroupOption = { id: number; label: string };
 export type CompetencyOption = {
     id: number;
-    group_id: number;
     label: string;
+    description: string | null;
 };
 
 export type EditableCompetency = {
@@ -49,7 +41,6 @@ type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     editing: EditableCompetency | null;
-    groupOptions: GroupOption[];
     competencyOptions: CompetencyOption[];
     levelOptions: LevelOption[];
 };
@@ -108,26 +99,14 @@ function LevelField({
 
 function CompetencyForm({
     editing,
-    groupOptions,
     competencyOptions,
     levelOptions,
     onClose,
 }: Omit<Props, 'open' | 'onOpenChange'> & { onClose: () => void }) {
     const isEditing = editing !== null;
-    const [groupId, setGroupId] = useState('all');
     const [selected, setSelected] = useState<CompetencyOption | null>(null);
     const [level, setLevel] = useState(
         editing ? String(editing.self_level) : '',
-    );
-
-    const visibleOptions = useMemo(
-        () =>
-            groupId === 'all'
-                ? competencyOptions
-                : competencyOptions.filter(
-                      (option) => String(option.group_id) === groupId,
-                  ),
-        [competencyOptions, groupId],
     );
 
     return (
@@ -149,43 +128,6 @@ function CompetencyForm({
                         </FormField>
                     ) : (
                         <>
-                            <FormField id="competency-group" label="Kelompok">
-                                <Select
-                                    value={groupId}
-                                    onValueChange={(value) => {
-                                        setGroupId(value ?? 'all');
-                                        setSelected(null);
-                                    }}
-                                    items={[
-                                        {
-                                            value: 'all',
-                                            label: 'Semua kelompok',
-                                        },
-                                        ...groupOptions.map((group) => ({
-                                            value: String(group.id),
-                                            label: group.label,
-                                        })),
-                                    ]}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Pilih kelompok" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">
-                                            Semua kelompok
-                                        </SelectItem>
-                                        {groupOptions.map((group) => (
-                                            <SelectItem
-                                                key={group.id}
-                                                value={String(group.id)}
-                                            >
-                                                {group.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </FormField>
-
                             <FormField
                                 id="competency-id"
                                 label="Kompetensi"
@@ -193,7 +135,7 @@ function CompetencyForm({
                                 error={errors.competency_id}
                             >
                                 <Combobox
-                                    items={visibleOptions}
+                                    items={competencyOptions}
                                     value={selected}
                                     onValueChange={setSelected}
                                     itemToStringLabel={(
@@ -211,17 +153,23 @@ function CompetencyForm({
                                         </ComboboxEmpty>
                                         <ComboboxList>
                                             {(item: CompetencyOption) => (
-                                                <ComboboxItem
+                                                <CompetencyOptionItem
                                                     key={item.id}
-                                                    value={item}
-                                                >
-                                                    {item.label}
-                                                </ComboboxItem>
+                                                    item={item}
+                                                />
                                             )}
                                         </ComboboxList>
                                     </ComboboxContent>
                                 </Combobox>
                             </FormField>
+                            {selected?.description && (
+                                <p className="-mt-2 rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                                    <span className="font-medium text-foreground">
+                                        Definisi:{' '}
+                                    </span>
+                                    {selected.description}
+                                </p>
+                            )}
                             <input
                                 type="hidden"
                                 name="competency_id"
@@ -266,7 +214,6 @@ export function MemberCompetencyDialog({
     open,
     onOpenChange,
     editing,
-    groupOptions,
     competencyOptions,
     levelOptions,
 }: Props) {
@@ -284,7 +231,6 @@ export function MemberCompetencyDialog({
                     <CompetencyForm
                         key={editing?.id ?? 'new'}
                         editing={editing}
-                        groupOptions={groupOptions}
                         competencyOptions={competencyOptions}
                         levelOptions={levelOptions}
                         onClose={() => onOpenChange(false)}

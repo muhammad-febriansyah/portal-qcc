@@ -17,15 +17,14 @@ class ProjectRequirementController extends Controller
      */
     public function update(SaveProjectRequirementsRequest $request, Project $project): RedirectResponse
     {
-        abort_unless(in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
-
         $wanted = collect($request->requirements())
             ->mapWithKeys(fn (array $item): array => [
                 (int) $item['competency_id'] => isset($item['minimum_level']) ? (int) $item['minimum_level'] : null,
             ]);
 
         DB::transaction(function () use ($project, $wanted): void {
-            Project::query()->whereKey($project->id)->lockForUpdate()->first();
+            $lockedProject = Project::query()->lockForUpdate()->findOrFail($project->id);
+            abort_unless(in_array($lockedProject->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
 
             $project->requirements()->whereNotIn('competency_id', $wanted->keys())->delete();
 

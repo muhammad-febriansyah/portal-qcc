@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\Competency;
-use App\Models\CompetencyGroup;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,8 +18,8 @@ class CompetencyFactory extends Factory
     public function definition(): array
     {
         return [
-            'group_id' => CompetencyGroup::factory(),
-            'code' => sprintf('C%03d', fake()->unique()->numberBetween(1, 62)),
+            'group_id' => null,
+            'code' => fake()->randomElement(['H', 'S']).fake()->unique()->numberBetween(100, 999),
             'name' => fake()->words(3, true),
             'description' => fake()->sentence(),
             'is_active' => true,

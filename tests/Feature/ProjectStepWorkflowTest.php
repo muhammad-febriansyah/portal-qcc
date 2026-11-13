@@ -106,6 +106,21 @@ it('needs the activity and the plan before a step can be submitted', function ()
     expect($this->step->fresh()->status)->toBe(StepStatus::NotStarted);
 });
 
+it('allows members to contribute to a step but reserves submission for the team leader', function () {
+    $member = stepTeamMember($this->project, 'SIMer / Member');
+
+    $this->actingAs($member)
+        ->patch(($this->url)(), stepPayload($this->step))
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($member)
+        ->post(($this->url)('submit'), stepPayload($this->step))
+        ->assertForbidden();
+
+    expect($this->step->fresh()->status)->toBe(StepStatus::InProgress)
+        ->and($this->step->fresh()->submitted_at)->toBeNull();
+});
+
 it('walks submit, review, revision, resubmit and approval, locking the content on the way', function () {
     $actingLeader = fn () => $this->actingAs($this->leader);
 
@@ -123,7 +138,8 @@ it('walks submit, review, revision, resubmit and approval, locking the content o
     $this->actingAs($this->reviewer)->post(($this->url)('revision'), ['reason' => ''])->assertSessionHasErrors('reason');
     $this->actingAs($this->reviewer)->post(($this->url)('revision'), ['reason' => 'Data survei kurang'])->assertSessionHasNoErrors();
     expect($this->step->fresh()->status)->toBe(StepStatus::RevisionRequired);
-    expect($this->leader->notifications()->count())->toBe(1);
+    expect($this->leader->notifications()->count())->toBe(1)
+        ->and($this->leader->notifications()->where('data->decision', 'STEP_REVISION')->count())->toBe(1);
 
     $actingLeader()->patch(($this->url)(), stepPayload($this->step, ['actual_text' => 'Tambah responden']))->assertSessionHasNoErrors();
     expect($this->step->fresh()->status)->toBe(StepStatus::InProgress);
@@ -136,7 +152,9 @@ it('walks submit, review, revision, resubmit and approval, locking the content o
 
     expect($step->status)->toBe(StepStatus::Approved)->and($step->progress_pct)->toBe(100)->and($step->approved_at)->not->toBeNull();
     expect($this->leader->notifications()->count())->toBe(2)
-        ->and($this->reviewer->notifications()->count())->toBe(2);
+        ->and($this->leader->notifications()->where('data->decision', 'STEP_APPROVED')->count())->toBe(1)
+        ->and($this->reviewer->notifications()->count())->toBe(2)
+        ->and($this->reviewer->notifications()->where('data->decision', 'STEP_SUBMITTED')->count())->toBe(2);
 
     $actingLeader()->patch(($this->url)(), stepPayload($this->step, ['actual_text' => 'setelah approve']))->assertSessionHasErrors('step');
 
@@ -273,5 +291,5 @@ it('tells the page what the viewer may do and hands over the history', function 
         ->assertInertia(fn (Assert $page) => $page->where('selected.can_approve', true)->where('selected.can_request_revision', true));
 
     $this->actingAs(stepTeamMember($this->project, 'SIMer / Member'))->get(route('projects.steps.show', [$this->project, 2]))
-        ->assertInertia(fn (Assert $page) => $page->where('selected.can_edit', true)->where('selected.can_submit', true));
+        ->assertInertia(fn (Assert $page) => $page->where('selected.can_edit', true)->where('selected.can_submit', false));
 });

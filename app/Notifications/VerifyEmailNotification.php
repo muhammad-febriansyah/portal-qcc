@@ -11,8 +11,9 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 /**
  * Asks a new account to confirm its email address. It is always sent, whatever the
  * notification settings say, because the account cannot be used before it is confirmed.
- * It is queued so a slow mail server never holds up the sign up, and the signed link is
- * made when the email is sent, so its time limit starts then.
+ * User::sendEmailVerificationNotification() sends it right away; this queued class is the
+ * fallback when that fails. The signed link is made when the email is sent, so its time
+ * limit starts then.
  */
 class VerifyEmailNotification extends VerifyEmail implements ShouldQueue
 {

@@ -250,7 +250,7 @@ export default function ProjectRisks({
                     ].map((item) => (
                         <Card key={item.label} className="gap-0 py-0">
                             <CardContent className="grid gap-1 p-5">
-                                <p className="text-[13px] font-medium text-muted-foreground">
+                                <p className="text-sm font-medium text-muted-foreground">
                                     {item.label}
                                 </p>
                                 <p
@@ -316,7 +316,7 @@ export default function ProjectRisks({
                                 allLabel="Semua PIC"
                                 options={members}
                             />
-                            <Label className="flex items-center gap-2 text-[13px] font-normal">
+                            <Label className="flex items-center gap-2 text-sm font-normal">
                                 <Checkbox
                                     checked={filters.overdue}
                                     onCheckedChange={(checked) =>

@@ -1,7 +1,14 @@
 import { Head, router } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
-import { PencilLine, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import {
+    BadgeCheck,
+    LockKeyhole,
+    PencilLine,
+    Plus,
+    ShieldCheck,
+    Trash2,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { DataTable } from '@/components/data-table';
 import type {
@@ -13,21 +20,12 @@ import { MemberCompetencyDialog } from '@/components/member-competency-dialog';
 import type {
     CompetencyOption,
     EditableCompetency,
-    GroupOption,
     LevelOption,
 } from '@/components/member-competency-dialog';
 import { PageHeader } from '@/components/page-header';
-import { Badge } from '@/components/ui/badge';
-import { competencyGroupBadgeVariant } from '@/lib/badge-variants';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { dashboard } from '@/routes';
 import { destroy, index } from '@/routes/my-competencies';
 
@@ -35,13 +33,8 @@ type CompetencyRow = {
     id: number;
     code: string;
     name: string;
-    group_code: string | null;
     self_level: number;
     self_level_label: string | null;
-    verified_level: number | null;
-    verified_level_label: string | null;
-    verification_status: string | null;
-    verification_note: string | null;
     updated_at: string | null;
 };
 
@@ -49,7 +42,6 @@ type SortKey = 'code' | 'self_level' | 'updated_at';
 
 type Filters = {
     search: string;
-    group: string;
     sort: SortKey;
     direction: 'asc' | 'desc';
     per_page: number;
@@ -65,17 +57,29 @@ type Props = {
         total: number;
     };
     filters: Filters;
-    groupOptions: GroupOption[];
     competencyOptions: CompetencyOption[];
     levelOptions: LevelOption[];
+    competencyCount: number;
+    competencyLimit: number;
+    mustJoinTalentPool: boolean;
+    editingIsOpen: boolean;
+    editingClosesOn: string | null;
 };
+
+function formatDate(value: string): string {
+    return format(parseISO(value), 'd MMMM yyyy', { locale: indonesianLocale });
+}
 
 export default function MyCompetenciesIndex({
     competencies,
     filters,
-    groupOptions,
     competencyOptions,
     levelOptions,
+    competencyCount,
+    competencyLimit,
+    mustJoinTalentPool,
+    editingIsOpen,
+    editingClosesOn,
 }: Props) {
     const [searchValue, setSearchValue] = useState(filters.search);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -84,7 +88,6 @@ export default function MyCompetenciesIndex({
     function visit(next: Query, resetPage = true): void {
         const query = {
             search: next.search ?? filters.search,
-            group: next.group ?? filters.group,
             sort: next.sort ?? filters.sort,
             direction: next.direction ?? filters.direction,
             per_page: next.per_page ?? filters.per_page,
@@ -120,8 +123,8 @@ export default function MyCompetenciesIndex({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchValue]);
 
-    const columns = useMemo<DataTableColumnDef<CompetencyRow>[]>(
-        () => [
+    const columns = useMemo<DataTableColumnDef<CompetencyRow>[]>(() => {
+        const baseColumns: DataTableColumnDef<CompetencyRow>[] = [
             {
                 id: 'code',
                 header: 'Kompetensi',
@@ -137,70 +140,13 @@ export default function MyCompetenciesIndex({
                 ),
             },
             {
-                id: 'group',
-                header: 'Kelompok',
-                cell: ({ row }) =>
-                    row.original.group_code ? (
-                        <Badge
-                            variant={competencyGroupBadgeVariant(
-                                row.original.group_code,
-                            )}
-                        >
-                            Kelompok {row.original.group_code}
-                        </Badge>
-                    ) : (
-                        '—'
-                    ),
-            },
-            {
                 id: 'self_level',
-                header: 'Level Saya',
+                header: 'Level',
                 cell: ({ row }) => (
                     <span className="whitespace-nowrap">
                         {row.original.self_level} ·{' '}
                         {row.original.self_level_label}
                     </span>
-                ),
-            },
-            {
-                id: 'verified',
-                header: 'Terverifikasi',
-                cell: ({ row }) => (
-                    <div className="grid justify-items-start gap-1.5">
-                        {row.original.verified_level !== null ? (
-                            <span className="whitespace-nowrap">
-                                {row.original.verified_level} ·{' '}
-                                {row.original.verified_level_label}
-                            </span>
-                        ) : (
-                            <span className="text-muted-foreground">
-                                Belum ada level verifikasi
-                            </span>
-                        )}
-                        {row.original.verification_status?.toUpperCase() ===
-                        'VERIFIED' ? (
-                            <Badge variant="success" className="gap-1">
-                                <ShieldCheck aria-hidden="true" /> Terverifikasi
-                            </Badge>
-                        ) : row.original.verification_status?.toUpperCase() ===
-                          'PENDING' ? (
-                            <Badge variant="outline">
-                                Menunggu verifikasi ulang
-                            </Badge>
-                        ) : row.original.verification_status?.toUpperCase() ===
-                          'REJECTED' ? (
-                            <div className="grid gap-1">
-                                <Badge variant="destructive">
-                                    Perlu perbaikan
-                                </Badge>
-                                {row.original.verification_note && (
-                                    <span className="max-w-52 text-xs whitespace-normal text-muted-foreground">
-                                        {row.original.verification_note}
-                                    </span>
-                                )}
-                            </div>
-                        ) : null}
-                    </div>
                 ),
             },
             {
@@ -218,6 +164,14 @@ export default function MyCompetenciesIndex({
                     </span>
                 ),
             },
+        ];
+
+        if (!editingIsOpen) {
+            return baseColumns;
+        }
+
+        return [
+            ...baseColumns,
             {
                 id: 'actions',
                 header: () => <span className="sr-only">Aksi</span>,
@@ -246,7 +200,6 @@ export default function MyCompetenciesIndex({
                                         label: 'Hapus',
                                         icon: Trash2,
                                         destructive: true,
-                                        hidden: item.verified_level !== null,
                                         confirmTitle: 'Hapus kompetensi?',
                                         confirmDescription: `${item.name} akan dihapus dari daftar kompetensi Anda.`,
                                         confirmLabel: 'Hapus',
@@ -264,15 +217,19 @@ export default function MyCompetenciesIndex({
                     );
                 },
             },
-        ],
-        [],
-    );
+        ];
+    }, [editingIsOpen]);
 
     const sort: DataTableSort = {
         id: filters.sort === 'code' ? 'code' : filters.sort,
         desc: filters.direction === 'desc',
     };
-    const hasActiveFilter = filters.search !== '' || filters.group !== 'all';
+    const hasActiveFilter = filters.search !== '';
+    const reachedCompetencyLimit = competencyCount >= competencyLimit;
+    const deadlineNote =
+        editingIsOpen && editingClosesOn
+            ? ` Bisa diubah sampai ${formatDate(editingClosesOn)}.`
+            : '';
 
     return (
         <>
@@ -284,21 +241,61 @@ export default function MyCompetenciesIndex({
                         { title: 'Kompetensi Saya', href: index() },
                     ]}
                     title="Kompetensi Saya"
-                    description="Catat kemampuan Anda agar pembentukan tim QCC dapat mempertimbangkannya."
+                    description={`Isi kompetensi yang Anda kuasai beserta levelnya. ${competencyCount}/${competencyLimit} terisi.${deadlineNote}`}
                     actions={
-                        <Button
-                            type="button"
-                            className="h-10 px-4 text-sm"
-                            onClick={() => {
-                                setEditing(null);
-                                setIsDialogOpen(true);
-                            }}
-                        >
-                            <Plus data-icon="inline-start" aria-hidden="true" />
-                            Tambah Kompetensi
-                        </Button>
+                        editingIsOpen ? (
+                            <Button
+                                type="button"
+                                className="h-10 px-4 text-sm"
+                                disabled={reachedCompetencyLimit}
+                                onClick={() => {
+                                    setEditing(null);
+                                    setIsDialogOpen(true);
+                                }}
+                            >
+                                <Plus
+                                    data-icon="inline-start"
+                                    aria-hidden="true"
+                                />
+                                {reachedCompetencyLimit
+                                    ? 'Batas Tercapai'
+                                    : 'Tambah Kompetensi'}
+                            </Button>
+                        ) : null
                     }
                 />
+
+                {!editingIsOpen ? (
+                    <Alert className="mb-5">
+                        <LockKeyhole aria-hidden="true" />
+                        <AlertTitle>
+                            Pengisian kompetensi sudah ditutup
+                        </AlertTitle>
+                        <AlertDescription>
+                            {editingClosesOn
+                                ? `Batas waktunya ${formatDate(editingClosesOn)}.`
+                                : 'Batas waktunya sudah lewat.'}{' '}
+                            Kompetensi tidak bisa diubah lagi.
+                        </AlertDescription>
+                    </Alert>
+                ) : competencyCount > 0 ? (
+                    <Alert className="mb-5 border-success/40 bg-success/10">
+                        <BadgeCheck aria-hidden="true" />
+                        <AlertTitle>Kompetensi sudah terisi</AlertTitle>
+                        <AlertDescription>
+                            Anda bisa dipilih masuk tim QCC. Punya ide
+                            perbaikan? Buat proposal QCC.
+                        </AlertDescription>
+                    </Alert>
+                ) : mustJoinTalentPool ? (
+                    <Alert className="mb-5 border-warning/40 bg-warning/10">
+                        <ShieldCheck aria-hidden="true" />
+                        <AlertTitle>Tambahkan minimal 1 kompetensi</AlertTitle>
+                        <AlertDescription>
+                            Setelah itu Anda bisa membuat proposal QCC.
+                        </AlertDescription>
+                    </Alert>
+                ) : null}
 
                 <Card className="gap-0 py-0">
                     <DataTable
@@ -328,41 +325,6 @@ export default function MyCompetenciesIndex({
                         search={searchValue}
                         onSearchChange={setSearchValue}
                         searchPlaceholder="Cari kode atau nama kompetensi..."
-                        filters={
-                            <Select
-                                value={filters.group}
-                                onValueChange={(value) =>
-                                    visit({ group: value ?? 'all' })
-                                }
-                                items={[
-                                    { value: 'all', label: 'Semua kelompok' },
-                                    ...groupOptions.map((group) => ({
-                                        value: String(group.id),
-                                        label: group.label,
-                                    })),
-                                ]}
-                            >
-                                <SelectTrigger
-                                    aria-label="Filter kelompok"
-                                    className="w-full sm:w-48"
-                                >
-                                    <SelectValue placeholder="Semua kelompok" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">
-                                        Semua kelompok
-                                    </SelectItem>
-                                    {groupOptions.map((group) => (
-                                        <SelectItem
-                                            key={group.id}
-                                            value={String(group.id)}
-                                        >
-                                            {group.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        }
                         emptyTitle={
                             hasActiveFilter
                                 ? 'Kompetensi tidak ditemukan'
@@ -370,8 +332,10 @@ export default function MyCompetenciesIndex({
                         }
                         emptyDescription={
                             hasActiveFilter
-                                ? 'Ubah kata kunci atau filter kelompok.'
-                                : 'Tambahkan kompetensi yang Anda kuasai beserta levelnya.'
+                                ? 'Ubah kata kunci pencarian.'
+                                : editingIsOpen
+                                  ? 'Tambahkan kompetensi yang Anda kuasai beserta levelnya.'
+                                  : 'Pengisian kompetensi sudah ditutup.'
                         }
                     />
                 </Card>
@@ -381,7 +345,6 @@ export default function MyCompetenciesIndex({
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 editing={editing}
-                groupOptions={groupOptions}
                 competencyOptions={competencyOptions}
                 levelOptions={levelOptions}
             />

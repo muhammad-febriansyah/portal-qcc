@@ -6,7 +6,7 @@ use App\Support\NotificationKinds;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
-function notificationRecord(User $user, string $decision, int $projectId = 12, bool $read = false): string
+function notificationRecord(User $user, string $decision, int $projectId = 12, bool $read = false, ?string $url = null): string
 {
     $id = (string) Str::uuid();
 
@@ -17,7 +17,7 @@ function notificationRecord(User $user, string $decision, int $projectId = 12, b
             'project_id' => $projectId,
             'title' => "Pemberitahuan {$decision}",
             'message' => "Pesan untuk {$decision}.",
-            'url' => route('dashboard'),
+            'url' => $url ?? route('dashboard'),
             'decision' => $decision,
         ],
         'read_at' => $read ? now() : null,
@@ -69,9 +69,27 @@ it('marks all and opens notifications only for the authenticated user', function
         ->and($other->unreadNotifications()->count())->toBe(1);
 
     $this->actingAs($user)->get(route('notifications.open', $otherId))->assertNotFound();
-    $this->actingAs($other)->get(route('notifications.open', $otherId))->assertRedirect(route('proposals.show', 12));
+    $this->actingAs($other)->get(route('notifications.open', $otherId))->assertRedirect(route('dashboard'));
     expect($user->notifications()->findOrFail($ownId)->read_at)->not->toBeNull()
         ->and($other->notifications()->findOrFail($otherId)->read_at)->not->toBeNull();
+});
+
+it('opens absolute URLs from the application as local paths', function () {
+    $user = notificationUser();
+    $localUrl = route('projects.risks.index', ['project' => 12, 'tab' => 'actions']);
+    $notificationId = notificationRecord($user, 'DUE_SOON_3', url: $localUrl);
+
+    $this->actingAs($user)->get(route('notifications.open', $notificationId))
+        ->assertRedirect($localUrl);
+});
+
+it('rejects notification URLs for a different host', function () {
+    $user = notificationUser();
+    $notificationId = notificationRecord($user, 'DUE_SOON_1', url: 'https://outside.example/steal');
+
+    $this->actingAs($user)->get(route('notifications.open', $notificationId))
+        ->assertRedirect(route('proposals.show', 12))
+        ->assertDontSee('outside.example');
 });
 
 it('filters unread notifications and groups and paginates only the users own notifications', function () {

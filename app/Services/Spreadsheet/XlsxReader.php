@@ -6,7 +6,7 @@ use SimpleXMLElement;
 use ZipArchive;
 
 /**
- * Reads the first sheet of an .xlsx file as rows of text, without a spreadsheet package.
+ * Reads the sheets of an .xlsx file as rows of text, without a spreadsheet package.
  * Formulas are not evaluated: the cached value stored in the file is returned.
  */
 class XlsxReader
@@ -42,6 +42,37 @@ class XlsxReader
             $sheet = $this->xml($this->entry($zip, $sheetPath));
 
             return $this->rows($sheet, $sharedStrings);
+        } finally {
+            $zip->close();
+        }
+    }
+
+    /**
+     * Every sheet in workbook order, keyed by sheet name.
+     *
+     * @return array<string, list<array{row: int, cells: list<string>}>>
+     *
+     * @throws InvalidSpreadsheetException
+     */
+    public function sheets(string $path): array
+    {
+        $zip = new ZipArchive;
+
+        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
+            throw new InvalidSpreadsheetException('Not a valid .xlsx file.');
+        }
+
+        try {
+            $this->guardArchiveSize($zip);
+
+            $sharedStrings = $this->sharedStrings($zip);
+            $sheets = [];
+
+            foreach ($this->sheetPaths($zip) as $name => $sheetPath) {
+                $sheets[$name] = $this->rows($this->xml($this->entry($zip, $sheetPath)), $sharedStrings);
+            }
+
+            return $sheets;
         } finally {
             $zip->close();
         }
@@ -90,6 +121,39 @@ class XlsxReader
         $xml->registerXPathNamespace('m', self::MAIN_NS);
 
         return $xml;
+    }
+
+    /**
+     * Part path of each sheet, keyed by sheet name, in workbook order.
+     *
+     * @return array<string, string>
+     */
+    private function sheetPaths(ZipArchive $zip): array
+    {
+        $workbook = $this->xml($this->entry($zip, 'xl/workbook.xml'));
+        $relationships = $this->xml($this->entry($zip, 'xl/_rels/workbook.xml.rels'));
+        $targets = [];
+
+        foreach ($relationships->children() as $relationship) {
+            $target = (string) $relationship['Target'];
+            $targets[(string) $relationship['Id']] = str_starts_with($target, '/') ? ltrim($target, '/') : 'xl/'.$target;
+        }
+
+        $paths = [];
+
+        foreach ($workbook->xpath('//m:sheets/m:sheet') ?: [] as $sheet) {
+            $relationshipId = (string) $sheet->attributes(self::REL_NS)->id;
+
+            if (isset($targets[$relationshipId])) {
+                $paths[(string) $sheet['name']] = $targets[$relationshipId];
+            }
+        }
+
+        if ($paths === []) {
+            throw new InvalidSpreadsheetException('The workbook has no sheet.');
+        }
+
+        return $paths;
     }
 
     private function firstSheetPath(ZipArchive $zip): string

@@ -5,6 +5,7 @@ namespace App\Services\Teams;
 use App\Models\MemberCompetency;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\Teams\Matching\TeamMatchingInputFingerprint;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -12,8 +13,9 @@ use stdClass;
 
 /**
  * Finds the people who could join a project team, based on the competencies the
- * project asks for. Only work data leaves this class: no email, phone or other
- * private contact. The snapshot is the minimum an AI run is allowed to see.
+ * project asks for. Candidates below requested minimum remain eligible so AI
+ * can describe gaps and suggest coaching. Only work data leaves this class:
+ * no email, phone or other private contact.
  */
 class CandidateShortlist
 {
@@ -25,7 +27,7 @@ class CandidateShortlist
     /** Availability values that take someone out of the shortlist. Empty means unknown, so still eligible. */
     public const UNAVAILABLE_STATUSES = ['UNAVAILABLE'];
 
-    private const EFFECTIVE_LEVEL = 'COALESCE(member_competencies.verified_level, member_competencies.self_level)';
+    public function __construct(private readonly TeamMatchingInputFingerprint $fingerprint) {}
 
     /**
      * @return array{
@@ -33,13 +35,56 @@ class CandidateShortlist
      *     candidates: list<array{
      *         user_id: int, name: string, position: string|null, organization_id: int, organization: string,
      *         availability_status: string|null, matched_count: int, requirement_count: int,
-     *         competencies: list<array{competency_id: int, self_level: int, verified_level: int|null}>
+     *         qcc_projects_count: int,
+     *         competencies: list<array{competency_id: int, self_level: int}>
      *     }>
      * }
      */
     public function for(Project $project, int $limit = self::DEFAULT_LIMIT): array
     {
-        $requirements = DB::table('project_requirements')
+        $requirements = $this->requirements($project);
+
+        if ($requirements === []) {
+            return ['requirements' => [], 'candidates' => []];
+        }
+
+        $ranked = $this->rankedQuery($project, max(1, min($limit, 100)))->get();
+
+        return ['requirements' => $requirements, 'candidates' => $this->candidateDetails($project, $requirements, $ranked)];
+    }
+
+    /** @return array{requirements: list<array{competency_id: int, code: string, name: string, minimum_level: int|null}>, candidates: list<array<string, mixed>>} */
+    public function search(Project $project, string $search, int $limit = self::DEFAULT_LIMIT): array
+    {
+        $requirements = $this->requirements($project);
+
+        if ($requirements === [] || mb_strlen(trim($search)) < 2) {
+            return ['requirements' => $requirements, 'candidates' => []];
+        }
+
+        $ranked = $this->rankedQuery($project, max(1, min($limit, 100)), trim($search))->get();
+
+        return ['requirements' => $requirements, 'candidates' => $this->candidateDetails($project, $requirements, $ranked)];
+    }
+
+    /** @param list<int> $userIds @return array{requirements: list<array{competency_id: int, code: string, name: string, minimum_level: int|null}>, candidates: list<array<string, mixed>>} */
+    public function forUsers(Project $project, array $userIds): array
+    {
+        $requirements = $this->requirements($project);
+
+        if ($requirements === [] || $userIds === []) {
+            return ['requirements' => $requirements, 'candidates' => []];
+        }
+
+        $ranked = $this->rankedQuery($project, null, null, array_values(array_unique($userIds)))->get();
+
+        return ['requirements' => $requirements, 'candidates' => $this->candidateDetails($project, $requirements, $ranked)];
+    }
+
+    /** @return list<array{competency_id: int, code: string, name: string, minimum_level: int|null}> */
+    private function requirements(Project $project): array
+    {
+        return DB::table('project_requirements')
             ->join('competency_master', 'competency_master.id', '=', 'project_requirements.competency_id')
             ->where('project_requirements.project_id', $project->id)
             ->orderBy('competency_master.code')
@@ -51,12 +96,11 @@ class CandidateShortlist
                 'minimum_level' => $row->minimum_level === null ? null : (int) $row->minimum_level,
             ])
             ->all();
+    }
 
-        if ($requirements === []) {
-            return ['requirements' => [], 'candidates' => []];
-        }
-
-        $ranked = $this->rankedQuery($project, max(1, min($limit, 100)))->get();
+    /** @param list<array{competency_id: int, code: string, name: string, minimum_level: int|null}> $requirements */
+    private function candidateDetails(Project $project, array $requirements, Collection $ranked): array
+    {
         $userIds = $ranked->pluck('user_id')->all();
 
         $people = User::query()
@@ -69,7 +113,7 @@ class CandidateShortlist
             ->whereIn('user_id', $userIds)
             ->whereIn('competency_id', array_column($requirements, 'competency_id'))
             ->orderBy('competency_id')
-            ->get(['user_id', 'competency_id', 'self_level', 'verified_level'])
+            ->get(['user_id', 'competency_id', 'self_level'])
             ->groupBy('user_id');
 
         $candidates = [];
@@ -90,15 +134,15 @@ class CandidateShortlist
                 'availability_status' => $person->availability_status,
                 'matched_count' => (int) $row->matched_count,
                 'requirement_count' => count($requirements),
+                'qcc_projects_count' => (int) $row->qcc_projects_count,
                 'competencies' => array_values($held->get($row->user_id)?->map(fn (MemberCompetency $entry): array => [
                     'competency_id' => $entry->competency_id,
                     'self_level' => $entry->self_level,
-                    'verified_level' => $entry->verified_level === null ? null : (int) $entry->verified_level,
                 ])->all() ?? []),
             ];
         }
 
-        return ['requirements' => array_values($requirements), 'candidates' => $candidates];
+        return $candidates;
     }
 
     /**
@@ -116,6 +160,7 @@ class CandidateShortlist
         return [
             'project_id' => $project->id,
             'generated_at' => now()->toIso8601String(),
+            'input_fingerprint' => $this->fingerprint->for($project),
             'requirements' => array_map(fn (array $requirement): array => [
                 'competency_id' => $requirement['competency_id'],
                 'minimum_level' => $requirement['minimum_level'],
@@ -181,13 +226,11 @@ class CandidateShortlist
     }
 
     /**
-     * One aggregate query: eligible people who hold at least one required competency
-     * at or above its minimum level, best matches first, bounded by the limit.
+     * One aggregate query: eligible people who hold at least one required
+     * competency, including candidates below minimum level, best matches first.
      */
-    public function rankedQuery(Project $project, int $limit = self::DEFAULT_LIMIT): Builder
+    public function rankedQuery(Project $project, ?int $limit = self::DEFAULT_LIMIT, ?string $search = null, ?array $userIds = null): Builder
     {
-        $effective = self::EFFECTIVE_LEVEL;
-
         return DB::table('member_competencies')
             ->join('project_requirements', function ($join) use ($project): void {
                 $join->on('project_requirements.competency_id', '=', 'member_competencies.competency_id')
@@ -197,11 +240,16 @@ class CandidateShortlist
             ->join('organizations', 'organizations.id', '=', 'users.organization_id')
             ->where('users.is_active', true)
             ->where('organizations.is_active', true)
+            ->when($userIds !== null, fn (Builder $query): Builder => $query->whereIn('users.id', $userIds))
+            ->when($search !== null && $search !== '', fn (Builder $query): Builder => $query->where(function (Builder $matching) use ($search): void {
+                $matching->where('users.name', 'like', '%'.$search.'%')
+                    ->orWhere('organizations.name', 'like', '%'.$search.'%')
+                    ->orWhere('users.position', 'like', '%'.$search.'%');
+            }))
             ->where(function (Builder $availability): void {
                 $availability->whereNull('users.availability_status')
                     ->orWhereNotIn('users.availability_status', self::UNAVAILABLE_STATUSES);
             })
-            ->whereRaw("{$effective} >= COALESCE(project_requirements.minimum_level, 0)")
             ->whereIn('users.id', function (Builder $roles): void {
                 $roles->select('model_has_roles.model_id')
                     ->from('model_has_roles')
@@ -218,13 +266,16 @@ class CandidateShortlist
                     ->whereNull('project_members.left_at');
             })
             ->groupBy('member_competencies.user_id')
-            ->selectRaw('member_competencies.user_id as user_id, COUNT(*) as matched_count')
-            ->selectRaw("SUM({$effective}) as level_sum")
-            ->selectRaw('SUM(CASE WHEN member_competencies.verified_level IS NOT NULL THEN 1 ELSE 0 END) as verified_count')
+            ->selectRaw('member_competencies.user_id as user_id')
+            ->selectRaw('SUM(CASE WHEN member_competencies.self_level >= COALESCE(project_requirements.minimum_level, 0) THEN 1 ELSE 0 END) as matched_count')
+            ->selectRaw('SUM(member_competencies.self_level) as level_sum')
+            ->selectRaw('(SELECT COUNT(DISTINCT prior_member.project_id) FROM project_members as prior_member INNER JOIN projects as prior_project ON prior_project.id = prior_member.project_id WHERE prior_member.user_id = users.id AND prior_member.project_id <> ? AND prior_project.deleted_at IS NULL) as qcc_projects_count', [$project->id])
             ->orderByDesc('matched_count')
             ->orderByDesc('level_sum')
-            ->orderByDesc('verified_count')
+            ->orderByRaw("CASE WHEN users.availability_status = 'AVAILABLE' THEN 0 ELSE 1 END")
+            ->orderByRaw('(SELECT COUNT(*) FROM project_members as current_member WHERE current_member.project_id = ? AND current_member.status = \'ACTIVE\' AND current_member.left_at IS NULL AND current_member.user_id IN (SELECT same_org.id FROM users as same_org WHERE same_org.organization_id = users.organization_id)) ASC', [$project->id])
+            ->orderByDesc('qcc_projects_count')
             ->orderBy('member_competencies.user_id')
-            ->limit($limit);
+            ->when($limit !== null, fn (Builder $query): Builder => $query->limit($limit));
     }
 }

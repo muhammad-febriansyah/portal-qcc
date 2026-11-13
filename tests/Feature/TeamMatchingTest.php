@@ -1,7 +1,9 @@
 <?php
 
 use App\Actions\Teams\StartTeamMatching;
+use App\Enums\ProposalStatus;
 use App\Enums\TeamMatchingStatus;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\RunTeamMatching;
 use App\Models\Competency;
 use App\Models\MemberCompetency;
@@ -13,6 +15,7 @@ use App\Services\Ai\Exceptions\AiUnavailable;
 use App\Services\Teams\CandidateShortlist;
 use App\Services\Teams\Matching\TeamMatchingClient;
 use App\Services\Teams\Matching\TeamMatchingRequestBuilder;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -103,7 +106,7 @@ function queuedRun(Project $project, array $candidateIds): TeamMatchingRun
 }
 
 beforeEach(function () {
-    $this->project = Project::factory()->create();
+    $this->project = Project::factory()->status(ProposalStatus::Approved)->create();
     $this->skill = Competency::factory()->create();
     DB::table('project_requirements')->insert([
         'project_id' => $this->project->id, 'competency_id' => $this->skill->id,
@@ -127,8 +130,7 @@ test('matching prompt includes project context and mitigation schema', function 
     $this->project->forceFill([
         'current_situation' => 'Dokumen diverifikasi manual.',
         'improvement_plan' => 'Otomatisasi verifikasi.',
-        'rca' => 'Proses belum terstandar.',
-        'business_benefit' => 'Waktu proses turun.',
+        'supplementary_information' => 'Baseline tervalidasi pada sampel 120 transaksi.',
     ])->save();
 
     $shortlist = app(CandidateShortlist::class);
@@ -138,12 +140,29 @@ test('matching prompt includes project context and mitigation schema', function 
         ->toMatchArray([
             'current_situation' => 'Dokumen diverifikasi manual.',
             'improvement_plan' => 'Otomatisasi verifikasi.',
-            'root_cause_analysis' => 'Proses belum terstandar.',
-            'business_benefit' => 'Waktu proses turun.',
+            'supplementary_information' => 'Baseline tervalidasi pada sampel 120 transaksi.',
         ])
+        ->not->toHaveKeys(['problem_statement', 'baseline', 'root_cause_analysis', 'business_benefit'])
         ->and($request['schema']['required'])->toContain('mitigations')
         ->and($request['schema']['properties']['mitigations']['items']['properties']['type']['enum'])
         ->toBe(['COACHING', 'TRAINING', 'MENTOR']);
+});
+
+test('matching prompt still carries sections an older proposal filled in before they were removed', function () {
+    $this->project->forceFill([
+        'rca' => 'Proses belum terstandar.',
+        'business_benefit' => 'Waktu proses turun.',
+    ])->save();
+
+    $shortlist = app(CandidateShortlist::class);
+    $request = app(TeamMatchingRequestBuilder::class)->build($this->project, $shortlist->snapshot($this->project, $shortlist->for($this->project)));
+
+    expect($request['input']['project'])
+        ->toMatchArray([
+            'root_cause_analysis' => 'Proses belum terstandar.',
+            'business_benefit' => 'Waktu proses turun.',
+        ])
+        ->not->toHaveKeys(['problem_statement', 'baseline']);
 });
 
 test('starting with AI ready stores the snapshot and queues the job', function () {
@@ -182,8 +201,33 @@ test('there is nothing to match without requirements or candidates', function ()
     expect(fn () => app(StartTeamMatching::class)->handle($this->project, matchSearcher()))
         ->toThrow(ValidationException::class, 'Belum ada kandidat');
 
-    expect(fn () => app(StartTeamMatching::class)->handle(Project::factory()->create(), matchSearcher()))
+    expect(fn () => app(StartTeamMatching::class)->handle(Project::factory()->status(ProposalStatus::Approved)->create(), matchSearcher()))
         ->toThrow(ValidationException::class, 'kebutuhan kompetensi');
+});
+
+test('matching refuses proposals that have not been approved yet', function () {
+    aiIsReady();
+    Queue::fake();
+
+    foreach ([ProposalStatus::Draft, ProposalStatus::Submitted, ProposalStatus::UnderReview] as $status) {
+        $this->project->forceFill(['proposal_status' => $status])->save();
+
+        expect(fn () => app(StartTeamMatching::class)->handle($this->project, matchSearcher()))
+            ->toThrow(ValidationException::class, 'hanya tersedia untuk proposal yang sudah disetujui');
+    }
+
+    expect(TeamMatchingRun::query()->count())->toBe(0);
+    Queue::assertNothingPushed();
+});
+
+test('queued matching is marked stale when proposal input changes before execution', function () {
+    $run = queuedRun($this->project, []);
+    $this->project->forceFill(['supplementary_information' => 'Data terbaru'])->save();
+
+    app()->call([new RunTeamMatching($run->id), 'handle']);
+
+    expect($run->fresh()->status)->toBe(TeamMatchingStatus::Failed)
+        ->and($run->fresh()->error_code)->toBe('stale_input');
 });
 
 test('a valid suggestion is stored and marked ready', function () {
@@ -205,6 +249,63 @@ test('a valid suggestion is stored and marked ready', function () {
         ->and($run->output_json['mitigations'][0]['type'])->toBe('COACHING')
         ->and($run->model)->toBe('fake-model')
         ->and($run->validated_at)->not->toBeNull();
+});
+
+test('a suggestion that arrives after the run timed out does not revive it', function () {
+    $answer = aiAnswer([aiMember($this->a, 'LEADER', $this->skill->id), aiMember($this->b, 'MEMBER', $this->skill->id)]);
+    $run = queuedRun($this->project, []);
+
+    app()->instance(TeamMatchingClient::class, new class($run->id, $answer) implements TeamMatchingClient
+    {
+        public function __construct(private int $runId, private array $answer) {}
+
+        public function suggest(array $request): array
+        {
+            TeamMatchingRun::query()->whereKey($this->runId)->update(['status' => TeamMatchingStatus::Failed->value, 'error_code' => 'processing_timeout']);
+
+            return ['payload' => $this->answer, 'usage' => [], 'model' => 'fake-model'];
+        }
+    });
+
+    app()->call([new RunTeamMatching($run->id), 'handle']);
+
+    $run->refresh();
+
+    expect($run->status)->toBe(TeamMatchingStatus::Failed)
+        ->and($run->error_code)->toBe('processing_timeout')
+        ->and($run->output_json)->toBeNull();
+});
+
+test('a run records when processing started', function () {
+    $answer = aiAnswer([aiMember($this->a, 'LEADER', $this->skill->id), aiMember($this->b, 'MEMBER', $this->skill->id)]);
+    fakeMatchingClient($answer);
+    $run = queuedRun($this->project, []);
+
+    app()->call([new RunTeamMatching($run->id), 'handle']);
+
+    $run->refresh();
+
+    expect($run->started_at)->not->toBeNull()
+        ->and($run->started_at->lessThanOrEqualTo($run->validated_at))->toBeTrue();
+});
+
+test('a matching poll returns only the run and not the candidate lists', function () {
+    $version = app(HandleInertiaRequests::class)->version(request());
+
+    $props = $this->actingAs(matchSearcher())
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => $version,
+            'X-Inertia-Partial-Component' => 'proposals/candidates',
+            'X-Inertia-Partial-Data' => 'matching',
+        ])
+        ->get(route('proposals.candidates', $this->project))
+        ->assertOk()
+        ->json('props');
+
+    expect($props)->toHaveKey('matching')
+        ->not->toHaveKey('candidates')
+        ->not->toHaveKey('team');
 });
 
 test('output with missing or unknown mitigation fields is rejected', function () {
@@ -332,6 +433,37 @@ test('the OpenAI request uses a strict schema and carries no names or contacts',
 
     expect($run->fresh()->status)->toBe(TeamMatchingStatus::Ready);
 });
+
+test('team matching asks each model for its lightest reasoning effort', function (string $model, ?string $effort) {
+    aiIsReady();
+    config([
+        'scoring.openai.model' => $model,
+        'scoring.openai.base_url' => 'https://api.openai.test/v1',
+    ]);
+    Http::preventStrayRequests();
+    Http::fake(['https://api.openai.test/v1/responses' => Http::response([
+        'model' => $model,
+        'usage' => ['total_tokens' => 5],
+        'output' => [['content' => [['type' => 'output_text', 'text' => json_encode(aiAnswer([
+            aiMember($this->a, 'LEADER', $this->skill->id),
+            aiMember($this->b, 'MEMBER', $this->skill->id),
+        ]))]]]],
+    ])]);
+    app()->forgetInstance(TeamMatchingClient::class);
+    $run = queuedRun($this->project, []);
+
+    app()->call([new RunTeamMatching($run->id), 'handle']);
+
+    Http::assertSent(fn (Request $request): bool => ($request->data()['reasoning']['effort'] ?? null) === $effort);
+    expect($run->fresh()->status)->toBe(TeamMatchingStatus::Ready);
+})->with([
+    'GPT-5.1' => ['gpt-5.1', 'none'],
+    'GPT-5 dated' => ['gpt-5-2025-08-07', 'minimal'],
+    'GPT-5 mini' => ['gpt-5-mini', 'minimal'],
+    'o4-mini' => ['o4-mini', 'low'],
+    'GPT-4.1' => ['gpt-4.1', null],
+    'GPT-5 pro' => ['gpt-5-pro', null],
+]);
 
 test('the candidate page tells the user when AI is not ready and shows the latest suggestion', function () {
     $searcher = matchSearcher();

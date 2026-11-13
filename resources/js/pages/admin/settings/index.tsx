@@ -2,16 +2,21 @@ import { Form, Head, useForm } from '@inertiajs/react';
 import {
     Bell,
     Brain,
+    DatabaseZap,
     FileLock2,
     Globe2,
     Image,
     LockKeyhole,
     Mail,
+    Plug,
     Send,
     Settings2,
+    Trash2,
+    TriangleAlert,
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { FormField } from '@/components/form-field';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,15 +49,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { dashboard } from '@/routes';
 import {
     index as systemSettingsIndex,
+    testAi as testSystemAi,
     testEmail as testSystemEmail,
     update as updateSystemSettings,
 } from '@/routes/admin/settings';
+import { destroy as destroyDemoData } from '@/routes/admin/settings/demo-data';
 import { update as updateSystemPolicies } from '@/routes/admin/settings/policies';
 
 type PolicySettings = {
     notifications: {
         inApp: boolean;
         email: boolean;
+        reminderEarlyDays: number;
+        reminderFinalDays: number;
     };
     attachments: {
         storageDisk: string;
@@ -68,11 +77,6 @@ type PolicySettings = {
         modelOptions: ModelOption[];
         hasApiKey: boolean;
     };
-    sso: {
-        title: string;
-        decision: string;
-        description: string;
-    };
 };
 
 type ModelOption = {
@@ -83,6 +87,8 @@ type ModelOption = {
 type PolicyForm = {
     notifications_in_app: boolean;
     notifications_email: boolean;
+    notifications_reminder_early_days: number;
+    notifications_reminder_final_days: number;
     attachments_storage_disk: string;
     attachments_allowed_types: string[];
     attachments_max_size_mb: number;
@@ -105,6 +111,12 @@ type Props = {
     };
     policies: PolicySettings;
     canManage: boolean;
+    demoData: {
+        users: number;
+        projects: number;
+        batches: number;
+        viewer_is_demo: boolean;
+    } | null;
 };
 
 const attachmentTypes = [
@@ -121,13 +133,35 @@ export default function SystemSettingsIndex({
     general,
     policies,
     canManage,
+    demoData,
 }: Props) {
+    const demoPurgeForm = useForm({ confirmation: '' });
+    const [isDemoPurgeDialogOpen, setIsDemoPurgeDialogOpen] = useState(false);
+    const demoDataTotal = demoData
+        ? demoData.users + demoData.projects + demoData.batches
+        : 0;
+
+    function submitDemoPurge(event: FormEvent<HTMLFormElement>): void {
+        event.preventDefault();
+        demoPurgeForm.delete(destroyDemoData.url(), {
+            preserveScroll: true,
+            onSuccess: () => {
+                setIsDemoPurgeDialogOpen(false);
+                demoPurgeForm.reset();
+            },
+        });
+    }
+
     const [apiKeyConfigured, setApiKeyConfigured] = useState(
         policies.ai.hasApiKey,
     );
     const policyForm = useForm<PolicyForm>({
         notifications_in_app: policies.notifications.inApp,
         notifications_email: policies.notifications.email,
+        notifications_reminder_early_days:
+            policies.notifications.reminderEarlyDays,
+        notifications_reminder_final_days:
+            policies.notifications.reminderFinalDays,
         attachments_storage_disk: policies.attachments.storageDisk,
         attachments_allowed_types: policies.attachments.allowedTypes,
         attachments_max_size_mb: policies.attachments.maxSizeMb,
@@ -138,6 +172,7 @@ export default function SystemSettingsIndex({
         ai_api_key: '',
     });
     const testEmailForm = useForm({ email: '' });
+    const aiTestForm = useForm<{ ai_connection?: string }>({});
     const [isTestEmailDialogOpen, setIsTestEmailDialogOpen] = useState(false);
 
     function submitTestEmail(event: FormEvent<HTMLFormElement>): void {
@@ -189,6 +224,12 @@ export default function SystemSettingsIndex({
                             <LockKeyhole aria-hidden="true" />
                             Kebijakan Sistem
                         </TabsTrigger>
+                        {demoData && (
+                            <TabsTrigger value="demo-data">
+                                <DatabaseZap aria-hidden="true" />
+                                Data Dummy
+                            </TabsTrigger>
+                        )}
                     </TabsList>
 
                     <TabsContent value="general">
@@ -499,6 +540,62 @@ export default function SystemSettingsIndex({
                                             </Button>
                                         )}
                                     </div>
+                                    <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+                                        <FormField
+                                            id="reminder-early-days"
+                                            label="Pengingat awal (hari sebelum tenggat)"
+                                            error={
+                                                policyForm.errors
+                                                    .notifications_reminder_early_days
+                                            }
+                                        >
+                                            <Input
+                                                id="reminder-early-days"
+                                                type="number"
+                                                min={2}
+                                                max={30}
+                                                value={
+                                                    policyForm.data
+                                                        .notifications_reminder_early_days
+                                                }
+                                                onChange={(event) =>
+                                                    policyForm.setData(
+                                                        'notifications_reminder_early_days',
+                                                        Number(
+                                                            event.target.value,
+                                                        ),
+                                                    )
+                                                }
+                                            />
+                                        </FormField>
+                                        <FormField
+                                            id="reminder-final-days"
+                                            label="Pengingat akhir (hari sebelum tenggat)"
+                                            error={
+                                                policyForm.errors
+                                                    .notifications_reminder_final_days
+                                            }
+                                        >
+                                            <Input
+                                                id="reminder-final-days"
+                                                type="number"
+                                                min={1}
+                                                max={29}
+                                                value={
+                                                    policyForm.data
+                                                        .notifications_reminder_final_days
+                                                }
+                                                onChange={(event) =>
+                                                    policyForm.setData(
+                                                        'notifications_reminder_final_days',
+                                                        Number(
+                                                            event.target.value,
+                                                        ),
+                                                    )
+                                                }
+                                            />
+                                        </FormField>
+                                    </div>
                                 </CardContent>
                             </Card>
 
@@ -722,20 +819,21 @@ export default function SystemSettingsIndex({
                                     </div>
                                     <CardDescription>
                                         API key disimpan terenkripsi di server.
-                                        Permintaan scoring memakai store=false;
-                                        mengaktifkan AI mengirim evidence proyek
-                                        ke penyedia.
+                                        OpenAI dipakai untuk rekomendasi AI Team
+                                        Matching berdasarkan ringkasan proposal
+                                        yang disetujui pengguna.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="grid gap-6">
                                     <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
                                         <div>
                                             <p className="text-sm font-medium">
-                                                Aktifkan scoring AI
+                                                Aktifkan AI Team Matching
                                             </p>
                                             <p className="text-sm text-muted-foreground">
-                                                Nonaktifkan untuk mencegah
-                                                pengiriman data baru.
+                                                Ringkasan proposal dikirim ke
+                                                OpenAI saat pengguna meminta
+                                                rekomendasi tim.
                                             </p>
                                         </div>
                                         <Switch
@@ -858,6 +956,43 @@ export default function SystemSettingsIndex({
                                             />
                                         </FormField>
                                     </div>
+                                    {canManage && (
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <Button
+                                                type="button"
+                                                className="bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500"
+                                                disabled={aiTestForm.processing}
+                                                onClick={() =>
+                                                    aiTestForm.post(
+                                                        testSystemAi.url(),
+                                                        {
+                                                            preserveScroll: true,
+                                                        },
+                                                    )
+                                                }
+                                            >
+                                                {aiTestForm.processing ? (
+                                                    <Spinner />
+                                                ) : (
+                                                    <Plug aria-hidden="true" />
+                                                )}
+                                                Tes koneksi AI
+                                            </Button>
+                                            <p className="text-xs text-muted-foreground">
+                                                Memakai API key dan model yang
+                                                tersimpan. Simpan kebijakan dulu
+                                                jika baru mengubahnya.
+                                            </p>
+                                        </div>
+                                    )}
+                                    {aiTestForm.errors.ai_connection && (
+                                        <p
+                                            role="alert"
+                                            className="text-sm text-destructive"
+                                        >
+                                            {aiTestForm.errors.ai_connection}
+                                        </p>
+                                    )}
                                     {policyForm.errors.ai_api_key && (
                                         <p
                                             role="alert"
@@ -880,8 +1015,156 @@ export default function SystemSettingsIndex({
                             </div>
                         </form>
                     </TabsContent>
+
+                    {demoData && (
+                        <TabsContent value="demo-data">
+                            <Card className="border-destructive/30">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <DatabaseZap
+                                            aria-hidden="true"
+                                            className="size-4"
+                                        />
+                                        Hapus akun & data dummy
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Menghapus akun demo (email
+                                        @example.test), batch demo, serta semua
+                                        proposal dan proyek milik akun demo
+                                        beserta lampirannya. Akun dan data asli
+                                        tidak disentuh. Akun yang sedang Anda
+                                        pakai tetap disimpan.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="grid gap-5">
+                                    <dl className="grid gap-3 sm:grid-cols-3">
+                                        {[
+                                            {
+                                                label: 'Akun dummy',
+                                                value: demoData.users,
+                                            },
+                                            {
+                                                label: 'Proposal & proyek',
+                                                value: demoData.projects,
+                                            },
+                                            {
+                                                label: 'Batch demo',
+                                                value: demoData.batches,
+                                            },
+                                        ].map((item) => (
+                                            <div
+                                                key={item.label}
+                                                className="rounded-lg border bg-muted/30 px-4 py-3"
+                                            >
+                                                <dt className="text-xs text-muted-foreground">
+                                                    {item.label}
+                                                </dt>
+                                                <dd className="text-2xl font-semibold tabular-nums">
+                                                    {item.value}
+                                                </dd>
+                                            </div>
+                                        ))}
+                                    </dl>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <Button
+                                            type="button"
+                                            variant="destructive"
+                                            disabled={demoDataTotal === 0}
+                                            onClick={() => {
+                                                demoPurgeForm.resetAndClearErrors();
+                                                setIsDemoPurgeDialogOpen(true);
+                                            }}
+                                        >
+                                            <Trash2 aria-hidden="true" />
+                                            Hapus data dummy
+                                        </Button>
+                                        <p className="text-xs text-muted-foreground">
+                                            {demoDataTotal === 0
+                                                ? 'Tidak ada data dummy tersisa.'
+                                                : 'Tindakan ini permanen dan tidak bisa dibatalkan.'}
+                                        </p>
+                                    </div>
+                                    {demoData.viewer_is_demo && (
+                                        <Alert className="border-warning/40 bg-warning/10">
+                                            <TriangleAlert aria-hidden="true" />
+                                            <AlertTitle>
+                                                Akun yang Anda pakai juga akun
+                                                dummy
+                                            </AlertTitle>
+                                            <AlertDescription>
+                                                Akun ini tidak ikut terhapus
+                                                karena sedang dipakai. Berikan
+                                                role Super Admin ke akun asli di
+                                                menu Anggota, masuk dengan akun
+                                                itu, lalu hapus akun ini dari
+                                                menu Anggota.
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    )}
                 </Tabs>
             </div>
+            <Dialog
+                open={isDemoPurgeDialogOpen}
+                onOpenChange={setIsDemoPurgeDialogOpen}
+            >
+                <DialogContent className="gap-6 sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Hapus semua data dummy?</DialogTitle>
+                        <p className="text-sm text-muted-foreground">
+                            {demoData?.users ?? 0} akun,{' '}
+                            {demoData?.projects ?? 0} proposal/proyek, dan{' '}
+                            {demoData?.batches ?? 0} batch demo akan dihapus
+                            permanen. Ketik <strong>HAPUS</strong> untuk
+                            melanjutkan.
+                        </p>
+                    </DialogHeader>
+                    <form onSubmit={submitDemoPurge} className="grid gap-6">
+                        <FormField
+                            id="demo-purge-confirmation"
+                            label="Konfirmasi"
+                            required
+                            error={demoPurgeForm.errors.confirmation}
+                        >
+                            <Input
+                                id="demo-purge-confirmation"
+                                value={demoPurgeForm.data.confirmation}
+                                onChange={(event) =>
+                                    demoPurgeForm.setData(
+                                        'confirmation',
+                                        event.target.value,
+                                    )
+                                }
+                                autoComplete="off"
+                                placeholder="HAPUS"
+                            />
+                        </FormField>
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsDemoPurgeDialogOpen(false)}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="destructive"
+                                disabled={
+                                    demoPurgeForm.processing ||
+                                    demoPurgeForm.data.confirmation !== 'HAPUS'
+                                }
+                            >
+                                {demoPurgeForm.processing && <Spinner />}
+                                Hapus permanen
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
             <Dialog
                 open={isTestEmailDialogOpen}
                 onOpenChange={setIsTestEmailDialogOpen}

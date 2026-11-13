@@ -11,7 +11,6 @@ export type TeamCandidate = {
     competencies: {
         competency_id: number;
         self_level: number;
-        verified_level: number | null;
     }[];
 };
 
@@ -57,12 +56,6 @@ export function checkTeam(
     return problems;
 }
 
-export function effectiveLevel(
-    held: TeamCandidate['competencies'][number],
-): number {
-    return held.verified_level ?? held.self_level;
-}
-
 export function meetsRequirement(
     candidate: TeamCandidate,
     requirement: TeamRequirement,
@@ -70,7 +63,7 @@ export function meetsRequirement(
     return candidate.competencies.some(
         (held) =>
             held.competency_id === requirement.competency_id &&
-            effectiveLevel(held) >= (requirement.minimum_level ?? 0),
+            held.self_level >= (requirement.minimum_level ?? 0),
     );
 }
 

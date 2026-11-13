@@ -65,6 +65,12 @@ class BiweeklyReport extends Model
         return $this->belongsTo(User::class, 'submitted_by');
     }
 
+    /** @return BelongsTo<User, $this> */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
     /** @return MorphMany<EvidenceLink, $this> */
     public function evidenceLinks(): MorphMany
     {

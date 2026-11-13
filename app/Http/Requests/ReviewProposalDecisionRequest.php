@@ -23,8 +23,18 @@ class ReviewProposalDecisionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'decision' => ['required', 'string', Rule::in(['APPROVE', 'REQUEST_REVISION', 'REJECT'])],
-            'reason' => ['required_if:decision,REQUEST_REVISION,REJECT', 'nullable', 'string', 'max:5000'],
+            'decision' => ['required', 'string', Rule::in(['APPROVE', 'REQUEST_REVISION'])],
+            'reason' => ['required_if:decision,REQUEST_REVISION', 'nullable', 'string', 'max:5000'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'decision.in' => 'Pilih setujui atau minta revisi.',
+            'reason.required_if' => 'Feedback untuk SIMer wajib diisi saat meminta revisi.',
+            'reason.max' => 'Feedback maksimal 5.000 karakter.',
         ];
     }
 }

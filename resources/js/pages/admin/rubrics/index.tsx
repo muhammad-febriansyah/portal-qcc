@@ -415,7 +415,7 @@ export default function RubricsIndex({
     return (
         <>
             <Head title="Rubrik" />
-            <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-6 md:py-8">
                 <PageHeader
                     breadcrumbs={[
                         { title: 'Dashboard', href: dashboard() },

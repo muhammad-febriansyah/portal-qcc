@@ -9,13 +9,13 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
         outline:
-          "border-border bg-muted text-foreground hover:bg-secondary aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "border-primary/30 bg-primary/15 text-primary hover:bg-primary/25 aria-expanded:bg-primary/25 aria-expanded:text-primary",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "border-slate-400/40 bg-slate-200 text-slate-900 hover:bg-slate-300 aria-expanded:bg-slate-300 aria-expanded:text-slate-900 dark:bg-slate-700 dark:text-slate-50 dark:hover:bg-slate-600",
         ghost:
-          "bg-muted text-foreground hover:bg-secondary aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "bg-violet/15 text-violet hover:bg-violet/25 aria-expanded:bg-violet/25 aria-expanded:text-violet",
         destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20   ",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
         warning:
           "border-warning/20 bg-warning/10 text-warning hover:bg-warning/15 focus-visible:border-warning/40 focus-visible:ring-warning/20",
         info:
@@ -24,7 +24,7 @@ const buttonVariants = cva(
           "border-violet/20 bg-violet/10 text-violet hover:bg-violet/15 focus-visible:border-violet/40 focus-visible:ring-violet/20",
         teal:
           "border-teal/20 bg-teal/10 text-teal hover:bg-teal/15 focus-visible:border-teal/40 focus-visible:ring-teal/20",
-        link: "bg-primary/5 text-primary underline-offset-4 hover:bg-primary/10 hover:underline",
+        link: "bg-teal/15 text-teal underline-offset-4 hover:bg-teal/25 hover:underline",
       },
       size: {
         default:

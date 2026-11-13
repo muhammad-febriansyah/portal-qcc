@@ -1,7 +1,6 @@
 import { Form, Head, usePage } from '@inertiajs/react';
 import { Building2, Fingerprint, Mail, UserRoundCheck } from 'lucide-react';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
-import { AvatarUploader } from '@/components/avatar-uploader';
 import { ChangePasswordForm } from '@/components/change-password-form';
 import { FormField } from '@/components/form-field';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -28,9 +27,9 @@ type PageProps = {
         sim_id: string | null;
         position: string | null;
         work_location: string | null;
+        phone_number: string | null;
         organization_id: number | null;
         organization_name: string | null;
-        availability_status: 'AVAILABLE' | 'UNAVAILABLE' | null;
         qcc_experience_batches: string[];
     };
     organizations: Array<{ id: number; name: string }>;
@@ -63,29 +62,62 @@ export default function Profile() {
     const { auth, profile, profileComplete, organizations, passwordRules } =
         usePage<PageProps>().props;
 
+    const organizationOptions = organizations.map((organization) => ({
+        value: organization.id.toString(),
+        label: organization.name,
+    }));
+
+    const missingFields = [
+        profile.organization_id === null ? 'LOB / Divisi' : null,
+        !profile.position ? 'Jabatan' : null,
+        !profile.work_location ? 'Lokasi kerja' : null,
+        !profile.phone_number ? 'Nomor handphone' : null,
+    ].filter((field): field is string => field !== null);
+
     return (
         <>
             <Head title="Profil Saya" />
 
-            {!profileComplete && (
-                <Alert className="mb-6">
-                    <UserRoundCheck aria-hidden="true" />
-                    <AlertTitle>Lengkapi profil untuk mulai</AlertTitle>
-                    <AlertDescription>
-                        Isi LOB / Divisi, jabatan, lokasi kerja, dan
-                        ketersediaan. Menu lain terbuka setelah profil lengkap.
-                    </AlertDescription>
+            {!profileComplete && missingFields.length > 0 && (
+                <Alert variant="warning" className="mb-6 rounded-xl px-4 py-4">
+                    <div className="flex items-start gap-4">
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#ffe1bd] text-warning">
+                            <UserRoundCheck
+                                className="size-5"
+                                aria-hidden="true"
+                            />
+                        </span>
+                        <div className="grid gap-2">
+                            <div>
+                                <AlertTitle className="text-base font-semibold">
+                                    Lengkapi profil untuk mulai
+                                </AlertTitle>
+                                <AlertDescription>
+                                    Menu lain terbuka setelah profil lengkap.
+                                    Data ini dipakai untuk menyusun tim QCC.
+                                </AlertDescription>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-medium text-foreground/70">
+                                    Yang belum diisi:
+                                </span>
+                                {missingFields.map((field) => (
+                                    <span
+                                        key={field}
+                                        className="rounded-full border border-[#f3b879] bg-white/80 px-2.5 py-0.5 text-xs font-semibold text-[#9a4a05]"
+                                    >
+                                        {field}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
                 </Alert>
             )}
 
             <div className="grid gap-6 lg:grid-cols-3">
                 <Card className="h-fit gap-6 py-6 lg:col-span-1">
                     <CardContent className="grid gap-6">
-                        <AvatarUploader
-                            name={auth.user.name}
-                            avatarUrl={auth.user.avatar ?? null}
-                        />
-
                         <div className="grid gap-2 text-center">
                             <p className="text-lg font-semibold">
                                 {auth.user.name}
@@ -169,6 +201,25 @@ export default function Profile() {
                                             />
                                         </FormField>
 
+                                        <FormField
+                                            id="phone_number"
+                                            label="Nomor Handphone"
+                                            required
+                                            error={errors.phone_number}
+                                        >
+                                            <Input
+                                                type="tel"
+                                                inputMode="tel"
+                                                defaultValue={
+                                                    profile.phone_number ?? ''
+                                                }
+                                                name="phone_number"
+                                                autoComplete="tel"
+                                                placeholder="contoh: 081234567890"
+                                                required
+                                            />
+                                        </FormField>
+
                                         <div className="grid gap-6 sm:grid-cols-2">
                                             <FormField
                                                 id="position"
@@ -198,43 +249,11 @@ export default function Profile() {
                                                         ''
                                                     }
                                                     name="work_location"
-                                                    placeholder="Contoh: Jakarta"
+                                                    placeholder="Contoh: HO Kebagusan"
                                                     required
                                                 />
                                             </FormField>
                                         </div>
-
-                                        <FormField
-                                            id="availability_status"
-                                            label="Ketersediaan"
-                                            required
-                                            error={errors.availability_status}
-                                        >
-                                            <Select
-                                                name="availability_status"
-                                                defaultValue={
-                                                    profile.availability_status ??
-                                                    undefined
-                                                }
-                                                required
-                                            >
-                                                <SelectTrigger className="h-10 w-full">
-                                                    <SelectValue placeholder="Pilih ketersediaan" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectGroup>
-                                                        <SelectItem value="AVAILABLE">
-                                                            Tersedia untuk
-                                                            proyek QCC
-                                                        </SelectItem>
-                                                        <SelectItem value="UNAVAILABLE">
-                                                            Belum tersedia untuk
-                                                            proyek QCC
-                                                        </SelectItem>
-                                                    </SelectGroup>
-                                                </SelectContent>
-                                            </Select>
-                                        </FormField>
 
                                         <fieldset className="grid gap-2.5">
                                             <legend className="text-sm font-medium">
@@ -307,6 +326,7 @@ export default function Profile() {
                                             >
                                                 <Select
                                                     name="organization_id"
+                                                    items={organizationOptions}
                                                     defaultValue={
                                                         profile.organization_id?.toString() ??
                                                         undefined

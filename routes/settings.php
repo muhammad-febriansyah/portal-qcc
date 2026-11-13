@@ -3,6 +3,7 @@
 use App\Http\Controllers\Settings\AvatarController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
+use App\Http\Middleware\EnsureOptionalFeatureEnabled;
 use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Support\Facades\Route;
 
@@ -13,9 +14,12 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
 
     Route::post('settings/profile/avatar', [AvatarController::class, 'update'])
-        ->middleware('throttle:10,1')
+        ->middleware([EnsureOptionalFeatureEnabled::class.':avatar_uploads', 'throttle:10,1'])
         ->name('profile.avatar.update');
-    Route::delete('settings/profile/avatar', [AvatarController::class, 'destroy'])->name('profile.avatar.destroy');
+    Route::delete('settings/profile/avatar', [AvatarController::class, 'destroy'])
+        ->middleware(EnsureOptionalFeatureEnabled::class.':avatar_uploads')
+        ->name('profile.avatar.destroy');
+
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -29,5 +33,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('throttle:6,1')
         ->name('user-password.update');
 
-    Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
+    Route::inertia('settings/appearance', 'settings/appearance')
+        ->middleware(EnsureOptionalFeatureEnabled::class.':appearance_settings')
+        ->name('appearance.edit');
+
 });

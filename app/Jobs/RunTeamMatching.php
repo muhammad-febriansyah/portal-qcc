@@ -8,23 +8,25 @@ use App\Services\Ai\Exceptions\AiUnavailable;
 use App\Services\Ai\Exceptions\InvalidAiOutput;
 use App\Services\AuditService;
 use App\Services\Teams\Matching\TeamMatchingClient;
+use App\Services\Teams\Matching\TeamMatchingInputFingerprint;
 use App\Services\Teams\Matching\TeamMatchingRequestBuilder;
 use App\Services\Teams\Matching\TeamMatchingResultValidator;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class RunTeamMatching implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
-    public int $tries = 3;
+    public int $tries = 2;
 
     /** @var list<int> */
-    public array $backoff = [30, 120];
+    public array $backoff = [5];
 
-    public int $timeout = 180;
+    public int $timeout = 75;
 
     public function __construct(public int $runId) {}
 
@@ -37,23 +39,39 @@ class RunTeamMatching implements ShouldBeUnique, ShouldQueue
         TeamMatchingRequestBuilder $builder,
         TeamMatchingClient $client,
         TeamMatchingResultValidator $validator,
+        TeamMatchingInputFingerprint $fingerprint,
         AuditService $audit,
     ): void {
-        $run = TeamMatchingRun::query()->with('project')->find($this->runId);
+        $run = TeamMatchingRun::query()->find($this->runId);
 
         if ($run === null || ! $run->status->isActive()) {
             return;
         }
 
-        $request = $builder->build($run->project, $run->candidate_snapshot_json);
+        $project = $run->project()->firstOrFail();
+
+        if (! $fingerprint->matches($project, $run->candidate_snapshot_json['input_fingerprint'] ?? null)) {
+            $this->markFailed($run, 'stale_input', $audit);
+
+            return;
+        }
+
+        $request = $builder->build($project, $run->candidate_snapshot_json);
 
         $run->forceFill([
             'status' => TeamMatchingStatus::Processing,
+            'started_at' => now(),
             'prompt_version' => $request['prompt_version'],
             'request_hash' => $request['request_hash'],
         ])->save();
 
         try {
+            if (! $fingerprint->matches($project, $run->candidate_snapshot_json['input_fingerprint'] ?? null)) {
+                $this->markFailed($run, 'stale_input', $audit);
+
+                return;
+            }
+
             $answer = $client->suggest($request);
             $payload = $validator->validate($answer['payload'], $run->candidate_snapshot_json);
         } catch (InvalidAiOutput $e) {
@@ -70,16 +88,29 @@ class RunTeamMatching implements ShouldBeUnique, ShouldQueue
             throw $e;
         }
 
-        $run->forceFill([
-            'status' => TeamMatchingStatus::Ready,
-            'output_json' => $payload,
-            'model' => $answer['model'],
-            'token_usage_json' => $answer['usage'],
-            'validated_at' => now(),
-            'error_code' => null,
-        ])->save();
+        // A run that timed out while the AI was answering stays failed; a late answer must not revive it.
+        $saved = DB::transaction(function () use ($run, $payload, $answer): bool {
+            $locked = TeamMatchingRun::query()->whereKey($run->id)->lockForUpdate()->firstOrFail();
 
-        $audit->record('team_matching.completed', $run, subjectLabel: $this->label($run));
+            if (! $locked->status->isActive()) {
+                return false;
+            }
+
+            $locked->forceFill([
+                'status' => TeamMatchingStatus::Ready,
+                'output_json' => $payload,
+                'model' => $answer['model'],
+                'token_usage_json' => $answer['usage'],
+                'validated_at' => now(),
+                'error_code' => null,
+            ])->save();
+
+            return true;
+        });
+
+        if ($saved) {
+            $audit->record('team_matching.completed', $run, subjectLabel: $this->label($run));
+        }
     }
 
     /**

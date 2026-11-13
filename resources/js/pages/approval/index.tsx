@@ -2,7 +2,6 @@ import { Head, Link, router } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
 import {
-    BrainCircuit,
     CalendarClock,
     ClipboardCheck,
     FileText,
@@ -26,7 +25,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { dashboard } from '@/routes';
 import { index as approvalIndex } from '@/routes/approval';
 
-type Tab = 'proposals' | 'steps' | 'biweekly' | 'scoring';
+type Tab = 'proposals' | 'steps' | 'biweekly';
 
 type ReviewItem = {
     id: number;
@@ -59,7 +58,6 @@ const tabs: { value: Tab; label: string; icon: typeof FileText }[] = [
     { value: 'proposals', label: 'Proposal QCC', icon: FileText },
     { value: 'steps', label: 'Progress 8 Step', icon: ListChecks },
     { value: 'biweekly', label: 'Bi-weekly Report', icon: CalendarClock },
-    { value: 'scoring', label: 'AI Scoring', icon: BrainCircuit },
 ];
 
 const statusVariants: Record<
@@ -132,7 +130,7 @@ export default function ApprovalIndex({
                         <CardTitle className="text-base">
                             Daftar yang perlu ditinjau
                         </CardTitle>
-                        <div className="relative w-full sm:max-w-sm">
+                        <div className="relative w-full sm:w-96 sm:shrink-0">
                             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 aria-label="Cari review"
@@ -154,7 +152,7 @@ export default function ApprovalIndex({
                                     visit({ tab: String(value) as Tab })
                                 }
                             >
-                                <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0">
+                                <TabsList className="w-full justify-start">
                                     {visibleTabs.map(
                                         ({ value, label, icon: Icon }) => (
                                             <TabsTrigger
@@ -162,7 +160,10 @@ export default function ApprovalIndex({
                                                 value={value}
                                                 className="h-9 flex-none gap-2 rounded-lg border border-transparent px-3 aria-selected:border-border aria-selected:bg-background aria-selected:shadow-sm"
                                             >
-                                                <Icon className="size-4" />
+                                                <Icon
+                                                    data-icon="inline-start"
+                                                    aria-hidden="true"
+                                                />
                                                 {label}
                                                 <Badge variant="secondary">
                                                     {counts[value]}

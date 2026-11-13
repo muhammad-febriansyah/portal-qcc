@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\MemberCompetency;
 use App\Models\Organization;
 use App\Models\User;
 use Database\Seeders\ProjectAccessSeeder;
@@ -34,9 +35,30 @@ test('the profile page stays open and asks the member to complete it', function 
             ->where('profileComplete', false));
 });
 
+test('the profile stays incomplete without a mobile number', function () {
+    $organization = Organization::factory()->create(['is_active' => true]);
+    $user = User::factory()->create([
+        'needs_profile_setup' => true,
+        'organization_id' => $organization->id,
+        'position' => 'Staf Operasional',
+        'work_location' => 'Jakarta',
+        'phone_number' => null,
+        'availability_status' => 'AVAILABLE',
+    ]);
+    $user->assignRole('SIMer / Member');
+
+    $this->actingAs($user)
+        ->get(route('profile.edit'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('settings/profile')
+            ->where('profileComplete', false));
+});
+
 test('completing the profile opens the menus and goes to the dashboard', function () {
     $user = User::factory()->create(['needs_profile_setup' => true]);
     $user->assignRole('SIMer / Member');
+    MemberCompetency::factory()->create(['user_id' => $user->id]);
     $organization = Organization::factory()->create(['is_active' => true]);
 
     $this->actingAs($user)
@@ -45,8 +67,8 @@ test('completing the profile opens the menus and goes to the dashboard', functio
             'email' => $user->email,
             'position' => 'Staf Operasional',
             'work_location' => 'Jakarta',
+            'phone_number' => '081234567890',
             'organization_id' => $organization->id,
-            'availability_status' => 'AVAILABLE',
         ])
         ->assertSessionHasNoErrors()
         ->assertRedirect(route('dashboard'));
@@ -66,9 +88,9 @@ test('saving a still incomplete profile keeps the member on the profile page', f
             'email' => $user->email,
             'position' => '',
             'work_location' => '',
-            'availability_status' => '',
+            'phone_number' => '081234567890',
         ])
-        ->assertSessionHasErrors(['position', 'work_location', 'availability_status']);
+        ->assertSessionHasErrors(['position', 'work_location']);
 
     $this->actingAs($user->fresh())
         ->get(route('dashboard'))

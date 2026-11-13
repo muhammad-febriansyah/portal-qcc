@@ -15,7 +15,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -47,7 +46,7 @@ class UserController extends Controller
 
         $users = User::query()
             ->select(['id', 'name', 'sim_id', 'email', 'organization_id', 'is_active', 'updated_at'])
-            ->with(['organization:id,name', 'roles:id,name'])
+            ->with(['organization:id,name', 'organization.mentors:id,name', 'mentoredOrganizations:id,name', 'roles:id,name'])
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('name', 'like', "%{$search}%")
@@ -70,7 +69,15 @@ class UserController extends Controller
                 'email' => $user->email,
                 'organization_id' => $user->organization_id,
                 'organization_name' => $user->organization?->name,
-                'role' => $user->roles->pluck('name')->sort()->first(),
+                // The LOB/Div mentors who review this person's proposals; a mentor is not their own mentor.
+                'mentor_names' => ($user->organization?->mentors ?? collect())
+                    ->reject(fn (User $mentor): bool => $mentor->is($user))
+                    ->pluck('name')
+                    ->values()
+                    ->all(),
+                // The LOBs/Divs this person mentors, so a mentor's own row shows what they cover.
+                'mentor_of' => $user->mentoredOrganizations->pluck('name')->sort()->values()->all(),
+                'roles' => $user->roles->pluck('name')->sort()->values()->all(),
                 'is_active' => $user->is_active,
                 'is_self' => $user->is($request->user()),
                 'updated_at' => $user->updated_at?->toIso8601String(),
@@ -99,7 +106,7 @@ class UserController extends Controller
     public function store(StoreUserRequest $request, AuditService $audit): RedirectResponse
     {
         $data = $request->validated();
-        $password = Str::password(12, symbols: false);
+        $password = User::initialPasswordFor($data['sim_id']);
 
         $user = DB::transaction(function () use ($data, $password, $audit): User {
             $user = new User([
@@ -112,8 +119,8 @@ class UserController extends Controller
             $user->email_verified_at = now();
             $user->is_active = true;
             $user->save();
-            $user->syncRoles([$data['role']]);
-            $audit->record('user.role_changed', $user, before: ['role' => null], after: ['role' => $data['role']]);
+            $user->syncRoles($data['roles']);
+            $audit->record('user.role_changed', $user, before: ['role' => null], after: ['role' => self::roleLabel($data['roles'])]);
 
             return $user;
         });
@@ -134,7 +141,7 @@ class UserController extends Controller
         $data = $request->validated();
 
         DB::transaction(function () use ($user, $data, $audit): void {
-            $previousRole = $user->getRoleNames()->sort()->first();
+            $previousRole = self::roleLabel($user->getRoleNames()->all());
 
             $user->update([
                 'name' => $data['name'],
@@ -142,10 +149,11 @@ class UserController extends Controller
                 'email' => $data['email'],
                 'organization_id' => $data['organization_id'],
             ]);
-            $user->syncRoles([$data['role']]);
+            $user->syncRoles($data['roles']);
+            $newRole = self::roleLabel($data['roles']);
 
-            if ($previousRole !== $data['role']) {
-                $audit->record('user.role_changed', $user, before: ['role' => $previousRole], after: ['role' => $data['role']]);
+            if ($previousRole !== $newRole) {
+                $audit->record('user.role_changed', $user, before: ['role' => $previousRole], after: ['role' => $newRole]);
             }
         });
 
@@ -274,5 +282,17 @@ class UserController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => count($userIds).' akun berhasil dihapus.']);
 
         return back();
+    }
+
+    /**
+     * Roles as one readable value for the audit log, e.g. "Mentor, Owner QCC".
+     *
+     * @param  array<int, string>  $roles
+     */
+    private static function roleLabel(array $roles): ?string
+    {
+        sort($roles);
+
+        return $roles === [] ? null : implode(', ', $roles);
     }
 }

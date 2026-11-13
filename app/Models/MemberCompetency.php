@@ -9,23 +9,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A person's self-assessed level for one competency. The verified level is kept
- * apart and is never changed by the person.
+ * A person's self-assessed level for one competency.
  *
  * @property int $self_level
- * @property int|null $verified_level
- * @property string|null $verification_status
- * @property string|null $verification_note
  * @property int $user_id
  * @property int $competency_id
  */
 class MemberCompetency extends Model
 {
-    public const STATUS_PENDING = 'PENDING';
-
-    public const STATUS_VERIFIED = 'VERIFIED';
-
-    public const STATUS_REJECTED = 'REJECTED';
+    public const MAX_PER_USER = 10;
 
     /** @use HasFactory<MemberCompetencyFactory> */
     use Auditable, HasFactory;
@@ -42,9 +34,15 @@ class MemberCompetency extends Model
     {
         return [
             'self_level' => 'integer',
-            'verified_level' => 'integer',
-            'verified_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Competencies stay editable until proposal submission of the current batch closes.
+     */
+    public static function editingIsOpen(): bool
+    {
+        return QccBatch::current()?->acceptsCompetencyChanges() ?? true;
     }
 
     /** @return BelongsTo<User, $this> */

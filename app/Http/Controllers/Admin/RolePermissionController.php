@@ -55,6 +55,7 @@ class RolePermissionController extends Controller
             'roles' => $roles,
             'permissionCatalog' => Permission::query()
                 ->where('guard_name', 'web')
+                ->when(! config('qcc_features.chapter_ten_scoring'), fn ($query) => $query->whereNotIn('name', ['rubrics.manage', 'rubrics.publish', 'scoring.run', 'scoring.view', 'scoring.review', 'scoring.approve']))
                 ->orderBy('name')
                 ->pluck('name'),
         ]);
@@ -68,6 +69,14 @@ class RolePermissionController extends Controller
     ): RedirectResponse {
         $validated = $request->validated();
         $permissions = array_values(array_unique($validated['permissions']));
+
+        if (! config('qcc_features.chapter_ten_scoring')) {
+            $deferredPermissions = ['rubrics.manage', 'rubrics.publish', 'scoring.run', 'scoring.view', 'scoring.review', 'scoring.approve'];
+            $retainedDeferredPermissions = $role->permissions()->whereIn('name', $deferredPermissions)->pluck('name')->all();
+            $permissions = array_values(array_diff($permissions, $deferredPermissions));
+            $permissions = array_values(array_unique([...$permissions, ...$retainedDeferredPermissions]));
+        }
+
         sort($permissions);
 
         if ($role->name !== 'Super Admin' && in_array('rubrics.publish', $permissions, true)) {

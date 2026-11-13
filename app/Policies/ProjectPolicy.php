@@ -3,6 +3,8 @@
 namespace App\Policies;
 
 use App\Enums\ProposalStatus;
+use App\Enums\ReportStatus;
+use App\Models\MentoringReport;
 use App\Models\Project;
 use App\Models\User;
 
@@ -38,13 +40,8 @@ class ProjectPolicy
             return true;
         }
 
-        return $user->hasRole('Team Leader')
-            && $project->members()
-                ->where('users.id', $user->id)
-                ->where('project_members.status', 'ACTIVE')
-                ->whereNull('project_members.left_at')
-                ->where('project_members.role_in_project', 'LEADER')
-                ->exists();
+        return in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)
+            && $this->isActiveLeader($user, $project);
     }
 
     /**
@@ -60,8 +57,7 @@ class ProjectPolicy
     public function submit(User $user, Project $project): bool
     {
         return $user->can('projects.submit')
-            && $project->proposer_id === $user->id
-            && $this->isActiveMember($user, $project);
+            && $project->proposer_id === $user->id;
     }
 
     public function updateStep(User $user, Project $project): bool
@@ -71,7 +67,7 @@ class ProjectPolicy
 
     public function submitStep(User $user, Project $project): bool
     {
-        return $user->can('projects.submit') && $this->isActiveMember($user, $project);
+        return $user->can('projects.submit') && $this->isActiveLeader($user, $project);
     }
 
     public function manageRisks(User $user, Project $project): bool
@@ -81,17 +77,27 @@ class ProjectPolicy
 
     public function manageReports(User $user, Project $project): bool
     {
-        return $user->can('projects.update') && $this->isActiveMember($user, $project);
+        return $user->can('projects.update') && $this->isActiveLeader($user, $project);
     }
 
-    public function assignMentors(User $user, Project $project): bool
+    public function respondToMentoring(User $user, Project $project, MentoringReport $report): bool
     {
-        return $user->can('projects.review') && $user->can('projects.viewAny');
+        if ($report->project_id !== $project->id || $report->status !== ReportStatus::Submitted) {
+            return false;
+        }
+
+        $mentorAuthored = $report->assignment?->mentor_id === $report->created_by;
+
+        return $mentorAuthored
+            ? $this->manageReports($user, $project)
+            : ($user->hasRole('Mentor') && $user->can('projects.view') && $this->isAssignedMentor($user, $project)
+                && $report->project_mentor_id === $project->mentorAssignments()->where('mentor_id', $user->id)->where('status', 'ACTIVE')->value('id'));
     }
 
     public function writeMentoring(User $user, Project $project): bool
     {
-        return $user->hasRole('Mentor') && $user->can('projects.view') && $this->isAssignedMentor($user, $project);
+        return ($user->hasRole('Mentor') && $user->can('projects.view') && $this->isAssignedMentor($user, $project))
+            || ($user->can('projects.update') && $this->isActiveLeader($user, $project));
     }
 
     public function isAssignedMentor(User $user, Project $project): bool
@@ -105,26 +111,30 @@ class ProjectPolicy
             && ($user->can('projects.viewAny') || $this->hasReviewAssignment($user, $project, ['proposal', 'steps', 'biweekly']));
     }
 
+    /**
+     * Mentors only decide proposals they were assigned as Div/LOB head.
+     */
     public function reviewProposal(User $user, Project $project): bool
     {
-        return ! $user->hasRole('Mentor')
-            && $user->can('projects.review')
+        return $user->can('projects.review')
             && ($user->can('projects.viewAny') || $this->hasReviewAssignment($user, $project, ['proposal']));
     }
 
     public function approveProposal(User $user, Project $project): bool
     {
-        return ! $user->hasRole('Mentor')
-            && $user->can('projects.approve')
+        return $user->can('projects.approve')
             && ($user->can('projects.viewAny') || $this->hasReviewAssignment($user, $project, ['proposal']));
     }
 
     public function reviewStep(User $user, Project $project): bool
     {
-        if ($user->hasRole('Mentor')) {
-            return $user->can('projects.view')
-                && $user->can('projects.review')
-                && $this->isAssignedMentor($user, $project);
+        if ($user->hasRole('Mentor') && $this->isAssignedMentor($user, $project)
+            && $user->can('projects.view') && $user->can('projects.review')) {
+            return true;
+        }
+
+        if ($user->actsOnlyAsMentor()) {
+            return false;
         }
 
         return $user->can('projects.review')
@@ -133,11 +143,13 @@ class ProjectPolicy
 
     public function approveStep(User $user, Project $project): bool
     {
-        if ($user->hasRole('Mentor')) {
-            return $user->can('projects.view')
-                && $user->can('projects.review')
-                && $user->can('projects.approve')
-                && $this->isAssignedMentor($user, $project);
+        if ($user->hasRole('Mentor') && $this->isAssignedMentor($user, $project)
+            && $user->can('projects.view') && $user->can('projects.review') && $user->can('projects.approve')) {
+            return true;
+        }
+
+        if ($user->actsOnlyAsMentor()) {
+            return false;
         }
 
         return $user->can('projects.approve')
@@ -155,7 +167,7 @@ class ProjectPolicy
 
     public function approve(User $user, Project $project): bool
     {
-        return ! $user->hasRole('Mentor')
+        return ! $user->actsOnlyAsMentor()
             && $user->can('projects.approve')
             && ($user->can('projects.viewAny') || $this->hasReviewAssignment($user, $project, ['proposal', 'steps']));
     }
@@ -183,22 +195,18 @@ class ProjectPolicy
 
     private function isActiveMember(User $user, Project $project): bool
     {
-        $memberRoles = [];
-
-        if ($user->hasRole('Team Leader')) {
-            $memberRoles[] = 'LEADER';
-        }
-
-        if ($user->hasRole('SIMer / Member')) {
-            $memberRoles[] = 'MEMBER';
-        }
-
-        return $memberRoles !== [] && $project->members()
+        return $project->members()
             ->where('users.id', $user->id)
             ->where('project_members.status', 'ACTIVE')
             ->whereNull('project_members.left_at')
-            ->whereIn('project_members.role_in_project', $memberRoles)
+            ->whereIn('project_members.role_in_project', ['LEADER', 'MEMBER'])
             ->exists();
+    }
+
+    private function isActiveLeader(User $user, Project $project): bool
+    {
+        return $project->members()->where('users.id', $user->id)->where('project_members.status', 'ACTIVE')
+            ->whereNull('project_members.left_at')->where('project_members.role_in_project', 'LEADER')->exists();
     }
 
     /** @param list<string> $scopes */

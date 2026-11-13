@@ -22,8 +22,9 @@ test('the website name, logo and favicon come from the database', function () {
         ->assertInertia(fn (Assert $page) => $page
             ->where('name', 'Portal Uji Coba')
             ->where('branding.name', 'Portal Uji Coba')
-            ->where('branding.logoUrl', Storage::disk('public')->url('branding/logo-uji.png'))
-            ->where('branding.faviconUrl', Storage::disk('public')->url('branding/favicon-uji.ico')));
+            // Relative, so the images load on any host the portal is opened on.
+            ->where('branding.logoUrl', '/storage/branding/logo-uji.png')
+            ->where('branding.faviconUrl', '/storage/branding/favicon-uji.ico'));
 });
 
 test('the page title and favicon in the html are rendered from the database', function () {

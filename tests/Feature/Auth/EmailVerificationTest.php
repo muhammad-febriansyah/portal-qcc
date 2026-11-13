@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
@@ -9,6 +10,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Fortify\Features;
 use Symfony\Component\Mime\Email;
 
 /**
@@ -31,6 +33,7 @@ function profilePayload(string $email, string $name = 'Sari Wulandari'): array
         'email' => $email,
         'position' => 'Staf Operasional',
         'work_location' => 'Jakarta',
+        'phone_number' => '081234567890',
         'organization_id' => Organization::factory()->create(['is_active' => true])->id,
         'availability_status' => 'AVAILABLE',
     ];
@@ -59,7 +62,7 @@ test('registering sends the verification notification to the new address', funct
     $user = User::query()->where('email', 'sari@example.test')->firstOrFail();
 
     Notification::assertSentTo($user, VerifyEmailNotification::class);
-});
+})->skip(fn (): bool => ! Features::enabled(Features::registration()), 'Self registration is turned off; accounts are created by admins or imported.');
 
 test('the verification email has the logo, the account details and a signed link', function () {
     $user = User::factory()->unverified()->create(['name' => 'Sari Wulandari', 'email' => 'sari@example.test', 'sim_id' => 'SIM12345']);
@@ -129,6 +132,24 @@ test('the signed link verifies the account and opens the portal', function () {
 
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
     Event::assertDispatched(Verified::class);
+});
+
+test('email verification is recorded once in the audit log', function () {
+    $user = User::factory()->unverified()->create(['name' => 'Sari Wulandari']);
+
+    $this->actingAs($user)
+        ->get(verificationLink($user))
+        ->assertRedirect(route('dashboard', absolute: false).'?verified=1');
+
+    $entries = AuditLog::query()
+        ->where('event', 'user.email_verified')
+        ->where('subject_id', $user->id)
+        ->get();
+
+    expect($entries)->toHaveCount(1)
+        ->and($entries->first()->subject_type)->toBe($user->getMorphClass())
+        ->and($entries->first()->subject_label)->toBe($user->name)
+        ->and(AuditLog::query()->where('event', 'user.updated')->where('subject_id', $user->id)->exists())->toBeFalse();
 });
 
 test('a link with a wrong hash does not verify the account', function () {

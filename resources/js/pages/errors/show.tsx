@@ -81,7 +81,7 @@ export default function ErrorPage({ status }: { status: number }) {
             <main className="relative flex min-h-screen flex-col overflow-hidden bg-white px-5 sm:px-8">
                 <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute -top-56 left-1/2 size-[38rem] -translate-x-1/2 rounded-full bg-[#2948ff] opacity-[0.08] blur-[130px]"
+                    className="pointer-events-none absolute -top-56 left-1/2 size-[38rem] -translate-x-1/2 rounded-full bg-[#0191c2] opacity-[0.08] blur-[130px]"
                 />
 
                 <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between py-7 sm:py-9">
@@ -110,7 +110,7 @@ export default function ErrorPage({ status }: { status: number }) {
                         className="mb-3 aspect-square w-full max-w-[290px] object-contain sm:max-w-[340px]"
                     />
 
-                    <p className="mb-3 text-xs font-semibold tracking-[0.18em] text-[#2547f9] uppercase">
+                    <p className="mb-3 text-xs font-semibold tracking-[0.18em] text-[#0179a3] uppercase">
                         Portal QCC · {status}
                     </p>
                     <h1 className="text-3xl leading-tight font-semibold tracking-tight text-[#182337] sm:text-4xl">
@@ -180,7 +180,7 @@ export default function ErrorPage({ status }: { status: number }) {
                     </div>
                 </section>
 
-                <footer className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-2 border-t border-[#e4e9f3] py-5 text-xs font-medium text-[#8993a6] sm:flex-row sm:items-center sm:justify-between sm:py-6">
+                <footer className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-2 border-t border-[#e2eaef] py-5 text-xs font-medium text-[#8993a6] sm:flex-row sm:items-center sm:justify-between sm:py-6">
                     <span>
                         © {new Date().getFullYear()} SIMGROUP · Portal QCC
                     </span>

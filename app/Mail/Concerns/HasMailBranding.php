@@ -55,4 +55,12 @@ trait HasMailBranding
 
         return is_string($value) && $value !== '' ? $value : null;
     }
+
+    /**
+     * Names imported from HR data are often all capitals; greet the person as "Gilang Ramadhan".
+     */
+    protected function greetingName(string $name): string
+    {
+        return $name === mb_strtoupper($name) ? mb_convert_case(mb_strtolower($name), MB_CASE_TITLE) : $name;
+    }
 }

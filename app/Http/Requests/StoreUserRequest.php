@@ -19,7 +19,7 @@ class StoreUserRequest extends FormRequest
     {
         $this->merge([
             'name' => is_string($this->input('name')) ? trim($this->input('name')) : $this->input('name'),
-            'sim_id' => is_string($this->input('sim_id')) ? strtoupper(trim($this->input('sim_id'))) : $this->input('sim_id'),
+            'sim_id' => User::normalizeSimId($this->input('sim_id')),
             'email' => is_string($this->input('email')) ? strtolower(trim($this->input('email'))) : $this->input('email'),
         ]);
     }
@@ -34,7 +34,9 @@ class StoreUserRequest extends FormRequest
             'sim_id' => ['required', 'string', 'max:32', 'regex:/^[A-Z0-9._-]+$/', Rule::unique('users', 'sim_id')],
             'email' => ['required', 'email:rfc', 'max:255', Rule::unique('users', 'email')],
             'organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('is_active', true)],
-            'role' => ['required', 'string', Rule::in(Role::query()->pluck('name')->all())],
+            // A person may hold several roles; their menus and access combine.
+            'roles' => ['required', 'array', 'min:1'],
+            'roles.*' => ['required', 'string', 'distinct', Rule::in(Role::query()->pluck('name')->all())],
         ];
     }
 
@@ -48,7 +50,7 @@ class StoreUserRequest extends FormRequest
             'sim_id' => 'SIM ID',
             'email' => 'email',
             'organization_id' => 'organisasi',
-            'role' => 'role',
+            'roles' => 'role',
         ];
     }
 
@@ -65,7 +67,10 @@ class StoreUserRequest extends FormRequest
             'organization_id.exists' => 'Organisasi yang dipilih tidak tersedia.',
             'sim_id.unique' => 'SIM ID sudah digunakan akun lain.',
             'sim_id.regex' => 'SIM ID hanya boleh berisi huruf, angka, titik, tanda hubung, dan garis bawah.',
-            'role.in' => 'Role yang dipilih tidak valid.',
+            'roles.required' => 'Pilih minimal satu role.',
+            'roles.min' => 'Pilih minimal satu role.',
+            'roles.*.in' => 'Role yang dipilih tidak valid.',
+            'roles.*.distinct' => 'Role tidak boleh dipilih dua kali.',
         ];
     }
 }

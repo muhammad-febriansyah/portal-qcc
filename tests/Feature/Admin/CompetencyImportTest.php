@@ -2,7 +2,6 @@
 
 use App\Models\AuditLog;
 use App\Models\Competency;
-use App\Models\CompetencyGroup;
 use App\Models\User;
 use App\Services\Spreadsheet\XlsxReader;
 use App\Services\Spreadsheet\XlsxWriter;
@@ -30,29 +29,21 @@ function competencyWorkbook(array $rows): UploadedFile
     return UploadedFile::fake()->createWithContent('kompetensi.xlsx', (string) $contents);
 }
 
-/**
- * @return array<string, int>
- */
-function competencyGroups(): array
-{
-    return collect(range('A', 'F'))
-        ->mapWithKeys(fn (string $code): array => [$code => CompetencyGroup::factory()->create(['code' => $code])->id])
-        ->all();
-}
-
-test('an authorized admin imports and upserts the official competency codes from Excel', function () {
-    $groups = competencyGroups();
+test('an authorized admin imports and upserts skills from Excel', function () {
     Competency::factory()->create([
-        'group_id' => $groups['A'],
-        'code' => 'C001',
+        'code' => 'H01',
         'name' => 'Old test-only name',
         'description' => 'Old test-only definition',
     ]);
 
-    $rows = [['Kode', 'Kelompok', 'Nama Kompetensi', 'Definisi']];
+    $rows = [['Kode', 'Nama Kompetensi', 'Definisi']];
 
-    foreach (range(1, 62) as $number) {
-        $rows[] = [sprintf('C%03d', $number), chr(65 + (($number - 1) % 6)), "Synthetic test competency {$number}", "Synthetic test definition {$number}"];
+    foreach (range(1, 48) as $number) {
+        $rows[] = [sprintf('H%02d', $number), "Synthetic hard skill {$number}", "Synthetic definition {$number}"];
+    }
+
+    foreach (range(1, 18) as $number) {
+        $rows[] = [sprintf('S%02d', $number), "Synthetic soft skill {$number}", "Synthetic definition {$number}"];
     }
 
     $this->actingAs(competencyImporter())
@@ -61,26 +52,26 @@ test('an authorized admin imports and upserts the official competency codes from
         ->assertRedirect(route('admin.competencies.index'))
         ->assertSessionHasNoErrors();
 
-    expect(Competency::query()->count())->toBe(62)
-        ->and(Competency::query()->where('code', 'C001')->value('name'))->toBe('Synthetic test competency 1');
+    expect(Competency::query()->count())->toBe(66)
+        ->and(Competency::query()->where('code', 'H01')->value('name'))->toBe('Synthetic hard skill 1')
+        ->and(Competency::query()->whereNotNull('group_id')->count())->toBe(0);
 
     $audit = AuditLog::query()->where('event', 'competency.imported')->latest('id')->firstOrFail();
-    expect($audit->after_json)->toMatchArray(['created' => 61, 'updated' => 1, 'total' => 62]);
+    expect($audit->after_json)->toMatchArray(['created' => 65, 'updated' => 1, 'total' => 66]);
 
     $this->get(route('admin.competencies.index'))
         ->assertInertia(fn ($page) => $page
             ->component('admin/competencies/index')
-            ->where('competencies.total', 62));
+            ->where('competencies.total', 66)
+            ->missing('groups'));
 });
 
-test('rows with only a pre-filled code are skipped and group labels are accepted', function () {
-    competencyGroups();
-
+test('empty rows are skipped and lower case codes are accepted', function () {
     $rows = [
-        ['Kode', 'Kelompok', 'Nama Kompetensi', 'Definisi'],
-        ['C001', 'A - Core QCC & Problem Solving', 'Filled competency', 'Filled definition'],
-        ['C002', null, null, null],
-        ['c003', 'b', 'Lowercase input', null],
+        ['Kode', 'Nama Kompetensi', 'Definisi'],
+        ['H01', 'Filled skill', 'Filled definition'],
+        [null, null, null],
+        ['s03', 'Lowercase input', null],
     ];
 
     $this->actingAs(competencyImporter())
@@ -88,61 +79,57 @@ test('rows with only a pre-filled code are skipped and group labels are accepted
         ->assertSessionHasNoErrors();
 
     expect(Competency::query()->orderBy('code')->pluck('name', 'code')->all())
-        ->toBe(['C001' => 'Filled competency', 'C003' => 'Lowercase input']);
+        ->toBe(['H01' => 'Filled skill', 'S03' => 'Lowercase input']);
 });
 
-test('English headers are accepted as well', function () {
-    competencyGroups();
+test('the dictionary headers and English headers are accepted as well', function () {
+    $this->actingAs(competencyImporter());
 
-    $rows = [
-        ['code', 'group_code', 'name', 'description'],
-        ['C001', 'A', 'English header competency', 'Definition'],
-    ];
+    $this->post(route('admin.competencies.import'), ['file' => competencyWorkbook([
+        ['code', 'name', 'description'],
+        ['H01', 'English header skill', 'Definition'],
+    ])])->assertSessionHasNoErrors();
 
-    $this->actingAs(competencyImporter())
-        ->post(route('admin.competencies.import'), ['file' => competencyWorkbook($rows)])
-        ->assertSessionHasNoErrors();
+    $this->post(route('admin.competencies.import'), ['file' => competencyWorkbook([
+        ['Skill ID', 'Kategori', 'Nama Skill', 'Deskripsi Sederhana', 'Contoh Aktivitas yang Mudah Dikenali'],
+        ['S01', 'Soft Skill', 'Effective Communication', 'Menyampaikan informasi secara jelas.', 'Menjelaskan pekerjaan.'],
+    ])])->assertSessionHasNoErrors();
 
-    expect(Competency::query()->where('code', 'C001')->exists())->toBeTrue();
+    expect(Competency::query()->orderBy('code')->pluck('description', 'code')->all())
+        ->toBe(['H01' => 'Definition', 'S01' => 'Menyampaikan informasi secara jelas.']);
 });
 
 test('invalid rows show Excel row errors and roll back the complete import', function () {
-    CompetencyGroup::factory()->create(['code' => 'A']);
-
     $rows = [
-        ['Kode', 'Kelompok', 'Nama Kompetensi', 'Definisi'],
-        ['C001', 'A', 'Test-only competency', 'Test-only definition'],
-        ['C001', 'A', 'Duplicate row', 'Duplicate definition'],
-        ['C999', 'A', 'Invalid code', 'Test-only definition'],
-        ['C002', 'Z', 'Invalid group', 'Test-only definition'],
-        ['C003', 'A', null, 'Test-only definition'],
+        ['Kode', 'Nama Kompetensi', 'Definisi'],
+        ['H01', 'Test-only skill', 'Test-only definition'],
+        ['H01', 'Duplicate row', 'Duplicate definition'],
+        ['C001', 'Old code format', 'Test-only definition'],
+        ['S02', null, 'Test-only definition'],
     ];
 
     $this->actingAs(competencyImporter())
         ->from(route('admin.competencies.index'))
         ->post(route('admin.competencies.import'), ['file' => competencyWorkbook($rows)])
         ->assertRedirect(route('admin.competencies.index'))
-        ->assertSessionHasErrors(['row_3', 'row_4', 'row_5', 'row_6']);
+        ->assertSessionHasErrors(['row_3', 'row_4', 'row_5']);
 
     expect(Competency::query()->count())->toBe(0)
         ->and(AuditLog::query()->where('event', 'competency.imported')->count())->toBe(0);
 });
 
 test('a workbook with other headers is rejected with a pointer to the template', function () {
-    competencyGroups();
-
     $rows = [['Nomor', 'Judul'], ['1', 'Something']];
 
     $this->actingAs(competencyImporter())
         ->post(route('admin.competencies.import'), ['file' => competencyWorkbook($rows)])
-        ->assertSessionHasErrors(['file' => 'Header tidak sesuai template. Kolom wajib: Kode, Kelompok, Nama Kompetensi, dan Definisi (satu kali). Unduh ulang template jika perlu.']);
+        ->assertSessionHasErrors(['file' => 'Header tidak sesuai template. Kolom wajib: Kode, Nama Kompetensi, dan Definisi (satu kali). Unduh ulang template jika perlu.']);
 
     expect(Competency::query()->count())->toBe(0);
 });
 
 test('a CSV upload is rejected because only Excel files are accepted', function () {
-    competencyGroups();
-    $csv = "code,group_code,name,description\nC001,A,Test-only competency,Test-only definition\n";
+    $csv = "code,name,description\nH01,Test-only competency,Test-only definition\n";
 
     $this->actingAs(competencyImporter())
         ->post(route('admin.competencies.import'), [
@@ -154,7 +141,6 @@ test('a CSV upload is rejected because only Excel files are accepted', function 
 });
 
 test('a file renamed to xlsx that is not a workbook is rejected', function () {
-    competencyGroups();
 
     $this->actingAs(competencyImporter())
         ->post(route('admin.competencies.import'), [
@@ -173,14 +159,9 @@ test('users without competencies manage permission are forbidden from importing'
     expect(Competency::query()->count())->toBe(0);
 });
 
-test('the template lists all 62 codes, fills in existing competencies and offers the groups as a dropdown', function () {
-    $groups = competencyGroups();
-    Competency::factory()->create([
-        'group_id' => $groups['C'],
-        'code' => 'C005',
-        'name' => 'Existing competency',
-        'description' => 'Existing definition',
-    ]);
+test('the template lists every skill in the master without a group column', function () {
+    Competency::factory()->create(['code' => 'S01', 'name' => 'Soft skill', 'description' => 'Soft definition']);
+    Competency::factory()->create(['code' => 'H02', 'name' => 'Hard skill', 'description' => 'Hard definition']);
 
     $response = $this->actingAs(competencyImporter())
         ->get(route('admin.competencies.template'))
@@ -190,24 +171,16 @@ test('the template lists all 62 codes, fills in existing competencies and offers
     $path = tempnam(sys_get_temp_dir(), 'template-test-');
     file_put_contents($path, $response->streamedContent() ?: $response->baseResponse->getFile()->getContent());
     $rows = (new XlsxReader)->firstSheetRows($path);
-
-    $zip = new ZipArchive;
-    $zip->open($path);
-    $sheetXml = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
-    $zip->close();
     unlink($path);
 
-    expect($rows)->toHaveCount(63)
-        ->and($rows[0]['cells'])->toBe(['Kode', 'Kelompok', 'Nama Kompetensi', 'Definisi'])
-        ->and($rows[1]['cells'][0])->toBe('C001')
-        ->and($rows[5]['cells'])->toBe(['C005', 'C', 'Existing competency', 'Existing definition'])
-        ->and($rows[62]['cells'][0])->toBe('C062')
-        ->and($sheetXml)->toContain('sqref="B2:B63"')
-        ->and($sheetXml)->toContain('"A,B,C,D,E,F"');
+    expect($rows)->toHaveCount(3)
+        ->and($rows[0]['cells'])->toBe(['Kode', 'Nama Kompetensi', 'Definisi'])
+        ->and($rows[1]['cells'])->toBe(['H02', 'Hard skill', 'Hard definition'])
+        ->and($rows[2]['cells'])->toBe(['S01', 'Soft skill', 'Soft definition']);
 });
 
 test('a downloaded template that is filled in can be imported again', function () {
-    competencyGroups();
+    Competency::factory()->create(['code' => 'H01', 'name' => 'Before', 'description' => 'Old definition']);
     $admin = competencyImporter();
 
     $response = $this->actingAs($admin)->get(route('admin.competencies.template'));
@@ -216,17 +189,36 @@ test('a downloaded template that is filled in can be imported again', function (
     $rows = array_map(fn (array $row): array => $row['cells'], (new XlsxReader)->firstSheetRows($template));
     unlink($template);
 
-    $rows[1] = ['C001', 'A', 'Filled from template', 'Template definition'];
+    $rows[1] = ['H01', 'Filled from template', 'Template definition'];
+    $rows[] = ['S01', 'Added at the bottom', 'New definition'];
 
     $this->actingAs($admin)
         ->post(route('admin.competencies.import'), ['file' => competencyWorkbook($rows)])
         ->assertSessionHasNoErrors();
 
-    expect(Competency::query()->pluck('name', 'code')->all())->toBe(['C001' => 'Filled from template']);
+    expect(Competency::query()->orderBy('code')->pluck('name', 'code')->all())
+        ->toBe(['H01' => 'Filled from template', 'S01' => 'Added at the bottom']);
 });
 
 test('users without competencies manage permission cannot download the template', function () {
     $this->actingAs(User::factory()->create())
         ->get(route('admin.competencies.template'))
         ->assertForbidden();
+});
+
+test('the master list shows the active skills first and the retired ones on request', function () {
+    Competency::factory()->create(['code' => 'H01', 'is_active' => true]);
+    Competency::factory()->create(['code' => 'C001', 'is_active' => false]);
+    $admin = competencyImporter();
+    $admin->givePermissionTo(Permission::findOrCreate('competencies.view', 'web'));
+
+    $this->actingAs($admin)
+        ->get(route('admin.competencies.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('filters.status', 'active')
+            ->has('competencies.data', 1)
+            ->where('competencies.data.0.code', 'H01'));
+
+    $this->get(route('admin.competencies.index', ['status' => 'all']))
+        ->assertInertia(fn ($page) => $page->has('competencies.data', 2));
 });

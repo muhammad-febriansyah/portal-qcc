@@ -56,6 +56,8 @@ import { destroy as destroyBulkUsers } from '@/routes/admin/users/bulk';
 
 type UserRow = UserFormValues & {
     organization_name: string | null;
+    mentor_names: string[];
+    mentor_of: string[];
     is_active: boolean;
     is_self: boolean;
     updated_at: string | null;
@@ -328,13 +330,50 @@ export default function UsersIndex({
                 cell: ({ row }) => row.original.organization_name ?? '—',
             },
             {
-                id: 'role',
+                id: 'mentor_names',
+                header: 'Mentor',
+                cell: ({ row }) =>
+                    row.original.mentor_names.length > 0 ? (
+                        <span className="flex flex-col">
+                            {row.original.mentor_names.map((name) => (
+                                <span key={name}>{name}</span>
+                            ))}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground">
+                            Belum diatur
+                        </span>
+                    ),
+            },
+            {
+                id: 'mentor_of',
+                header: 'Mentor untuk',
+                cell: ({ row }) =>
+                    row.original.mentor_of.length > 0 ? (
+                        <span className="flex flex-col">
+                            {row.original.mentor_of.map((name) => (
+                                <span key={name}>{name}</span>
+                            ))}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground">—</span>
+                    ),
+            },
+            {
+                id: 'roles',
                 header: 'Role',
                 cell: ({ row }) =>
-                    row.original.role ? (
-                        <Badge variant={roleBadgeVariant(row.original.role)}>
-                            {row.original.role}
-                        </Badge>
+                    row.original.roles.length > 0 ? (
+                        <span className="flex flex-wrap gap-1">
+                            {row.original.roles.map((role) => (
+                                <Badge
+                                    key={role}
+                                    variant={roleBadgeVariant(role)}
+                                >
+                                    {role}
+                                </Badge>
+                            ))}
+                        </span>
                     ) : (
                         '—'
                     ),
@@ -543,7 +582,7 @@ export default function UsersIndex({
                                     <Button
                                         type="button"
                                         size="sm"
-                                        className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                        className="bg-success text-white hover:bg-success/90"
                                         disabled={bulkProcessing}
                                         onClick={() =>
                                             updateSelectedStatus(true)

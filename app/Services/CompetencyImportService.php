@@ -2,27 +2,25 @@
 
 namespace App\Services;
 
+use App\Models\Competency;
 use App\Services\Spreadsheet\InvalidSpreadsheetException;
 use App\Services\Spreadsheet\XlsxReader;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class CompetencyImportService
 {
     /** @var array<string, list<string>> Accepted header names for each import column. */
     private const HEADER_ALIASES = [
-        'code' => ['code', 'kode'],
-        'group_code' => ['group_code', 'kelompok', 'kode kelompok'],
-        'name' => ['name', 'nama', 'nama kompetensi'],
-        'description' => ['description', 'deskripsi', 'definisi'],
+        'code' => ['code', 'kode', 'skill id', 'kode skill'],
+        'name' => ['name', 'nama', 'nama kompetensi', 'nama skill'],
+        'description' => ['description', 'deskripsi', 'definisi', 'deskripsi sederhana'],
     ];
 
     /** @var array<string, string> */
     private const COLUMN_LABELS = [
         'code' => 'Kode',
-        'group_code' => 'Kelompok',
         'name' => 'Nama kompetensi',
         'description' => 'Definisi',
     ];
@@ -84,7 +82,7 @@ class CompetencyImportService
     }
 
     /**
-     * @param  list<array{code: string, group_id: int, name: string, description: ?string}>  $rows
+     * @param  list<array{code: string, name: string, description: ?string}>  $rows
      * @return array{created: int, updated: int, total: int}
      */
     private function persist(array $rows, bool $recordAudit): array
@@ -108,7 +106,6 @@ class CompetencyImportService
                 }
 
                 return [
-                    'group_id' => $row['group_id'],
                     'code' => $row['code'],
                     'name' => $row['name'],
                     'description' => $row['description'],
@@ -121,7 +118,7 @@ class CompetencyImportService
             DB::table('competency_master')->upsert(
                 $records,
                 ['code'],
-                ['group_id', 'name', 'description', 'updated_at'],
+                ['name', 'description', 'updated_at'],
             );
 
             if ($recordAudit) {
@@ -146,7 +143,7 @@ class CompetencyImportService
 
     /**
      * @param  list<array{row: int, cells: list<string>}>  $sheetRows  The first row holds the headers.
-     * @return list<array{code: string, group_id: int, name: string, description: ?string}>
+     * @return list<array{code: string, name: string, description: ?string}>
      */
     private function validate(array $sheetRows): array
     {
@@ -155,12 +152,6 @@ class CompetencyImportService
         }
 
         $columns = $this->mapColumns($sheetRows[0]['cells']);
-        $groupsByCode = DB::table('competency_groups')->pluck('id', 'code')->all();
-        $groupCodes = array_map('strval', array_keys($groupsByCode));
-        $officialCodes = array_map(
-            static fn (int $number): string => sprintf('C%03d', $number),
-            range(1, 62),
-        );
         $rows = [];
         $seenCodes = [];
         $validationErrors = [];
@@ -173,22 +164,19 @@ class CompetencyImportService
                 $data[$field] = trim($sheetRow['cells'][$index] ?? '');
             }
 
-            if ($data['group_code'] === '' && $data['name'] === '' && $data['description'] === '') {
+            if ($data['code'] === '' && $data['name'] === '' && $data['description'] === '') {
                 continue;
             }
 
             $data['code'] = strtoupper($data['code']);
-            $data['group_code'] = $this->groupLetter($data['group_code']);
             $data['description'] = $data['description'] === '' ? null : $data['description'];
 
             $validator = Validator::make($data, [
-                'code' => ['required', 'string', Rule::in($officialCodes)],
-                'group_code' => ['required', 'string', Rule::in($groupCodes)],
+                'code' => ['required', 'string', 'max:10', 'regex:'.Competency::CODE_PATTERN],
                 'name' => ['required', 'string', 'max:255'],
                 'description' => ['nullable', 'string'],
             ], [
-                'code.in' => 'Kode harus menggunakan format resmi C001–C062.',
-                'group_code.in' => 'Kelompok harus salah satu dari: '.implode(', ', $groupCodes).'.',
+                'code.regex' => Competency::CODE_HINT,
             ], self::COLUMN_LABELS);
 
             $errors = $validator->fails() ? $validator->errors()->all() : [];
@@ -204,7 +192,6 @@ class CompetencyImportService
             if ($errors === []) {
                 $rows[] = [
                     'code' => $data['code'],
-                    'group_id' => (int) $groupsByCode[$data['group_code']],
                     'name' => $data['name'],
                     'description' => $data['description'],
                 ];
@@ -223,7 +210,7 @@ class CompetencyImportService
 
         if ($rows === []) {
             throw ValidationException::withMessages([
-                'file' => 'File tidak memuat baris kompetensi untuk diimpor. Isi kolom Kelompok dan Nama kompetensi.',
+                'file' => 'File tidak memuat baris kompetensi untuk diimpor. Isi kolom Kode dan Nama kompetensi.',
             ]);
         }
 
@@ -247,7 +234,7 @@ class CompetencyImportService
 
             if (count($matches) !== 1) {
                 throw ValidationException::withMessages([
-                    'file' => 'Header tidak sesuai template. Kolom wajib: Kode, Kelompok, Nama Kompetensi, dan Definisi (satu kali). Unduh ulang template jika perlu.',
+                    'file' => 'Header tidak sesuai template. Kolom wajib: Kode, Nama Kompetensi, dan Definisi (satu kali). Unduh ulang template jika perlu.',
                 ]);
             }
 
@@ -255,15 +242,5 @@ class CompetencyImportService
         }
 
         return $columns;
-    }
-
-    /**
-     * Accepts "A" as well as "A - Core QCC & Problem Solving".
-     */
-    private function groupLetter(string $value): string
-    {
-        $value = strtoupper(trim($value));
-
-        return preg_match('/^([A-Z0-9]+)\s*[-–:]/', $value, $match) === 1 ? $match[1] : $value;
     }
 }

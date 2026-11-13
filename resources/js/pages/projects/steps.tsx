@@ -2,12 +2,10 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
 import {
-    AlertTriangle,
     ArrowLeft,
     ArrowRight,
     Check,
     CircleAlert,
-    Files,
     ListChecks,
 } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
@@ -24,10 +22,6 @@ import type { BadgeVariant } from '@/lib/badge-variants';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { index as proposalsIndex } from '@/routes/proposals';
-import { index as biweeklyIndex } from '@/routes/projects/biweekly';
-import { index as mentoringIndex } from '@/routes/projects/mentoring';
-import { index as risksIndex } from '@/routes/projects/risks';
-import { index as evidenceIndex } from '@/routes/projects/evidence';
 import { exportMethod as exportStepsCsv, show } from '@/routes/projects/steps';
 
 type StepItem = {
@@ -105,7 +99,7 @@ function StepMarker({ step, active }: { step: StepItem; active: boolean }) {
     return (
         <span
             className={cn(
-                'flex size-8 shrink-0 items-center justify-center rounded-full border text-[13px] font-semibold',
+                'flex size-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold',
                 step.status === 'APPROVED' &&
                     'border-success/30 bg-success/10 text-success',
                 step.status !== 'APPROVED' &&
@@ -137,7 +131,7 @@ function Field({
 }) {
     return (
         <div className="grid gap-1.5">
-            <dt className="text-[13px] font-medium">{label}</dt>
+            <dt className="text-sm font-medium">{label}</dt>
             <dd
                 className={cn(
                     'rounded-lg border bg-muted/30 px-3 py-2.5 text-sm whitespace-pre-line',
@@ -194,77 +188,6 @@ export default function ProjectSteps({
                                     project: project.id,
                                 })}
                             />
-                            <Button
-                                variant="warning"
-                                className="h-10 px-4 text-sm"
-                                render={
-                                    <Link
-                                        href={risksIndex.url({
-                                            project: project.id,
-                                        })}
-                                    />
-                                }
-                                nativeButton={false}
-                            >
-                                <AlertTriangle
-                                    data-icon="inline-start"
-                                    aria-hidden="true"
-                                />
-                                Risiko & Tindakan
-                            </Button>
-                            <Button
-                                variant="info"
-                                className="h-10 px-4 text-sm"
-                                render={
-                                    <Link
-                                        href={biweeklyIndex.url({
-                                            project: project.id,
-                                        })}
-                                    />
-                                }
-                                nativeButton={false}
-                            >
-                                Bi-weekly
-                            </Button>
-                            <Button
-                                variant="violet"
-                                className="h-10 px-4 text-sm"
-                                render={
-                                    <Link
-                                        href={mentoringIndex.url({
-                                            project: project.id,
-                                        })}
-                                    />
-                                }
-                                nativeButton={false}
-                            >
-                                Mentoring
-                            </Button>
-                            {selected !== null && (
-                                <Button
-                                    variant="teal"
-                                    className="h-10 px-4 text-sm"
-                                    render={
-                                        <Link
-                                            href={evidenceIndex.url(
-                                                { project: project.id },
-                                                {
-                                                    query: {
-                                                        step: selected.number,
-                                                    },
-                                                },
-                                            )}
-                                        />
-                                    }
-                                    nativeButton={false}
-                                >
-                                    <Files
-                                        data-icon="inline-start"
-                                        aria-hidden="true"
-                                    />
-                                    Evidence
-                                </Button>
-                            )}
                         </div>
                     }
                 />
@@ -282,7 +205,7 @@ export default function ProjectSteps({
                             Delapan step dibuka otomatis setelah proposal
                             disetujui reviewer.
                         </p>
-                        <ol className="mt-2 grid max-w-md gap-1 text-left text-[13px] text-muted-foreground">
+                        <ol className="mt-2 grid max-w-md gap-1 text-left text-sm text-muted-foreground">
                             {catalog.map((item) => (
                                 <li key={item.number}>
                                     {item.number}. {item.name}
@@ -296,7 +219,7 @@ export default function ProjectSteps({
                             <CardContent className="grid gap-4 p-5">
                                 <div className="flex flex-wrap items-end justify-between gap-3">
                                     <div className="grid gap-1">
-                                        <p className="text-[13px] font-medium text-muted-foreground">
+                                        <p className="text-sm font-medium text-muted-foreground">
                                             Progress proyek
                                         </p>
                                         <p className="text-3xl leading-none font-semibold tracking-tight">
@@ -401,7 +324,7 @@ export default function ProjectSteps({
                                                             }
                                                         />
                                                         <div className="grid min-w-0 flex-1 gap-1.5">
-                                                            <p className="text-[13px] leading-snug font-medium">
+                                                            <p className="text-sm leading-snug font-medium">
                                                                 {step.name}
                                                             </p>
                                                             <div className="flex flex-wrap items-center gap-1.5">
@@ -467,7 +390,7 @@ export default function ProjectSteps({
                                     </div>
 
                                     <div className="grid gap-1.5">
-                                        <div className="flex items-center justify-between text-[13px]">
+                                        <div className="flex items-center justify-between text-sm">
                                             <span className="font-medium">
                                                 Progress step
                                             </span>
@@ -586,10 +509,10 @@ export default function ProjectSteps({
                                         />
                                     </section>
 
-                                    <div className="flex items-center justify-between gap-3 border-t pt-4">
+                                    <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                                         {previous ? (
                                             <Button
-                                                variant="outline"
+                                                className="h-auto min-h-10 max-w-full justify-start whitespace-normal sm:max-w-[48%]"
                                                 render={
                                                     <Link
                                                         href={show.url({
@@ -604,7 +527,7 @@ export default function ProjectSteps({
                                                     data-icon="inline-start"
                                                     aria-hidden="true"
                                                 />
-                                                <span className="max-w-40 truncate">
+                                                <span className="min-w-0 text-left break-words whitespace-normal">
                                                     {nameOf(previous)}
                                                 </span>
                                             </Button>
@@ -613,7 +536,7 @@ export default function ProjectSteps({
                                         )}
                                         {next ? (
                                             <Button
-                                                variant="outline"
+                                                className="h-auto min-h-10 max-w-full justify-end whitespace-normal sm:max-w-[48%]"
                                                 render={
                                                     <Link
                                                         href={show.url({
@@ -624,7 +547,7 @@ export default function ProjectSteps({
                                                 }
                                                 nativeButton={false}
                                             >
-                                                <span className="max-w-40 truncate">
+                                                <span className="min-w-0 text-right break-words whitespace-normal">
                                                     {nameOf(next)}
                                                 </span>
                                                 <ArrowRight

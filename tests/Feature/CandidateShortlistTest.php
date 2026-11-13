@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ProposalStatus;
 use App\Models\Competency;
 use App\Models\MemberCompetency;
 use App\Models\Organization;
@@ -22,7 +23,7 @@ function requireSkill(Project $project, Competency $competency, ?int $minimum = 
     ]);
 }
 
-function candidate(string $name, Competency $competency, int $self = 3, ?int $verified = null, array $attributes = [], string $role = 'SIMer / Member'): User
+function candidate(string $name, Competency $competency, int $self = 3, ?int $oldVerified = null, array $attributes = [], string $role = 'SIMer / Member'): User
 {
     $user = User::factory()->create(array_merge([
         'name' => $name,
@@ -34,7 +35,8 @@ function candidate(string $name, Competency $competency, int $self = 3, ?int $ve
         'user_id' => $user->id,
         'competency_id' => $competency->id,
         'self_level' => $self,
-        'verified_level' => $verified,
+        'verified_level' => $oldVerified,
+        'verification_status' => $oldVerified === null ? null : 'VERIFIED',
     ]);
 
     return $user;
@@ -51,7 +53,7 @@ function shortlistNames(Project $project): array
 }
 
 beforeEach(function () {
-    $this->project = Project::factory()->create();
+    $this->project = Project::factory()->status(ProposalStatus::Approved)->create();
     $this->skill = Competency::factory()->create();
     requireSkill($this->project, $this->skill);
 });
@@ -83,15 +85,20 @@ test('people already on the project team are left out', function () {
     expect(shortlistNames($this->project))->toBe(['Belum Anggota']);
 });
 
-test('the minimum level counts the verified level before the self level', function () {
+test('the minimum level uses the level people filled in and ignores old verified levels', function () {
     $strict = Project::factory()->create();
     requireSkill($strict, $this->skill, minimum: 3);
 
-    candidate('Mandiri Tinggi Verifikasi Rendah', $this->skill, self: 4, verified: 2);
-    candidate('Mandiri Rendah Verifikasi Tinggi', $this->skill, self: 1, verified: 3);
+    candidate('Dulu Diturunkan', $this->skill, self: 4, oldVerified: 2);
+    candidate('Dulu Dinaikkan', $this->skill, self: 1, oldVerified: 3);
     candidate('Mandiri Cukup', $this->skill, self: 3);
 
-    expect(shortlistNames($strict))->toEqualCanonicalizing(['Mandiri Rendah Verifikasi Tinggi', 'Mandiri Cukup']);
+    $candidates = collect(shortlistFor($strict)['candidates'])->keyBy('name');
+
+    expect($candidates['Dulu Diturunkan']['matched_count'])->toBe(1)
+        ->and($candidates['Dulu Dinaikkan']['matched_count'])->toBe(0)
+        ->and($candidates['Mandiri Cukup']['matched_count'])->toBe(1)
+        ->and($candidates['Dulu Diturunkan']['competencies'][0])->toBe(['competency_id' => $this->skill->id, 'self_level' => 4]);
 });
 
 test('better matches come first and the list is bounded', function () {
@@ -106,6 +113,19 @@ test('better matches come first and the list is bounded', function () {
         ->and(app(CandidateShortlist::class)->for($this->project, 1)['candidates'])->toHaveCount(1);
 });
 
+test('manual search reaches eligible candidates outside the top thirty', function () {
+    foreach (range(1, 31) as $number) {
+        candidate($number === 31 ? 'Kandidat Di Luar Batas' : "Kandidat {$number}", $this->skill);
+    }
+
+    $shortlist = app(CandidateShortlist::class);
+    $default = $shortlist->for($this->project);
+    $manual = $shortlist->search($this->project, 'Di Luar Batas');
+
+    expect($default['candidates'])->toHaveCount(30)
+        ->and(array_column($manual['candidates'], 'name'))->toBe(['Kandidat Di Luar Batas']);
+});
+
 test('a project without requirements has no candidates', function () {
     candidate('Siapa Saja', $this->skill);
 
@@ -114,8 +134,7 @@ test('a project without requirements has no candidates', function () {
 
 test('neither the shortlist nor the snapshot carries private contacts', function () {
     candidate('Rahasia Orang', $this->skill, attributes: [
-        'work_contact' => '0811-WORK-1111',
-        'personal_contact' => '0812-PRIBADI-2222',
+        'phone_number' => '0812-PRIBADI-2222',
         'sim_id' => 'SIM-PRIVATE-9',
     ]);
 
@@ -124,7 +143,6 @@ test('neither the shortlist nor the snapshot carries private contacts', function
     $encoded = json_encode([$shortlist, $snapshot]);
 
     expect($encoded)->not->toContain('rahasia.orang@rahasia.test')
-        ->and($encoded)->not->toContain('0811-WORK-1111')
         ->and($encoded)->not->toContain('0812-PRIBADI-2222')
         ->and($encoded)->not->toContain('SIM-PRIVATE-9')
         ->and(json_encode($snapshot))->not->toContain('Rahasia Orang')
@@ -233,7 +251,7 @@ test('an owner opens the candidate page for any project', function () {
 
 test('a team leader can search only for a project they proposed', function () {
     $leader = candidateSearcher('Team Leader', false);
-    $own = Project::factory()->create(['proposer_id' => $leader->id]);
+    $own = Project::factory()->status(ProposalStatus::Approved)->create(['proposer_id' => $leader->id]);
 
     $this->actingAs($leader)->get(route('proposals.candidates', $own))->assertOk();
     $this->actingAs($leader)->get(route('proposals.candidates', $this->project))->assertForbidden();

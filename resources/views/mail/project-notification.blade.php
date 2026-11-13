@@ -12,6 +12,6 @@
 
     <p style="margin:24px 0 0;font-size:12px;line-height:19px;color:#6d727e;">
         Jika tombol tidak berfungsi, salin tautan ini ke browser:<br>
-        <a href="{{ $actionUrl }}" style="color:#0b5cf0;word-break:break-all;">{{ $actionUrl }}</a>
+        <a href="{{ $actionUrl }}" style="color:#0179a3;word-break:break-all;">{{ $actionUrl }}</a>
     </p>
 </x-mail.layout>

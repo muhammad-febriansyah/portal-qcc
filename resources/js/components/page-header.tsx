@@ -23,7 +23,7 @@ export function PageHeader({
                     <h1 className="text-[22px] leading-8 font-semibold tracking-tight text-foreground sm:text-2xl">
                         {title}
                     </h1>
-                    <p className="text-[13px] text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                         {description}
                     </p>
                 </div>
