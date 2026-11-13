@@ -87,7 +87,7 @@ test('a proposal downloads as a filled presentation', function () {
         ->and($slides[5])->toContain('Jan-27', '4 Jan 2027', '15 Jan 2027', 'Tema terpilih', '-')
         // Step 1 runs through weeks 1-3 of January, step 2 through weeks 3-4.
         ->and(substr_count($slides[5], '<a:srgbClr val="1F4E79"/></a:solidFill></a:tcPr>'))->toBe(5)
-        ->and($slides[6])->toContain('MENTOR', 'Citra Mentor', 'Dodi Mentor', 'Mentor DIV IT', 'Disetujui 7 Nov 2026')
+        ->and($slides[6])->toContain('MENTOR', 'Citra Mentor', 'Dodi Mentor', 'DIV IT HEAD', 'Disetujui 7 Nov 2026')
         ->and($slides[6])->not->toContain('Budi Owner')
         ->and($slides[6])->not->toContain('Owner QCC')
         ->and($slides[6])->not->toContain('LOLOS SELEKSI')
@@ -127,7 +127,7 @@ test('the mentor card falls back to the organization mentors before anyone is as
     $response = $this->actingAs($proposer)->get(route('proposals.presentation', $project))->assertOk();
     $slides = presentationSlides($response->baseResponse->getFile()->getPathname());
 
-    expect($slides[6])->toContain('Eka Mentor', 'Mentor DIV IT')
+    expect($slides[6])->toContain('Eka Mentor', 'DIV IT HEAD')
         ->and($slides[6])->not->toContain('Disetujui');
 });
 

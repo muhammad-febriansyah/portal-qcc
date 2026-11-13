@@ -172,7 +172,8 @@ class ProposalPresentationBuilder
         return [
             'judul_keputusan' => 'MENTOR',
             'nama_approver' => $mentors->isEmpty() ? 'Belum ditentukan' : $mentors->unique()->implode("\n"),
-            'jabatan_approver' => $organization === null ? 'Mentor LOB/Div' : 'Mentor '.$organization->name,
+            // The mentor heads the proposer's LOB/Div, e.g. "LOB JAGOTI HEAD".
+            'jabatan_approver' => $organization === null ? 'LOB/DIV HEAD' : Str::upper($organization->name).' HEAD',
             'tanggal_keputusan' => $approved ? 'Disetujui '.$this->date($approval->decided_at) : '',
         ];
     }
