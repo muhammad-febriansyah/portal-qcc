@@ -43,7 +43,7 @@ class VerifyEmailMail extends Mailable
             text: 'mail.verify-email-text',
             with: [
                 ...$this->brandData(),
-                'recipientName' => $this->recipient->name,
+                'recipientName' => $this->greetingName($this->recipient->name),
                 'rows' => $rows,
                 'actionUrl' => $this->verificationUrl,
             ],

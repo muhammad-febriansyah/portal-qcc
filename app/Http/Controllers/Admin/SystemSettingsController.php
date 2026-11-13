@@ -2,16 +2,21 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\System\PurgeDemoData;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateSystemPoliciesRequest;
 use App\Http\Requests\UpdateSystemSettingsRequest;
 use App\Mail\SmtpTestMail;
 use App\Models\SystemSetting;
+use App\Services\Ai\AiConnection;
+use App\Services\Ai\Exceptions\AiUnavailable;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -22,7 +27,7 @@ use Throwable;
 
 class SystemSettingsController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, PurgeDemoData $purgeDemoData): Response
     {
         Gate::authorize('system-settings.view');
 
@@ -51,6 +56,8 @@ class SystemSettingsController extends Controller
                 'notifications' => [
                     'inApp' => filter_var($settings->get('notifications_in_app', '1'), FILTER_VALIDATE_BOOLEAN),
                     'email' => filter_var($settings->get('notifications_email', '0'), FILTER_VALIDATE_BOOLEAN),
+                    'reminderEarlyDays' => (int) $settings->get('notifications_reminder_early_days', '3'),
+                    'reminderFinalDays' => (int) $settings->get('notifications_reminder_final_days', '1'),
                 ],
                 'attachments' => [
                     'storageDisk' => $settings->get('attachments_storage_disk', config('filesystems.default', 'local')),
@@ -72,14 +79,43 @@ class SystemSettingsController extends Controller
                     'modelOptions' => $aiModelOptions,
                     'hasApiKey' => filled($settingsApiKey) || filled(config('scoring.openai.key')),
                 ],
-                'sso' => [
-                    'title' => 'Single sign-on',
-                    'decision' => 'DEC-20',
-                    'description' => 'Pilihan SSO perusahaan atau login lokal belum ditetapkan.',
-                ],
             ],
             'canManage' => $request->user()->can('system-settings.manage'),
+            'demoData' => $this->canPurgeDemoData($request) ? $purgeDemoData->summary($request->user()) : null,
         ]);
+    }
+
+    /**
+     * Delete every demo account and the demo QCC data seeded for trials.
+     */
+    public function destroyDemoData(Request $request, PurgeDemoData $purgeDemoData): RedirectResponse
+    {
+        abort_unless($this->canPurgeDemoData($request), 403);
+
+        $request->validate(
+            ['confirmation' => ['required', 'string', 'in:HAPUS']],
+            ['confirmation.required' => 'Ketik HAPUS untuk mengonfirmasi.', 'confirmation.in' => 'Ketik HAPUS untuk mengonfirmasi.'],
+        );
+
+        $result = $purgeDemoData->handle($request->user());
+
+        $message = "Data dummy dihapus: {$result['users']} akun, {$result['projects']} proyek, {$result['batches']} batch.";
+
+        if ($result['deactivated'] > 0) {
+            $message .= " {$result['deactivated']} akun dummy dinonaktifkan karena masih dipakai data asli.";
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $message]);
+
+        return to_route('admin.settings.index');
+    }
+
+    /**
+     * Only Super Admins may remove demo data, and only with system settings access.
+     */
+    private function canPurgeDemoData(Request $request): bool
+    {
+        return $request->user()->hasRole('Super Admin') && $request->user()->can('system-settings.manage');
     }
 
     public function testEmail(Request $request): RedirectResponse
@@ -111,12 +147,59 @@ class SystemSettingsController extends Controller
         return back();
     }
 
+    /**
+     * Checks the saved API key and model with OpenAI's model lookup. The call sends no
+     * project data and no tokens are spent.
+     */
+    public function testAi(AiConnection $ai): RedirectResponse
+    {
+        Gate::authorize('system-settings.manage');
+
+        try {
+            $credentials = $ai->credentials();
+        } catch (AiUnavailable $exception) {
+            return back()->withErrors(['ai_connection' => $exception->getMessage()]);
+        }
+
+        try {
+            $response = Http::withToken($credentials['key'])
+                ->acceptJson()
+                ->connectTimeout(5)
+                ->timeout(10)
+                ->get(rtrim((string) config('scoring.openai.base_url'), '/').'/models/'.rawurlencode($credentials['model']));
+        } catch (ConnectionException) {
+            return back()->withErrors(['ai_connection' => 'Tidak bisa menghubungi OpenAI. Periksa koneksi internet server.']);
+        }
+
+        $message = match (true) {
+            $response->successful() => null,
+            $response->status() === 401 => 'API key tidak valid atau sudah dicabut.',
+            $response->status() === 403 => 'API key tidak punya akses ke model '.$credentials['model'].'.',
+            $response->status() === 404 => 'Model '.$credentials['model'].' tidak ditemukan untuk akun ini.',
+            $response->status() === 429 => 'OpenAI membatasi permintaan sekarang. Coba lagi beberapa saat.',
+            default => 'OpenAI membalas status '.$response->status().'. Coba lagi nanti.',
+        };
+
+        if ($message !== null) {
+            return back()->withErrors(['ai_connection' => $message]);
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => 'Terhubung ke OpenAI. API key valid dan model '.$credentials['model'].' tersedia.',
+        ]);
+
+        return back();
+    }
+
     public function updatePolicies(UpdateSystemPoliciesRequest $request): RedirectResponse
     {
         $validated = $request->validated();
         $values = [
             'notifications_in_app' => (string) (int) $validated['notifications_in_app'],
             'notifications_email' => (string) (int) $validated['notifications_email'],
+            'notifications_reminder_early_days' => (string) $validated['notifications_reminder_early_days'],
+            'notifications_reminder_final_days' => (string) $validated['notifications_reminder_final_days'],
             'attachments_storage_disk' => $validated['attachments_storage_disk'],
             'attachments_allowed_types' => json_encode(array_values(array_unique($validated['attachments_allowed_types'])), JSON_THROW_ON_ERROR),
             'attachments_max_size_mb' => (string) $validated['attachments_max_size_mb'],

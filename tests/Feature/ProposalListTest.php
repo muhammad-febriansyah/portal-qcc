@@ -81,7 +81,8 @@ test('a member only sees proposals they proposed or belong to', function () {
 
     $response = $this->actingAs($member)->get(route('proposals.index'));
 
-    expect(proposalTitles($response))->toEqualCanonicalizing(['Milik sendiri', 'Tim saya']);
+    expect(proposalTitles($response))->toEqualCanonicalizing(['Milik sendiri', 'Tim saya'])
+        ->and($response->viewData('page')['props']['can_manage_teams'])->toBeFalse();
 });
 
 test('search matches title, proposer name and code', function () {
@@ -182,5 +183,7 @@ test('the index carries both the proposal table and my own drafts', function () 
             ->where('can_create', true)
             ->has('proposals.data', 1)
             ->where('proposals.data.0.can_edit_draft', true)
-            ->where('proposals.data.0.can_find_candidates', true));
+            // A draft has not passed selection, so there is no team to form yet.
+            ->where('proposals.data.0.can_find_candidates', false)
+            ->where('can_manage_teams', true));
 });

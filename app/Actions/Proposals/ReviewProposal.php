@@ -40,15 +40,17 @@ class ReviewProposal
                 throw ValidationException::withMessages(['proposal' => 'Keputusan hanya dapat diberikan saat proposal sedang direview.']);
             }
 
+            // The mentor either approves the proposal or sends it back to the SIMer with feedback.
             [$status, $label] = match ($decision) {
                 'APPROVE' => [ProposalStatus::Approved, 'Proposal disetujui'],
                 'REQUEST_REVISION' => [ProposalStatus::RevisionRequired, 'Proposal perlu direvisi'],
-                'REJECT' => [ProposalStatus::Rejected, 'Proposal ditolak'],
                 default => throw ValidationException::withMessages(['decision' => 'Keputusan tidak valid.']),
             };
 
-            if (in_array($decision, ['REQUEST_REVISION', 'REJECT'], true) && blank($reason)) {
-                throw ValidationException::withMessages(['reason' => 'Alasan wajib diisi untuk revisi atau penolakan.']);
+            $reason = filled($reason) ? trim($reason) : null;
+
+            if ($decision === 'REQUEST_REVISION' && $reason === null) {
+                throw ValidationException::withMessages(['reason' => 'Feedback untuk SIMer wajib diisi saat meminta revisi.']);
             }
 
             $this->recordTransition($project, $actor, $decision, $status, $reason);
@@ -58,13 +60,27 @@ class ReviewProposal
                     $project->proposer?->notify(new ProposalWorkflowNotification(
                         $project->id,
                         $label,
-                        $reason ?: "Status proposal {$project->title} telah diperbarui.",
+                        $this->decisionMessage($project, $decision, $reason),
                         route('proposals.show', $project, false),
                         $decision,
                     ));
                 });
             }
         });
+    }
+
+    /**
+     * One clear sentence for the proposer, with the mentor's feedback when there is one.
+     */
+    private function decisionMessage(Project $project, string $decision, ?string $reason): string
+    {
+        $message = match ($decision) {
+            'APPROVE' => "Proposal {$project->title} disetujui mentor. Owner QCC akan menyusun tim proyeknya.",
+            'REQUEST_REVISION' => "Proposal {$project->title} perlu direvisi sebelum dapat disetujui. Edit proposal lalu ajukan kembali.",
+            default => "Proposal {$project->title} tidak dapat dilanjutkan.",
+        };
+
+        return filled($reason) ? "{$message} Feedback mentor: {$reason}" : $message;
     }
 
     private function recordTransition(Project $project, User $actor, string $decision, ProposalStatus $status, ?string $reason): void

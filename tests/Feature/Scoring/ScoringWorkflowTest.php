@@ -17,6 +17,10 @@ use Spatie\Permission\Models\Role;
 
 require_once __DIR__.'/helpers.php';
 
+beforeEach(function (): void {
+    config()->set('qcc_features.chapter_ten_scoring', true);
+});
+
 /**
  * A finished AI run waiting for a human decision. Scores 90, 80, 80 give 83.00.
  */

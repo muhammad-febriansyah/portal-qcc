@@ -79,7 +79,7 @@ function DatePickerButton({
             aria-describedby={describedBy}
             data-empty={!value}
             className={cn(
-                'w-full justify-start text-left font-normal data-[empty=true]:text-muted-foreground',
+                'w-full justify-start border-input bg-transparent text-left font-normal text-foreground hover:bg-transparent data-[empty=true]:text-muted-foreground',
                 className,
             )}
             {...props}

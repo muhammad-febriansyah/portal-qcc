@@ -31,9 +31,9 @@ class ProfileController extends Controller
                 'sim_id' => $user?->sim_id,
                 'position' => $user?->position,
                 'work_location' => $user?->work_location,
+                'phone_number' => $user?->phone_number,
                 'organization_id' => $user?->organization_id,
                 'organization_name' => $user?->organization()->value('name'),
-                'availability_status' => $user?->availability_status,
                 'qcc_experience_batches' => $user->qcc_experience_batches ?? [],
             ],
             'organizations' => Organization::query()
@@ -71,6 +71,12 @@ class ProfileController extends Controller
         }
 
         if ($wasIncomplete && $request->user()->hasCompleteProfile()) {
+            if ($request->user()->mustFillCompetencies()) {
+                Inertia::flash('toast', ['type' => 'success', 'message' => 'Profil lengkap. Sekarang tambahkan minimal 1 kompetensi.']);
+
+                return to_route('my-competencies.index');
+            }
+
             Inertia::flash('toast', ['type' => 'success', 'message' => 'Profil lengkap. Selamat datang di portal QCC.']);
 
             return to_route('dashboard');

@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Proposals\AssignOrganizationMentors;
 use App\Http\Requests\StoreOrganizationRequest;
 use App\Http\Requests\UpdateOrganizationRequest;
 use App\Models\Organization;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +38,7 @@ class OrganizationController extends Controller
 
         $organizations = Organization::query()
             ->select(['id', 'code', 'name', 'is_active'])
+            ->with('mentors:id,name,email')
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('code', 'like', "%{$search}%")
@@ -50,7 +53,20 @@ class OrganizationController extends Controller
             ->withQueryString();
 
         return Inertia::render('admin/organizations/index', [
-            'organizations' => $organizations,
+            'organizations' => $organizations->through(fn (Organization $organization): array => [
+                'id' => $organization->id,
+                'code' => $organization->code,
+                'name' => $organization->name,
+                'is_active' => $organization->is_active,
+                'mentor_ids' => $organization->mentors->pluck('id')->all(),
+                'mentor_names' => $organization->mentors->pluck('name')->all(),
+            ]),
+            'mentorOptions' => User::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email'])
+                ->map(fn (User $user): array => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email])
+                ->all(),
             'filters' => [
                 'search' => $search,
                 'status' => $status,
@@ -66,7 +82,8 @@ class OrganizationController extends Controller
      */
     public function store(StoreOrganizationRequest $request): RedirectResponse
     {
-        Organization::query()->create($request->validated());
+        $organization = Organization::query()->create($request->safe()->except('mentor_ids'));
+        $this->syncMentors($organization, $request->validated('mentor_ids'));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Organisasi berhasil ditambahkan.']);
 
@@ -78,9 +95,44 @@ class OrganizationController extends Controller
      */
     public function update(UpdateOrganizationRequest $request, Organization $organization): RedirectResponse
     {
-        $organization->update($request->validated());
+        $organization->update($request->safe()->except('mentor_ids'));
+        $this->syncMentors($organization, $request->validated('mentor_ids'));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Organisasi berhasil diperbarui.']);
+
+        return to_route('admin.organizations.index');
+    }
+
+    /**
+     * Mentors get the Mentor permissions right away, and proposals still without a mentor get
+     * the organization's mentors as mentors and reviewers.
+     *
+     * @param  list<int>|null  $mentorIds  Null leaves the current mentors untouched.
+     */
+    private function syncMentors(Organization $organization, ?array $mentorIds): void
+    {
+        if ($mentorIds === null) {
+            return;
+        }
+
+        $organization->mentors()->sync($mentorIds);
+        $mentors = $organization->mentors()->get();
+
+        if ($mentors->isEmpty()) {
+            return;
+        }
+
+        $mentors->each(fn (User $mentor) => AssignOrganizationMentors::grantMentorRole($mentor));
+        app(AssignOrganizationMentors::class)->backfill($organization);
+    }
+
+    public function destroy(Organization $organization): RedirectResponse
+    {
+        Gate::authorize('delete', $organization);
+
+        $organization->delete();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Organisasi berhasil dihapus.']);
 
         return to_route('admin.organizations.index');
     }

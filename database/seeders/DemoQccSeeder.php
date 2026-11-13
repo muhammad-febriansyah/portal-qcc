@@ -6,13 +6,16 @@ use App\Actions\Proposals\InitializeProjectSteps;
 use App\Enums\ActionStatus;
 use App\Enums\BatchStatus;
 use App\Enums\ProposalStatus;
+use App\Enums\QccStep;
 use App\Enums\ReportStatus;
 use App\Enums\RiskLevel;
 use App\Enums\RiskStatus;
 use App\Enums\RiskType;
 use App\Enums\StepStatus;
+use App\Enums\ThemeCategory;
 use App\Models\ActionItem;
 use App\Models\BiweeklyReport;
+use App\Models\Competency;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Models\ProjectEvidence;
@@ -166,9 +169,15 @@ class DemoQccSeeder extends Seeder
     {
         $definitions = [
             ['code' => 'DEMO-QCC-2026-01', 'name' => 'Batch QCC 2026 · Selesai', 'starts_on' => '2026-01-05', 'ends_on' => '2026-04-30', 'status' => BatchStatus::Closed],
-            ['code' => 'DEMO-QCC-2026-02', 'name' => 'Batch QCC 2026 · Berjalan', 'starts_on' => '2026-07-01', 'ends_on' => '2026-12-31', 'status' => BatchStatus::Active],
-            ['code' => 'DEMO-QCC-2026-03', 'name' => 'Batch QCC 2026 · Gelombang 3', 'starts_on' => '2026-08-03', 'ends_on' => '2027-02-28', 'status' => BatchStatus::Active],
+            ['code' => 'DEMO-QCC-2026-02', 'name' => 'Batch QCC 2026 · Berjalan', 'starts_on' => '2026-07-01', 'ends_on' => '2026-12-31', 'status' => BatchStatus::Closed],
+            ['code' => 'DEMO-QCC-2026-03', 'name' => 'Batch QCC 2026 · Gelombang 3', 'starts_on' => '2026-08-03', 'ends_on' => '2027-02-28', 'status' => BatchStatus::Closed],
         ];
+
+        // QCC Batch 4 is the only batch open for new proposals.
+        QccBatch::query()->updateOrCreate(
+            ['code' => 'BATCH-4'],
+            ['name' => 'QCC Batch 4', 'starts_on' => '2026-11-01', 'ends_on' => '2027-06-30', 'status' => BatchStatus::Active],
+        );
 
         return array_map(fn (array $batch): QccBatch => QccBatch::query()->updateOrCreate(
             ['code' => $batch['code']],
@@ -205,21 +214,27 @@ class DemoQccSeeder extends Seeder
                 'proposer_id' => $leader->id,
                 'pic_id' => $leader->id,
                 'theme' => $description['theme'],
+                'theme_category' => ThemeCategory::cases()[$index % count(ThemeCategory::cases())],
                 'background' => $description['background'],
-                'problem_statement' => $description['problem'],
-                'current_situation' => $description['current'],
-                'baseline' => $description['baseline'],
+                'current_situation' => $description['current']."\n\n**Baseline:** ".$description['baseline'],
+                'improvement_plan' => "- Petakan proses dan validasi penyebab dominan bersama unit terkait\n- Uji coba perbaikan bertahap dan bandingkan dengan baseline\n- Perbarui prosedur bila hasilnya efektif",
                 'target' => $description['target'],
                 'scope' => $description['scope'],
+                'cost_projection' => $index % 3 === 0
+                    ? "- Pelatihan singkat tim: Rp 2.500.000\n- Materi sosialisasi SOP: Rp 750.000"
+                    : 'Tidak ada biaya tambahan; memakai sumber daya unit.',
                 'learning_goals_json' => ['Analisis proses', 'Kolaborasi lintas fungsi', 'Pengukuran hasil perbaikan'],
-                'rca' => 'Tim mengumpulkan data proses, mengelompokkan penyebab, lalu memvalidasi penyebab dominan dengan unit terkait.',
-                'improvement_plan' => 'Uji coba perbaikan dilakukan bertahap, hasilnya dibandingkan dengan baseline, lalu prosedur diperbarui bila efektif.',
-                'business_benefit' => 'Mengurangi waktu tunggu dan pekerjaan ulang serta meningkatkan konsistensi layanan.',
+                'step_timeline_json' => $this->demoTimeline($batch),
+                'problem_statement' => null,
+                'baseline' => null,
+                'rca' => null,
+                'business_benefit' => null,
                 'proposal_status' => $status,
                 'submitted_at' => $submittedAt,
                 'approved_at' => $approvedAt,
-                'wizard_step' => $status === ProposalStatus::Draft ? 3 : 5,
+                'wizard_step' => $status === ProposalStatus::Draft ? 3 : 7,
             ])->save();
+            $this->seedRequirements($project, $index);
 
             $leaderOrganization = $organizations[($index * 2) % $organizations->count()];
             $memberOrganization = $organizations[($index * 2 + 1) % $organizations->count()];
@@ -229,6 +244,57 @@ class DemoQccSeeder extends Seeder
         }
 
         return $projects;
+    }
+
+    /**
+     * Two weeks per QCC step from the batch start, with the result each step should deliver.
+     *
+     * @return list<array{step_number: int, target_date: string, deliverable: string}>
+     */
+    private function demoTimeline(QccBatch $batch): array
+    {
+        $deliverables = [
+            QccStep::Theme->value => 'Tema dan data awal disepakati',
+            QccStep::Target->value => 'Target terukur dan periode pengukuran',
+            QccStep::PossibleCauses->value => 'Diagram sebab-akibat',
+            QccStep::DominantCauses->value => 'Diagram Pareto sebab dominan',
+            QccStep::ImprovementPlan->value => 'Rencana perbaikan dengan PIC',
+            QccStep::Implementation->value => 'Hasil uji coba perbaikan',
+            QccStep::Evaluation->value => 'Perbandingan hasil terhadap baseline',
+            QccStep::Standardization->value => 'SOP baru dan rencana pencegahan',
+        ];
+
+        return array_map(fn (QccStep $step): array => [
+            'step_number' => $step->value,
+            'start_date' => $batch->starts_on->copy()->addWeeks(($step->value - 1) * 2)->toDateString(),
+            'target_date' => $batch->starts_on->copy()->addWeeks($step->value * 2)->toDateString(),
+            'deliverable' => $deliverables[$step->value],
+        ], QccStep::cases());
+    }
+
+    /**
+     * Demo proposals need competency needs, as real ones must have them before submission.
+     */
+    private function seedRequirements(Project $project, int $index): void
+    {
+        $competencyIds = Competency::query()->where('is_active', true)->orderBy('code')->pluck('id');
+
+        if ($competencyIds->isEmpty()) {
+            return;
+        }
+
+        $picked = collect([$index, $index + 1])
+            ->map(fn (int $position): int => $competencyIds[$position % $competencyIds->count()])
+            ->unique()
+            ->values();
+
+        DB::table('project_requirements')->insertOrIgnore($picked->map(fn (int $competencyId): array => [
+            'project_id' => $project->id,
+            'competency_id' => $competencyId,
+            'minimum_level' => 2,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ])->all());
     }
 
     /** @param Collection<int, Project> $projects

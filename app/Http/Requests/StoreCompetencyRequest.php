@@ -29,25 +29,13 @@ class StoreCompetencyRequest extends FormRequest
                 'required',
                 'string',
                 'max:10',
-                Rule::in(self::officialCodes()),
+                'regex:'.Competency::CODE_PATTERN,
                 Rule::unique('competency_master', 'code'),
             ],
-            'group_id' => ['required', 'integer', 'exists:competency_groups,id'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string', 'max:65535'],
             'is_active' => ['required', 'boolean'],
         ];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private static function officialCodes(): array
-    {
-        return array_map(
-            static fn (int $number): string => sprintf('C%03d', $number),
-            range(1, 62),
-        );
     }
 
     /**
@@ -56,9 +44,8 @@ class StoreCompetencyRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'code.in' => 'Kode harus menggunakan kode resmi C001–C062.',
+            'code.regex' => Competency::CODE_HINT,
             'code.unique' => 'Kode kompetensi sudah digunakan.',
-            'group_id.exists' => 'Kelompok kompetensi tidak valid.',
         ];
     }
 }

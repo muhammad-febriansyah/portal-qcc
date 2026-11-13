@@ -118,3 +118,51 @@ test('text in the notice is escaped in the email', function () {
     expect($html)->not->toContain('<script>alert(1)</script>')
         ->and($html)->toContain('Judul &lt;script&gt;alert(1)&lt;/script&gt;');
 });
+
+test('every kind of project notice the portal sends arrives by email with its own label', function (string $kind, string $label) {
+    $project = Project::factory()->create();
+    $user = User::factory()->create(['email' => 'penerima@sim.co.id']);
+
+    $user->notify(new ProjectActivityNotification($project->id, 'Judul notifikasi', 'Isi notifikasi.', route('proposals.show', $project, false), $kind));
+
+    $emails = sentEmails();
+    expect($emails)->toHaveCount(1)
+        ->and($emails[0]->getTo()[0]->getAddress())->toBe('penerima@sim.co.id')
+        ->and((string) $emails[0]->getHtmlBody())->toContain($label);
+})->with([
+    ['SUBMITTED', 'Proposal diajukan'],
+    ['RESUBMITTED', 'Proposal diajukan ulang'],
+    ['APPROVE', 'Proposal disetujui'],
+    ['REQUEST_REVISION', 'Proposal perlu revisi'],
+    ['REJECT', 'Proposal ditolak'],
+    ['TEAM_COMPOSITION_CONFIRMED', 'Tim proposal dikonfirmasi'],
+    ['TEAM_MEMBER_ADDED', 'Ditambahkan ke tim'],
+    ['TEAM_MEMBER_REMOVED', 'Dikeluarkan dari tim'],
+    ['TEAM_LEADER_CHANGED', 'Leader tim diganti'],
+    ['PIC_REASSIGNED', 'PIC proposal dipindahkan'],
+    ['STEP_SUBMITTED', 'Step QCC diajukan'],
+    ['STEP_APPROVED', 'Step QCC disetujui'],
+    ['STEP_REVISION', 'Step QCC perlu revisi'],
+    ['BIWEEKLY_SUBMITTED', 'Laporan bi-weekly diajukan'],
+    ['BIWEEKLY_APPROVED', 'Laporan bi-weekly disetujui'],
+    ['BIWEEKLY_REVISION', 'Laporan bi-weekly perlu revisi'],
+    ['MENTOR_ASSIGNED', 'Penugasan mentor'],
+    ['MENTORING_SUBMITTED', 'Feedback mentoring'],
+    ['MENTORING_ACKNOWLEDGED', 'Tanggapan tim atas mentoring'],
+    ['RISK_ASSIGNED', 'Risiko atau isu ditugaskan'],
+    ['ACTION_ASSIGNED', 'Tindakan ditugaskan'],
+    ['SCORING_COMPLETED', 'AI Scoring selesai'],
+    ['SCORING_APPROVED', 'Hasil scoring disetujui'],
+    ['SCORING_REVISION', 'Scoring perlu revisi'],
+    ['DUE_SOON', 'Tenggat mendekati'],
+    ['overdue', 'Melewati tenggat'],
+]);
+
+test('names written in capitals from HR data are greeted in normal case', function () {
+    $project = Project::factory()->create();
+    $user = User::factory()->create(['name' => 'GILANG RAMADHAN']);
+
+    $user->notify(projectNotice($project));
+
+    expect((string) sentEmails()[0]->getHtmlBody())->toContain('Halo Gilang Ramadhan,');
+});

@@ -2,6 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
 import {
+    CalendarDays,
     CircleCheck,
     CircleDashed,
     Lock,
@@ -36,6 +37,7 @@ import {
 } from '@/components/ui/select';
 import { dashboard } from '@/routes';
 import { destroy, index } from '@/routes/admin/batches';
+import { index as schedulesIndex } from '@/routes/admin/batches/schedules';
 
 type BatchRow = BatchFormValues & {
     updated_at: string | null;
@@ -244,6 +246,14 @@ export default function BatchesIndex({
                             <DataTableRowActions
                                 label={`Aksi untuk ${batch.name}`}
                                 actions={[
+                                    {
+                                        label: 'Atur jadwal pengingat',
+                                        icon: CalendarDays,
+                                        onSelect: () =>
+                                            router.visit(
+                                                schedulesIndex.url(batch.id),
+                                            ),
+                                    },
                                     {
                                         label: 'Ubah',
                                         icon: PencilLine,

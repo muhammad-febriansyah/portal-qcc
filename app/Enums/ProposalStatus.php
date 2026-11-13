@@ -24,6 +24,21 @@ enum ProposalStatus: string
     }
 
     /**
+     * Owner QCC builds the team once the proposal has passed selection.
+     *
+     * @return list<self>
+     */
+    public static function teamFormationStatuses(): array
+    {
+        return [self::Approved];
+    }
+
+    public function allowsTeamFormation(): bool
+    {
+        return in_array($this, self::teamFormationStatuses(), true);
+    }
+
+    /**
      * @return array<int, array{value: string, label: string}>
      */
     public static function options(): array

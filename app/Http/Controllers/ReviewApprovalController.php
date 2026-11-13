@@ -22,18 +22,18 @@ class ReviewApprovalController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        $isMentor = $user->hasRole('Mentor');
+        $isMentor = $user->actsOnlyAsMentor();
 
         $hasAssignment = fn (string $scope): bool => ReviewAssignment::query()->active()
             ->where('reviewer_id', $user->id)->where('scope', $scope)->exists();
-        $canReviewProposal = ! $isMentor && ($user->can('projects.review') || $user->can('projects.approve'))
+        $canReviewProposal = ($user->can('projects.review') || $user->can('projects.approve'))
             && ($user->can('projects.viewAny') || $hasAssignment('proposal'));
         $canReviewSteps = ($user->can('projects.review') || $user->can('projects.approve'))
             && ($isMentor
                 ? Project::query()->visibleTo($user)->whereHas('mentorAssignments', fn ($assignment) => $assignment->where('mentor_id', $user->id)->where('status', 'ACTIVE'))->exists()
                 : ($user->can('projects.viewAny') || $hasAssignment('steps')));
         $canReviewProjects = $canReviewProposal || $canReviewSteps;
-        $canReviewScoring = ! $isMentor && $user->can('scoring.view')
+        $canReviewScoring = (bool) config('qcc_features.chapter_ten_scoring') && ! $isMentor && $user->can('scoring.view')
             && ($user->can('scoring.review') || $user->can('scoring.approve'))
             && ($user->can('projects.viewAny') || $hasAssignment('scoring'));
         $canReviewBiweekly = ($user->can('projects.review')

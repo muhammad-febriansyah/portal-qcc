@@ -142,7 +142,7 @@ class ReviewScoringRun
                 $this->notifier->scoringReviewers($locked->project),
                 $locked->project,
                 'AI Scoring perlu revisi',
-                "Hasil scoring proyek {$locked->project->title} perlu diperbaiki: {$reason}",
+                "Hasil scoring proyek {$locked->project->title} perlu direvisi. Catatan reviewer: {$reason}",
                 route('admin.scoring.show', $locked, false),
                 'SCORING_REVISION',
                 $reviewer,

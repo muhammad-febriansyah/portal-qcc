@@ -2,24 +2,24 @@
 
 namespace App\Actions\Proposals;
 
-use App\Actions\Teams\TeamRuleValidator;
 use App\Enums\ProposalStatus;
 use App\Models\Project;
 use App\Models\ReviewDecision;
-use App\Models\TeamMatchingRun;
 use App\Models\User;
 use App\Notifications\ProposalWorkflowNotification;
 use App\Services\AuditService;
 use App\Services\ProjectNotifier;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SubmitProposal
 {
     public function __construct(
-        private readonly TeamRuleValidator $teamRules,
         private readonly AuditService $audit,
         private readonly ProjectNotifier $notifier,
+        private readonly AssignOrganizationMentors $assignOrganizationMentors,
+        private readonly ProposalCompleteness $completeness,
     ) {}
 
     public function handle(Project $project, User $actor): void
@@ -31,60 +31,11 @@ class SubmitProposal
                 throw ValidationException::withMessages(['proposal' => 'Proposal hanya bisa diajukan dari status draf atau perlu revisi.']);
             }
 
-            $requiredFields = [
-                'title' => 'Judul proposal',
-                'theme' => 'Tema improvement',
-                'background' => 'Latar belakang',
-                'problem_statement' => 'Pernyataan masalah',
-                'current_situation' => 'Kondisi saat ini',
-                'baseline' => 'Baseline',
-                'target' => 'Target',
-                'scope' => 'Ruang lingkup',
-                'rca' => 'Analisis akar masalah',
-                'improvement_plan' => 'Rencana improvement',
-                'business_benefit' => 'Manfaat bisnis',
-            ];
-            $missing = [];
-
-            foreach ($requiredFields as $field => $label) {
-                if (blank($project->{$field})) {
-                    $missing[$field] = "{$label} wajib diisi sebelum proposal diajukan.";
-                }
-            }
-
-            $goals = array_filter($project->learning_goals_json ?? [], fn ($goal): bool => filled($goal));
-
-            if (count($goals) !== 3) {
-                $missing['learning_goals'] = 'Isi tepat 3 tujuan pembelajaran sebelum proposal diajukan.';
-            }
+            $missing = $this->completeness->missing($project);
 
             if ($missing !== []) {
                 throw ValidationException::withMessages($missing);
             }
-
-            $confirmed = TeamMatchingRun::query()
-                ->where('project_id', $project->id)
-                ->whereNotNull('confirmed_at')
-                ->exists();
-
-            if (! $confirmed) {
-                throw ValidationException::withMessages(['team' => 'Konfirmasi tim proposal terlebih dahulu.']);
-            }
-
-            $members = DB::table('project_members')
-                ->join('users', 'users.id', '=', 'project_members.user_id')
-                ->where('project_members.project_id', $project->id)
-                ->where('project_members.status', 'ACTIVE')
-                ->whereNull('project_members.left_at')
-                ->where('users.is_active', true)
-                ->get(['project_members.user_id', 'users.organization_id', 'project_members.role_in_project'])
-                ->map(fn (object $member): array => [
-                    'user_id' => (int) $member->user_id,
-                    'organization_id' => $member->organization_id === null ? null : (int) $member->organization_id,
-                    'role_in_project' => $member->role_in_project,
-                ])->all();
-
-            $this->teamRules->validate($members);
 
             $previousStatus = $project->proposal_status;
             $project->forceFill([
@@ -111,15 +62,37 @@ class SubmitProposal
                 subjectLabel: 'Proposal PRP-'.sprintf('%04d', $project->id),
             );
 
+            $this->assignOrganizationMentors->handle($project);
+
             if (ProposalWorkflowNotification::enabled()) {
-                DB::afterCommit(fn () => $this->notifier->reviewers($project, 'proposal')->each(fn (User $reviewer) => $reviewer->notify(new ProposalWorkflowNotification(
+                $resubmitted = $previousStatus === ProposalStatus::RevisionRequired;
+
+                DB::afterCommit(fn () => $this->proposalReviewers($project)->each(fn (User $reviewer) => $reviewer->notify(new ProposalWorkflowNotification(
                     $project->id,
-                    'Proposal baru menunggu review',
-                    $project->title.' telah diajukan dan siap direview.',
+                    $resubmitted ? 'Proposal revisi menunggu review' : 'Proposal baru menunggu review',
+                    $resubmitted ? $project->title.' sudah direvisi dan diajukan kembali.' : $project->title.' telah diajukan dan siap direview.',
                     route('proposals.show', $project, false),
-                    'SUBMITTED',
+                    $resubmitted ? 'RESUBMITTED' : 'SUBMITTED',
                 ))));
             }
         });
+    }
+
+    /**
+     * The proposal goes to its LOB/Div mentors. Only when the organization has no mentor yet
+     * does it go to everyone who oversees all proposals, so it is never left unseen.
+     *
+     * @return Collection<int, User>
+     */
+    private function proposalReviewers(Project $project): Collection
+    {
+        $mentors = User::query()
+            ->where('is_active', true)
+            ->whereHas('reviewAssignments', fn ($assignments) => $assignments->active()
+                ->where('project_id', $project->id)
+                ->where('scope', 'proposal'))
+            ->get();
+
+        return $mentors->isNotEmpty() ? $mentors : $this->notifier->reviewers($project, 'proposal');
     }
 }

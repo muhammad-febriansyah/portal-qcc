@@ -5,6 +5,7 @@ use App\Models\Competency;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -127,7 +128,27 @@ it('is closed to other people and to proposals that are no longer drafts', funct
     expect(savedRequirements($this->project))->toBe([]);
 });
 
-it('hands the wizard the master list, the saved rows and the level names', function () {
+it('rejects competency edits when proposal status changes after route binding', function () {
+    $url = route('proposals.requirements.update', $this->project);
+    $projectId = $this->project->id;
+    $switched = false;
+
+    Event::listen('eloquent.retrieved: '.Project::class, function (Project $bound) use ($projectId, &$switched): void {
+        if (! $switched && $bound->id === $projectId) {
+            $switched = true;
+            DB::table('projects')->where('id', $projectId)->update(['proposal_status' => ProposalStatus::Submitted->value]);
+        }
+    });
+
+    $this->actingAs($this->editor)->put($url, ['requirements' => [
+        ['competency_id' => $this->a->id, 'minimum_level' => 3],
+    ]])->assertNotFound();
+
+    expect(savedRequirements($this->project))->toBe([]);
+});
+
+it('hands the wizard the master list with definitions, the saved rows and the level names', function () {
+    $this->a->update(['description' => 'Definisi kompetensi A.']);
     $this->actingAs($this->editor)->put(route('proposals.requirements.update', $this->project), ['requirements' => [
         ['competency_id' => $this->a->id, 'minimum_level' => 2],
     ]]);
@@ -136,6 +157,7 @@ it('hands the wizard the master list, the saved rows and the level names', funct
         ->assertInertia(fn (Assert $page) => $page
             ->component('proposals/wizard')
             ->has('competencyOptions', 2)
+            ->where('competencyOptions', fn ($options) => collect($options)->firstWhere('id', $this->a->id)['description'] === 'Definisi kompetensi A.')
             ->where('requirements.0.competency_id', $this->a->id)
             ->where('requirements.0.minimum_level', 2)
             ->has('levelOptions', 4));

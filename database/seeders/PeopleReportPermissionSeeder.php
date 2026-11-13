@@ -26,5 +26,7 @@ class PeopleReportPermissionSeeder extends Seeder
         foreach (self::ROLES as $roleName) {
             Role::findOrCreate($roleName, 'web')->givePermissionTo($permission);
         }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

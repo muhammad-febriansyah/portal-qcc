@@ -57,7 +57,9 @@ export function CredentialDialog({ credential, onClose }: Props) {
                         <div className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2.5">
                             <div className="grid min-w-0 gap-1">
                                 <span className="text-xs text-muted-foreground">
-                                    Password sementara
+                                    {credential.reason === 'created'
+                                        ? 'Password awal'
+                                        : 'Password baru'}
                                 </span>
                                 <code className="text-sm font-semibold tracking-wide break-all">
                                     {credential.password}
@@ -82,9 +84,9 @@ export function CredentialDialog({ credential, onClose }: Props) {
                                 className="mt-0.5 size-3.5 shrink-0"
                                 aria-hidden="true"
                             />
-                            Password hanya tampil sekali. Setelah dialog ini
-                            ditutup, password tidak dapat dilihat lagi dan harus
-                            direset bila hilang.
+                            {credential.reason === 'created'
+                                ? 'Password awal adalah "SIM" + nomor SIM ID. Sarankan anggota menggantinya setelah berhasil masuk.'
+                                : 'Password hanya tampil sekali. Setelah dialog ini ditutup, password tidak dapat dilihat lagi dan harus direset bila hilang.'}
                         </p>
                     </div>
                 )}

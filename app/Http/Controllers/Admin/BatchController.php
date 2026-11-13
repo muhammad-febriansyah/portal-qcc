@@ -37,7 +37,7 @@ class BatchController extends Controller
         $perPage = (int) ($filters['per_page'] ?? 10);
 
         $batches = QccBatch::query()
-            ->select(['id', 'code', 'name', 'starts_on', 'ends_on', 'status', 'updated_at'])
+            ->select(['id', 'code', 'name', 'starts_on', 'ends_on', 'status', 'participant_target', 'registration_starts_on', 'registration_ends_on', 'selection_starts_on', 'selection_ends_on', 'execution_starts_on', 'execution_ends_on', 'updated_at'])
             ->addSelect([
                 'is_used' => DB::table('projects')
                     ->selectRaw('1')
@@ -64,6 +64,13 @@ class BatchController extends Controller
                 'starts_on' => $batch->starts_on->format('Y-m-d'),
                 'ends_on' => $batch->ends_on->format('Y-m-d'),
                 'status' => $batch->status->value,
+                'participant_target' => $batch->participant_target,
+                'registration_starts_on' => $batch->registration_starts_on?->format('Y-m-d'),
+                'registration_ends_on' => $batch->registration_ends_on?->format('Y-m-d'),
+                'selection_starts_on' => $batch->selection_starts_on?->format('Y-m-d'),
+                'selection_ends_on' => $batch->selection_ends_on?->format('Y-m-d'),
+                'execution_starts_on' => $batch->execution_starts_on?->format('Y-m-d'),
+                'execution_ends_on' => $batch->execution_ends_on?->format('Y-m-d'),
                 'updated_at' => $batch->updated_at?->toIso8601String(),
                 'is_used' => (bool) $batch->getAttribute('is_used'),
             ]),
@@ -100,10 +107,11 @@ class BatchController extends Controller
     {
         Gate::authorize('delete', $batch);
 
-        if (DB::table('projects')->where('batch_id', $batch->id)->exists()) {
+        if (DB::table('projects')->where('batch_id', $batch->id)->exists()
+            || DB::table('qcc_batch_schedules')->where('batch_id', $batch->id)->exists()) {
             Inertia::flash('toast', [
                 'type' => 'warning',
-                'message' => 'Batch sudah dipakai proyek dan tidak dapat dihapus. Ubah statusnya menjadi Ditutup.',
+                'message' => 'Batch sudah dipakai proyek atau memiliki jadwal dan tidak dapat dihapus. Ubah statusnya menjadi Ditutup.',
             ]);
 
             return back();

@@ -10,7 +10,6 @@ import {
     ComboboxChipsInput,
     ComboboxContent,
     ComboboxEmpty,
-    ComboboxItem,
     ComboboxList,
     ComboboxValue,
     useComboboxAnchor,
@@ -22,6 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { CompetencyOptionItem } from '@/components/competency-option-item';
 import { Spinner } from '@/components/ui/spinner';
 import { update } from '@/routes/proposals/requirements';
 
@@ -30,6 +30,7 @@ export type RequirementCompetencyOption = {
     code: string;
     name: string;
     label: string;
+    description: string | null;
 };
 
 export type ProjectRequirement = {
@@ -173,9 +174,10 @@ export function ProjectRequirementsField({
                         </ComboboxEmpty>
                         <ComboboxList>
                             {(item: RequirementCompetencyOption) => (
-                                <ComboboxItem key={item.id} value={item}>
-                                    {item.label}
-                                </ComboboxItem>
+                                <CompetencyOptionItem
+                                    key={item.id}
+                                    item={item}
+                                />
                             )}
                         </ComboboxList>
                     </ComboboxContent>
@@ -261,7 +263,7 @@ export function ProjectRequirementsField({
             <div className="flex justify-end">
                 <Button
                     type="button"
-                    variant="outline"
+                    variant="default"
                     className="h-10 px-4"
                     disabled={form.processing || !isDirty}
                     onClick={save}
@@ -275,10 +277,7 @@ export function ProjectRequirementsField({
                 </Button>
             </div>
             {isDirty && (
-                <p
-                    role="status"
-                    className="text-xs text-amber-700 dark:text-amber-300"
-                >
+                <p role="status" className="text-xs text-amber-700">
                     Simpan kebutuhan kompetensi sebelum melanjutkan ke tahap
                     berikutnya.
                 </p>

@@ -9,6 +9,18 @@ import { FormField } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { useAppName } from '@/hooks/use-app-name';
 import { Badge } from '@/components/ui/badge';
+import {
+    Combobox,
+    ComboboxChip,
+    ComboboxChips,
+    ComboboxChipsInput,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxItem,
+    ComboboxList,
+    ComboboxValue,
+    useComboboxAnchor,
+} from '@/components/ui/combobox';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -31,7 +43,7 @@ import OrganizationController from '@/actions/App/Http/Controllers/OrganizationC
 import organizationsRoute from '@/routes/admin/organizations';
 import { dashboard } from '@/routes';
 import { useEffect, useMemo, useState } from 'react';
-import { PencilLine, Plus, Power } from 'lucide-react';
+import { PencilLine, Plus, Power, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type OrganizationRow = {
@@ -39,6 +51,14 @@ type OrganizationRow = {
     code: string;
     name: string;
     is_active: boolean;
+    mentor_ids: number[];
+    mentor_names: string[];
+};
+
+type MentorOption = {
+    id: number;
+    name: string;
+    email: string;
 };
 
 type OrganizationFilters = {
@@ -61,21 +81,30 @@ type OrganizationPageProps = {
         total: number;
     };
     filters: OrganizationFilters;
+    mentorOptions: MentorOption[];
 };
 
 export default function OrganizationsIndex({
     organizations,
     filters,
+    mentorOptions,
 }: OrganizationPageProps) {
+    const mentorAnchor = useComboboxAnchor();
     const appName = useAppName();
     const [searchValue, setSearchValue] = useState(filters.search);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [editingOrganization, setEditingOrganization] =
         useState<OrganizationRow | null>(null);
-    const form = useForm({
+    const form = useForm<{
+        code: string;
+        name: string;
+        mentor_ids: number[];
+        is_active: boolean;
+    }>({
         code: '',
         name: '',
+        mentor_ids: [],
         is_active: true,
     });
 
@@ -124,7 +153,12 @@ export default function OrganizationsIndex({
     function openCreateDialog(): void {
         setEditingOrganization(null);
         form.resetAndClearErrors();
-        form.setData({ code: '', name: '', is_active: true });
+        form.setData({
+            code: '',
+            name: '',
+            mentor_ids: [],
+            is_active: true,
+        });
         setIsDialogOpen(true);
     }
 
@@ -134,6 +168,7 @@ export default function OrganizationsIndex({
         form.setData({
             code: organization.code,
             name: organization.name,
+            mentor_ids: organization.mentor_ids,
             is_active: organization.is_active,
         });
         setIsDialogOpen(true);
@@ -171,6 +206,13 @@ export default function OrganizationsIndex({
         );
     }
 
+    function deleteOrganization(organization: OrganizationRow): void {
+        router.delete(OrganizationController.destroy.url(organization.id), {
+            preserveScroll: true,
+            onError: () => toast.error('Organisasi gagal dihapus.'),
+        });
+    }
+
     const columns = useMemo<DataTableColumnDef<OrganizationRow>[]>(
         () => [
             {
@@ -188,6 +230,18 @@ export default function OrganizationsIndex({
                 accessorKey: 'name',
                 header: 'Nama Organisasi',
                 cell: ({ row }) => row.original.name,
+            },
+            {
+                id: 'mentors',
+                header: 'Mentor',
+                cell: ({ row }) =>
+                    row.original.mentor_names.length > 0 ? (
+                        row.original.mentor_names.join(' / ')
+                    ) : (
+                        <span className="text-muted-foreground">
+                            Belum diatur
+                        </span>
+                    ),
             },
             {
                 id: 'is_active',
@@ -238,6 +292,18 @@ export default function OrganizationsIndex({
                                     onSelect: () =>
                                         updateOrganizationStatus(organization),
                                 },
+                                {
+                                    label: 'Hapus',
+                                    icon: Trash2,
+                                    destructive: true,
+                                    requiresConfirmation: true,
+                                    confirmTitle: 'Hapus organisasi?',
+                                    confirmDescription:
+                                        'Organisasi akan dihapus. Anggota yang terkait akan kehilangan asosiasi ke organisasi ini.',
+                                    confirmLabel: 'Hapus organisasi',
+                                    onSelect: () =>
+                                        deleteOrganization(organization),
+                                },
                             ]}
                         />
                     );
@@ -256,7 +322,7 @@ export default function OrganizationsIndex({
     return (
         <>
             <Head title="Master Organisasi" />
-            <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-6 md:py-8">
                 <PageHeader
                     breadcrumbs={[
                         { title: 'Dashboard', href: dashboard() },
@@ -394,6 +460,86 @@ export default function OrganizationsIndex({
                                 autoComplete="organization"
                                 maxLength={255}
                             />
+                        </FormField>
+                        <FormField
+                            id="mentor_ids"
+                            label="Mentor"
+                            hint="Otomatis menjadi mentor dan reviewer setiap proposal yang diajukan anggota organisasi ini. Bila ada dua mentor, salah satunya cukup untuk mereview."
+                            error={
+                                form.errors.mentor_ids ??
+                                Object.entries(form.errors).find(([key]) =>
+                                    key.startsWith('mentor_ids.'),
+                                )?.[1]
+                            }
+                        >
+                            <Combobox
+                                multiple
+                                items={mentorOptions}
+                                value={mentorOptions.filter((option) =>
+                                    form.data.mentor_ids.includes(option.id),
+                                )}
+                                onValueChange={(options: MentorOption[]) =>
+                                    form.setData(
+                                        'mentor_ids',
+                                        options.map((option) => option.id),
+                                    )
+                                }
+                                itemToStringLabel={(option: MentorOption) =>
+                                    option.name
+                                }
+                                isItemEqualToValue={(
+                                    a: MentorOption,
+                                    b: MentorOption,
+                                ) => a.id === b.id}
+                            >
+                                <ComboboxChips ref={mentorAnchor}>
+                                    <ComboboxValue>
+                                        {(values: MentorOption[]) => (
+                                            <>
+                                                {values.map((option) => (
+                                                    <ComboboxChip
+                                                        key={option.id}
+                                                    >
+                                                        {option.name}
+                                                    </ComboboxChip>
+                                                ))}
+                                                <ComboboxChipsInput
+                                                    id="mentor_ids"
+                                                    placeholder={
+                                                        values.length > 0
+                                                            ? ''
+                                                            : 'Cari nama pengguna'
+                                                    }
+                                                    aria-label="Pilih mentor"
+                                                    aria-invalid={Boolean(
+                                                        form.errors.mentor_ids,
+                                                    )}
+                                                />
+                                            </>
+                                        )}
+                                    </ComboboxValue>
+                                </ComboboxChips>
+                                <ComboboxContent anchor={mentorAnchor}>
+                                    <ComboboxEmpty>
+                                        Pengguna tidak ditemukan.
+                                    </ComboboxEmpty>
+                                    <ComboboxList>
+                                        {(option: MentorOption) => (
+                                            <ComboboxItem
+                                                key={option.id}
+                                                value={option}
+                                            >
+                                                <span className="flex min-w-0 flex-col">
+                                                    <span>{option.name}</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {option.email}
+                                                    </span>
+                                                </span>
+                                            </ComboboxItem>
+                                        )}
+                                    </ComboboxList>
+                                </ComboboxContent>
+                            </Combobox>
                         </FormField>
                         <FormField
                             id="is_active"

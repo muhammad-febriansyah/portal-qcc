@@ -32,7 +32,7 @@ export function StepHistory({
 }) {
     if (entries.length === 0) {
         return (
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
                 Belum ada riwayat perubahan.
             </p>
         );
@@ -45,7 +45,7 @@ export function StepHistory({
                     key={entry.id}
                     className="grid gap-0.5 border-b border-border/60 py-3 first:pt-0 last:border-b-0 last:pb-0"
                 >
-                    <p className="text-[13px]">
+                    <p className="text-sm">
                         <span className="font-medium">
                             {entry.actor ?? 'Sistem'}
                         </span>{' '}
@@ -64,7 +64,7 @@ export function StepHistory({
                             ` · ${statusLabels[entry.previous_status ?? ''] ?? '—'} → ${statusLabels[entry.new_status] ?? entry.new_status}`}
                     </p>
                     {entry.reason && (
-                        <p className="mt-1 rounded-md bg-muted px-3 py-2 text-[13px] whitespace-pre-line">
+                        <p className="mt-1 rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-line">
                             {entry.reason}
                         </p>
                     )}

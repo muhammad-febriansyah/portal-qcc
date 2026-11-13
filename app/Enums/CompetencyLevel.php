@@ -9,14 +9,29 @@ enum CompetencyLevel: int
     case Proficient = 3;
     case Expert = 4;
 
-    public function label(): string
+    /**
+     * The Indonesian word shown beside the English level name, so a beginner understands it.
+     */
+    public function alias(): string
     {
         return match ($this) {
+            self::Awareness => 'Pemula',
+            self::Basic => 'Dasar',
+            self::Proficient => 'Mahir',
+            self::Expert => 'Ahli',
+        };
+    }
+
+    public function label(): string
+    {
+        $name = match ($this) {
             self::Awareness => 'Awareness',
             self::Basic => 'Basic',
             self::Proficient => 'Proficient',
             self::Expert => 'Expert',
         };
+
+        return "{$name} ({$this->alias()})";
     }
 
     /**

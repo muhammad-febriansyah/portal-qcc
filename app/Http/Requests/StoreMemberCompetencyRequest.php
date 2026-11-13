@@ -4,15 +4,17 @@ namespace App\Http\Requests;
 
 use App\Enums\CompetencyLevel;
 use App\Models\MemberCompetency;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 class StoreMemberCompetencyRequest extends FormRequest
 {
-    public function authorize(): bool
+    public function authorize(): Response
     {
-        return $this->user()?->can('create', MemberCompetency::class) ?? false;
+        return Gate::inspect('create', MemberCompetency::class);
     }
 
     /**

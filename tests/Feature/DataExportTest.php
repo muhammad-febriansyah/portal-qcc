@@ -12,6 +12,10 @@ use Spatie\Permission\Models\Role;
 
 require_once __DIR__.'/Scoring/helpers.php';
 
+beforeEach(function (): void {
+    config()->set('qcc_features.chapter_ten_scoring', true);
+});
+
 function exportMember(): User
 {
     $member = User::factory()->create();
@@ -54,7 +58,7 @@ test('mentor, team leader and member cannot export scoring without scoring view 
     expect(AuditLog::query()->where('event', 'data.exported')->exists())->toBeFalse();
 });
 
-test('biweekly export includes action item owner, due date and status', function () {
+test('biweekly export downloads a formatted Excel workbook with action item details', function () {
     $member = exportMember();
     $project = Project::factory()->create(['proposer_id' => $member->id]);
     $project->members()->attach($member->id, [
@@ -81,14 +85,62 @@ test('biweekly export includes action item owner, due date and status', function
     ]);
 
     $response = $this->actingAs($member)->get(route('projects.biweekly.export', $project));
-    $response->assertOk();
-    $csv = $response->streamedContent();
+    $response->assertOk()
+        ->assertDownload(sprintf('laporan-biweekly-prp-%04d.xlsx', $project->id))
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
-    expect($csv)
+    $workbook = new ZipArchive;
+    expect($workbook->open($response->baseResponse->getFile()->getPathname()))->toBeTrue();
+
+    $sheet = $workbook->getFromName('xl/worksheets/sheet1.xml');
+    $styles = $workbook->getFromName('xl/styles.xml');
+    $workbook->close();
+
+    expect($sheet)
+        ->toContain('LAPORAN BI-WEEKLY')
         ->toContain('Kirim data')
         ->toContain($member->name)
         ->toContain('2026-10-30')
-        ->toContain('Terbuka');
+        ->toContain('Terbuka')
+        ->toContain('autoFilter')
+        ->toContain('state="frozen"');
+
+    expect(simplexml_load_string($sheet))->toBeInstanceOf(SimpleXMLElement::class);
+    expect(simplexml_load_string($styles))->toBeInstanceOf(SimpleXMLElement::class);
+    expect($styles)->toContain('FF203864');
+
+    expect(AuditLog::query()->where('event', 'data.exported')->sole()->after_json)
+        ->toMatchArray(['type' => 'laporan_biweekly', 'format' => 'xlsx', 'row_count' => 1]);
+});
+
+test('biweekly export labels reports without action items instead of leaving cells blank', function () {
+    $member = exportMember();
+    $project = Project::factory()->create(['proposer_id' => $member->id]);
+    $project->members()->attach($member->id, [
+        'role_in_project' => 'MEMBER',
+        'status' => 'ACTIVE',
+        'joined_at' => now(),
+    ]);
+    BiweeklyReport::query()->create([
+        'project_id' => $project->id,
+        'period_no' => 1,
+        'starts_on' => '2026-10-01',
+        'ends_on' => '2026-10-14',
+        'created_by' => $member->id,
+    ]);
+
+    $response = $this->actingAs($member)->get(route('projects.biweekly.export', $project));
+    $response->assertOk();
+
+    $workbook = new ZipArchive;
+    expect($workbook->open($response->baseResponse->getFile()->getPathname()))->toBeTrue();
+
+    $sheet = $workbook->getFromName('xl/worksheets/sheet1.xml');
+    $workbook->close();
+
+    expect($sheet)
+        ->toContain('Belum ada action item')
+        ->toContain('—');
 });
 
 test('scoring export keeps ai, reviewer and final scores in separate columns', function () {

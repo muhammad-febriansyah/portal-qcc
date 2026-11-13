@@ -61,7 +61,8 @@ it('records a risk with its PIC and due date and audits it', function () {
 
     expect($risk->pic_id)->toBe($this->member->id)->and($risk->due_date->toDateString())->toBe('2026-12-01')
         ->and($risk->created_by)->toBe($this->leader->id)
-        ->and(AuditLog::query()->where('event', 'risk.created')->first()->actor_id)->toBe($this->leader->id);
+        ->and(AuditLog::query()->where('event', 'risk.created')->first()->actor_id)->toBe($this->leader->id)
+        ->and($this->member->notifications()->where('data->decision', 'RISK_ASSIGNED')->count())->toBe(1);
 });
 
 it('validates the risk form and keeps the PIC inside the team', function () {

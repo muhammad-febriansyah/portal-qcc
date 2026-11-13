@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Proposals\InitializeProjectSteps;
+use App\Actions\Proposals\ProposalCompleteness;
 use App\Enums\ActionStatus;
 use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
@@ -21,18 +22,24 @@ use App\Models\ScoringRun;
 use App\Models\User;
 use App\Services\AuditService;
 use App\Services\CsvExportService;
+use App\Services\ExcelExportService;
 use App\Services\ProposalListingQuery;
+use App\Services\ProposalPresentationBuilder;
 use App\Services\ScoringListingQuery;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DataExportController extends Controller
 {
-    public function __construct(private readonly CsvExportService $csv) {}
+    public function __construct(
+        private readonly CsvExportService $csv,
+        private readonly ExcelExportService $excel,
+    ) {}
 
     public function proposals(Request $request, ProposalListingQuery $listing, AuditService $audit): StreamedResponse
     {
@@ -55,6 +62,33 @@ class DataExportController extends Controller
         return $this->csv->download('daftar_proposal', 'daftar-proposal.csv', [
             'Kode', 'Judul Proposal', 'Batch', 'Pengusul', 'Organisasi', 'Jumlah Anggota', 'Status', 'Diperbarui',
         ], $rows, $rows->count(), $filters, $audit);
+    }
+
+    /**
+     * The proposal as a PowerPoint deck built from the program's presentation template.
+     */
+    public function proposalPresentation(Project $project, ProposalPresentationBuilder $builder, AuditService $audit, ProposalCompleteness $completeness): BinaryFileResponse
+    {
+        Gate::authorize('view', $project);
+        abort_unless(
+            $completeness->canExportPresentation($project),
+            422,
+            'Lengkapi isian wajib proposal sebelum mengekspor PPT: '.implode(', ', $completeness->missingLabels($project)).'.',
+        );
+
+        $path = $builder->build($project);
+
+        $audit->record('data.exported', after: [
+            'type' => 'proposal_presentation',
+            'format' => 'pptx',
+            'filters' => ['project_id' => $project->id],
+            'row_count' => 1,
+        ], subjectLabel: sprintf('Ekspor PPT · PRP-%04d', $project->id));
+
+        return response()->download($path, $builder->filename($project), [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'Cache-Control' => 'no-store, private',
+        ])->deleteFileAfterSend(true);
     }
 
     public function projects(Request $request, AuditService $audit): StreamedResponse
@@ -124,13 +158,24 @@ class DataExportController extends Controller
         return $this->csv->download('laporan_biweekly', 'laporan-biweekly.csv', $this->reportHeaders(), $rows, count($rows), [], $audit);
     }
 
-    public function biweekly(Request $request, Project $project, AuditService $audit): StreamedResponse
+    public function biweekly(Request $request, Project $project, AuditService $audit): BinaryFileResponse
     {
         Gate::authorize('view', $project);
-        $reports = $project->biweeklyReports()->with(['attendees:id,name', 'actions.pic:id,name'])->limit(100)->get();
+        $reports = $project->biweeklyReports()->with(['attendees:id,name', 'actions.pic:id,name'])
+            ->orderByDesc('period_no')->orderByDesc('id')->limit(100)->get();
         $rows = $this->reportRows($reports, $project);
 
-        return $this->csv->download('laporan_biweekly', sprintf('laporan-biweekly-prp-%04d.csv', $project->id), $this->reportHeaders(), $rows, count($rows), ['project_id' => $project->id], $audit);
+        return $this->excel->download(
+            'laporan_biweekly',
+            sprintf('laporan-biweekly-prp-%04d.xlsx', $project->id),
+            'LAPORAN BI-WEEKLY',
+            sprintf('%s · %s · Diekspor %s', sprintf('PRP-%04d', $project->id), $project->title, now()->format('d M Y, H:i')),
+            $this->reportHeaders(),
+            $rows,
+            count($rows),
+            ['project_id' => $project->id],
+            $audit,
+        );
     }
 
     public function mentoringDirectory(Request $request, AuditService $audit): StreamedResponse
@@ -268,7 +313,7 @@ class DataExportController extends Controller
                     $report->team_response, $report->assignment?->mentor?->name, $report->status->label()];
 
             if ($reportActions->isEmpty()) {
-                $rows[] = [...$base, null, null, null, null];
+                $rows[] = [...$base, 'Belum ada action item', '—', '—', '—'];
 
                 continue;
             }

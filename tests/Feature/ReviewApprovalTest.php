@@ -19,6 +19,10 @@ use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
+beforeEach(function (): void {
+    config()->set('qcc_features.chapter_ten_scoring', true);
+});
+
 function reviewInboxUser(string $role = 'Owner QCC'): User
 {
     $user = User::factory()->create();

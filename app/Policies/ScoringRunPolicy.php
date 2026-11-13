@@ -28,7 +28,7 @@ class ScoringRunPolicy
 
     public function review(User $user, ScoringRun $run): bool
     {
-        return ! $user->hasRole('Mentor')
+        return ! $user->actsOnlyAsMentor()
             && $user->can('scoring.review')
             && ($user->can('projects.viewAny') || $this->hasAssignment($user, $run))
             && $run->project !== null
@@ -37,7 +37,7 @@ class ScoringRunPolicy
 
     public function approve(User $user, ScoringRun $run): bool
     {
-        return ! $user->hasRole('Mentor')
+        return ! $user->actsOnlyAsMentor()
             && $user->can('scoring.approve')
             && ($user->can('projects.viewAny') || $this->hasAssignment($user, $run))
             && $run->project !== null

@@ -6,6 +6,7 @@ use App\Jobs\InspectProjectEvidence;
 use App\Models\BiweeklyReport;
 use App\Models\Project;
 use App\Models\ProjectEvidence;
+use App\Models\ProjectMentor;
 use App\Models\ProjectStep;
 use App\Models\QccBatch;
 use App\Models\User;
@@ -144,6 +145,32 @@ test('seeded SIMer members can view and upload evidence for their active team pr
     $this->actingAs($outsider)
         ->get(route('projects.evidence.index', $project))
         ->assertForbidden();
+});
+
+test('seeded mentors can view evidence only for projects assigned to them', function () {
+    $this->seed(ProjectAccessSeeder::class);
+
+    $leader = qccEvidenceUploader();
+    $project = approvedEvidenceProject($leader);
+    $mentor = User::factory()->create();
+    $mentor->assignRole(Role::findOrCreate('Mentor', 'web'));
+
+    ProjectMentor::query()->create([
+        'project_id' => $project->id,
+        'mentor_id' => $mentor->id,
+        'assigned_by' => $leader->id,
+        'status' => 'ACTIVE',
+        'assigned_at' => now(),
+    ]);
+
+    $this->actingAs($mentor)
+        ->get(route('projects.evidence.index', $project))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('can_upload', false));
+
+    $otherProject = approvedEvidenceProject($leader);
+
+    $this->get(route('projects.evidence.index', $otherProject))->assertForbidden();
 });
 
 test('evidence upload rejects file content that does not match its extension', function () {

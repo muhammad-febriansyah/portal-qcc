@@ -22,8 +22,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Owner QCC assigns mentors; active mentors can review and approve 8 Step work
- * through the dedicated step workflow.
+ * The proposer's Div/LOB head is the project's mentor, assigned on submission and locked;
+ * active mentors can review and approve 8 Step work through the dedicated step workflow.
  */
 class MentoringController extends Controller
 {
@@ -38,10 +38,11 @@ class MentoringController extends Controller
 
         $user = $request->user();
         $canWrite = $user->can('writeMentoring', $project);
+        $isTeamLeader = $user->hasRole('Team Leader');
         $canViewEvidence = $user->can('viewEvidence', $project);
         $assignments = $project->mentorAssignments()->with('mentor:id,name')->orderByDesc('id')->get();
         $reports = MentoringReport::query()->where('project_id', $project->id)
-            ->with(['assignment.mentor:id,name', 'actions.pic:id,name'])
+            ->with(['assignment.mentor:id,name', 'creator:id,name', 'actions.pic:id,name'])
             ->when($canViewEvidence, fn ($query) => $query->with('evidenceLinks.evidence'))
             ->orderByDesc('session_at')->limit(100)->get();
 
@@ -53,9 +54,9 @@ class MentoringController extends Controller
             ])->all(),
             'reports' => $reports->map(fn (MentoringReport $report): array => [
                 'id' => $report->id, 'session_at' => Carbon::parse($report->session_at)->toIso8601String(),
-                'mentor' => $report->assignment?->mentor?->name, 'topic' => $report->topic, 'findings' => $report->findings,
+                'mentor' => $report->assignment?->mentor?->name, 'author' => $report->creator?->name, 'author_type' => $report->created_by === $report->assignment?->mentor_id ? 'MENTOR' : 'TEAM_LEADER', 'project_mentor_id' => $report->project_mentor_id, 'topic' => $report->topic, 'findings' => $report->findings,
                 'suggestions' => $report->suggestions, 'next_steps' => $report->next_steps,
-                'status' => $report->status->value, 'status_label' => $report->status->label(),
+                'status' => $report->status->value, 'status_label' => $report->created_by !== $report->assignment?->mentor_id && $report->status === ReportStatus::Acknowledged ? 'Feedback Mentor diberikan' : $report->status->label(),
                 'team_response' => $report->team_response,
                 'actions' => $report->actions->map(fn (ActionItem $action): array => [
                     'id' => $action->id, 'title' => $action->title, 'description' => $action->description,
@@ -69,72 +70,13 @@ class MentoringController extends Controller
                         ? route('projects.evidence.download', [$project, $link->evidence]) : null,
                 ])->all() : [],
                 'can_edit' => $canWrite && $report->status === ReportStatus::Draft && $report->created_by === $user->id,
-                'can_acknowledge' => $report->status === ReportStatus::Submitted && $user->can('manageReports', $project),
+                'can_acknowledge' => $user->can('respondToMentoring', [$project, $report]),
             ])->all(),
             'members' => $project->members()->wherePivot('status', 'ACTIVE')->wherePivotNull('left_at')->orderBy('users.name')->get(['users.id', 'users.name'])
                 ->map(fn (User $member): array => ['value' => (string) $member->id, 'label' => $member->name])->all(),
-            'mentor_options' => $user->can('assignMentors', $project)
-                ? User::role('Mentor')->where('is_active', true)
-                    ->whereNotIn('id', $project->mentorAssignments()->where('status', 'ACTIVE')->pluck('mentor_id'))
-                    ->orderBy('name')->get(['id', 'name'])->map(fn (User $mentor): array => ['value' => (string) $mentor->id, 'label' => $mentor->name])->all()
-                : [],
-            'can_assign' => $user->can('assignMentors', $project),
             'can_write' => $canWrite,
+            'is_team_leader' => $isTeamLeader,
         ]);
-    }
-
-    public function assign(Request $request, Project $project): RedirectResponse
-    {
-        Gate::authorize('assignMentors', $project);
-
-        $data = $request->validate([
-            'mentor_id' => ['required', 'integer', Rule::exists('users', 'id')->where('is_active', true)],
-        ], ['mentor_id.required' => 'Pilih mentor.']);
-
-        $mentor = User::query()->whereKey((int) $data['mentor_id'])->firstOrFail();
-
-        DB::transaction(function () use ($request, $project, $mentor): void {
-            Project::query()->whereKey($project->id)->lockForUpdate()->first();
-
-            if (! $mentor->hasRole('Mentor')) {
-                throw ValidationException::withMessages(['mentor_id' => 'Pengguna ini bukan Mentor.']);
-            }
-
-            if ($project->mentorAssignments()->where('mentor_id', $mentor->id)->where('status', 'ACTIVE')->exists()) {
-                throw ValidationException::withMessages(['mentor_id' => 'Mentor ini sudah ditugaskan di proyek ini.']);
-            }
-
-            $assignment = ProjectMentor::query()->create([
-                'project_id' => $project->id, 'mentor_id' => $mentor->id, 'assigned_by' => $request->user()->id,
-                'status' => 'ACTIVE', 'assigned_at' => now(),
-            ]);
-
-            $this->audit->record('mentor.assigned', $assignment, after: ['mentor_id' => $mentor->id], subjectLabel: "{$mentor->name} untuk proposal PRP-".sprintf('%04d', $project->id));
-
-            $this->notifier->notify([$mentor], $project, 'Kamu ditugaskan sebagai mentor', "Kamu menjadi mentor proyek {$project->title}.", route('projects.mentoring.index', $project, false), 'MENTOR_ASSIGNED', $request->user());
-            $this->notifier->notify($this->notifier->leaders($project), $project, 'Mentor ditugaskan', "{$mentor->name} menjadi mentor proyek {$project->title}.", route('projects.mentoring.index', $project, false), 'MENTOR_ASSIGNED', $request->user());
-        });
-
-        return $this->done($project, 'Mentor berhasil ditugaskan.');
-    }
-
-    public function endAssignment(Request $request, Project $project, ProjectMentor $assignment): RedirectResponse
-    {
-        Gate::authorize('assignMentors', $project);
-        abort_unless($assignment->project_id === $project->id, 404);
-
-        DB::transaction(function () use ($project, $assignment): void {
-            $assignment = ProjectMentor::query()->lockForUpdate()->findOrFail($assignment->id);
-
-            if ($assignment->status !== 'ACTIVE') {
-                throw ValidationException::withMessages(['assignment' => 'Penugasan ini sudah berakhir.']);
-            }
-
-            $assignment->forceFill(['status' => 'ENDED', 'ended_at' => now()])->save();
-            $this->audit->record('mentor.unassigned', $assignment, subjectLabel: 'Mentor proposal PRP-'.sprintf('%04d', $project->id));
-        });
-
-        return $this->done($project, 'Penugasan mentor diakhiri.');
     }
 
     public function store(Request $request, Project $project): RedirectResponse
@@ -142,10 +84,12 @@ class MentoringController extends Controller
         Gate::authorize('writeMentoring', $project);
 
         $data = $this->validated($request, $project);
-        $assignment = $project->mentorAssignments()->where('mentor_id', $request->user()->id)->where('status', 'ACTIVE')->firstOrFail();
+        $assignment = $request->user()->mentorsProject($project)
+            ? $project->mentorAssignments()->where('mentor_id', $request->user()->id)->where('status', 'ACTIVE')->firstOrFail()
+            : $project->mentorAssignments()->whereKey((int) $data['project_mentor_id'])->where('status', 'ACTIVE')->firstOrFail();
 
         $report = DB::transaction(function () use ($request, $project, $assignment, $data): MentoringReport {
-            $report = MentoringReport::query()->create([...collect($data)->except('actions')->all(), 'project_id' => $project->id, 'project_mentor_id' => $assignment->id, 'status' => ReportStatus::Draft, 'created_by' => $request->user()->id]);
+            $report = MentoringReport::query()->create([...collect($data)->except(['actions', 'project_mentor_id'])->all(), 'project_id' => $project->id, 'project_mentor_id' => $assignment->id, 'status' => ReportStatus::Draft, 'created_by' => $request->user()->id]);
             $this->syncActions($request, $project, $report, $data['actions'] ?? []);
 
             return $report;
@@ -163,7 +107,7 @@ class MentoringController extends Controller
         DB::transaction(function () use ($request, $project, $report, $data): void {
             $report = $this->lock($project, $report);
             $this->guardOwnDraft($report, $request->user());
-            $report->fill(collect($data)->except('actions')->all())->save();
+            $report->fill(collect($data)->except(['actions', 'project_mentor_id'])->all())->save();
             $this->syncActions($request, $project, $report, $data['actions'] ?? []);
             $this->audit->record('mentoring.updated', $report, subjectLabel: $this->label($project, $report));
         });
@@ -179,7 +123,7 @@ class MentoringController extends Controller
         DB::transaction(function () use ($request, $project, $report, $data): void {
             $report = $this->lock($project, $report);
             $this->guardOwnDraft($report, $request->user());
-            $report->fill(collect($data)->except('actions')->all());
+            $report->fill(collect($data)->except(['actions', 'project_mentor_id'])->all());
             $this->syncActions($request, $project, $report, $data['actions'] ?? []);
 
             $missing = [];
@@ -194,21 +138,32 @@ class MentoringController extends Controller
                 throw ValidationException::withMessages($missing);
             }
 
-            $report->forceFill(['status' => ReportStatus::Submitted, 'submitted_by' => $request->user()->id, 'submitted_at' => now()])->save();
+            $report->status = ReportStatus::Submitted;
+            $report->submitted_by = $request->user()->id;
+            $report->submitted_at = now();
+            $report->saveOrFail();
             $this->audit->record('mentoring.submitted', $report, subjectLabel: $this->label($project, $report));
 
-            $this->notifier->notify($this->notifier->team($project), $project, 'Feedback mentor baru', "Mentor mengirim feedback sesi \"{$report->topic}\".", route('projects.mentoring.index', $project, false), 'MENTORING_SUBMITTED', $request->user());
+            $mentorAuthored = $report->created_by === $report->assignment?->mentor_id;
+            $recipients = $mentorAuthored ? $this->notifier->team($project)->all() : [$report->assignment?->mentor];
+            $recipients = array_values(array_filter($recipients));
+            $title = $mentorAuthored ? 'Feedback mentor baru' : 'Laporan mentoring baru';
+            $message = $mentorAuthored ? "Mentor mengirim feedback sesi \"{$report->topic}\" untuk proyek {$project->title}." : "Team Leader mengirim laporan mentoring \"{$report->topic}\" untuk proyek {$project->title}.";
+            $this->notifier->notify($recipients, $project, $title, $message, route('projects.mentoring.index', $project, false), 'MENTORING_SUBMITTED', $request->user());
         });
 
-        return $this->done($project, 'Feedback mentoring dikirim ke tim.');
+        return $this->done($project, $report->created_by === $report->assignment?->mentor_id
+            ? 'Feedback mentoring dikirim ke tim.'
+            : 'Laporan mentoring dikirim ke mentor.');
     }
 
     public function acknowledge(Request $request, Project $project, MentoringReport $report): RedirectResponse
     {
-        Gate::authorize('manageReports', $project);
-        $data = $request->validate(['team_response' => ['required', 'string', 'max:10000']], ['team_response.required' => 'Tulis tanggapan tim.']);
+        Gate::authorize('respondToMentoring', [$project, $report]);
+        $isMentorResponse = $report->created_by !== $report->assignment?->mentor_id;
+        $data = $request->validate(['team_response' => ['required', 'string', 'max:10000']], ['team_response.required' => $isMentorResponse ? 'Tulis feedback mentor.' : 'Tulis tanggapan tim.']);
 
-        DB::transaction(function () use ($request, $project, $report, $data): void {
+        DB::transaction(function () use ($request, $project, $report, $data, $isMentorResponse): void {
             $report = $this->lock($project, $report);
 
             if ($report->status !== ReportStatus::Submitted) {
@@ -218,11 +173,11 @@ class MentoringController extends Controller
             $report->forceFill(['status' => ReportStatus::Acknowledged, 'team_response' => $data['team_response'], 'acknowledged_by' => $request->user()->id, 'acknowledged_at' => now()])->save();
             $this->audit->record('mentoring.acknowledged', $report, subjectLabel: $this->label($project, $report));
 
-            $mentor = $report->assignment?->mentor;
-            $this->notifier->notify($mentor ? [$mentor] : [], $project, 'Tim menanggapi feedback', "Tim menanggapi sesi \"{$report->topic}\".", route('projects.mentoring.index', $project, false), 'MENTORING_ACKNOWLEDGED', $request->user());
+            $recipients = $isMentorResponse ? $this->notifier->leaders($project) : array_filter([$report->assignment?->mentor]);
+            $this->notifier->notify($recipients, $project, $isMentorResponse ? 'Mentor memberi feedback' : 'Tim menanggapi feedback', $isMentorResponse ? "Mentor memberi feedback pada laporan \"{$report->topic}\" untuk proyek {$project->title}." : "Tim proyek {$project->title} menanggapi feedback sesi \"{$report->topic}\".", route('projects.mentoring.index', $project, false), 'MENTORING_ACKNOWLEDGED', $request->user());
         });
 
-        return $this->done($project, 'Tanggapan tim tersimpan.');
+        return $this->done($project, $isMentorResponse ? 'Feedback Mentor tersimpan.' : 'Tanggapan tim tersimpan.');
     }
 
     /**
@@ -233,6 +188,7 @@ class MentoringController extends Controller
         return $request->validate([
             'session_at' => ['required', 'date_format:Y-m-d\TH:i'],
             'topic' => ['required', 'string', 'max:255'],
+            'project_mentor_id' => [$request->user()->hasRole('Team Leader') && ! $request->user()->mentorsProject($project) ? 'required' : 'nullable', 'integer', Rule::exists('project_mentors', 'id')->where('project_id', $project->id)->where('status', 'ACTIVE')],
             'findings' => ['nullable', 'string', 'max:20000'],
             'suggestions' => ['nullable', 'string', 'max:20000'],
             'next_steps' => ['nullable', 'string', 'max:20000'],
@@ -243,7 +199,7 @@ class MentoringController extends Controller
             'actions.*.pic_id' => ['required', 'integer', Rule::exists('project_members', 'user_id')
                 ->where('project_id', $project->id)->where('status', 'ACTIVE')->whereNull('left_at')],
             'actions.*.due_date' => ['required', 'date_format:Y-m-d'],
-        ], ['session_at.required' => 'Waktu sesi wajib diisi.', 'topic.required' => 'Topik wajib diisi.']);
+        ], ['session_at.required' => 'Tanggal dan jam sesi wajib diisi.', 'topic.required' => 'Topik wajib diisi.', 'project_mentor_id.required' => 'Pilih mentor yang ditugaskan.']);
     }
 
     /** @param list<array{id?: int, title: string, description?: string|null, pic_id: int, due_date: string}> $actions */
@@ -270,7 +226,7 @@ class MentoringController extends Controller
                 $this->audit->record('action_item.updated', $item, before: $before, after: $item->only(['title', 'description', 'pic_id', 'due_date']));
                 if ($item->pic_id !== $previousPicId) {
                     $this->notifier->notify(
-                        $item->pic ? [$item->pic] : [], $project, 'Action item mentoring ditugaskan', "{$item->title} ditugaskan kepadamu.",
+                        $item->pic ? [$item->pic] : [], $project, 'Tindakan mentoring ditugaskan', "Tindakan \"{$item->title}\" pada proyek {$project->title} ditugaskan kepada Anda.",
                         route('projects.mentoring.index', $project, false), 'ACTION_ASSIGNED', $request->user(),
                     );
                 }
@@ -279,7 +235,7 @@ class MentoringController extends Controller
                 $keptIds[] = $item->id;
                 $this->audit->record('action_item.created', $item, after: $item->only(['title', 'description', 'pic_id', 'due_date']));
                 $this->notifier->notify(
-                    $item->pic ? [$item->pic] : [], $project, 'Action item mentoring ditugaskan', "{$item->title} ditugaskan kepadamu.",
+                    $item->pic ? [$item->pic] : [], $project, 'Tindakan mentoring ditugaskan', "Tindakan \"{$item->title}\" pada proyek {$project->title} ditugaskan kepada Anda.",
                     route('projects.mentoring.index', $project, false), 'ACTION_ASSIGNED', $request->user(),
                 );
             }

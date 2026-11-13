@@ -25,6 +25,11 @@ class ProjectNotificationMail extends Mailable
         'SUBMITTED' => 'Proposal diajukan',
         'RESUBMITTED' => 'Proposal diajukan ulang',
         'TEAM_COMPOSITION_PENDING' => 'Tim menunggu disusun',
+        'TEAM_COMPOSITION_CONFIRMED' => 'Tim proposal dikonfirmasi',
+        'TEAM_MEMBER_ADDED' => 'Ditambahkan ke tim',
+        'TEAM_MEMBER_REMOVED' => 'Dikeluarkan dari tim',
+        'TEAM_LEADER_CHANGED' => 'Leader tim diganti',
+        'PIC_REASSIGNED' => 'PIC proposal dipindahkan',
         'APPROVE' => 'Proposal disetujui',
         'REQUEST_REVISION' => 'Proposal perlu revisi',
         'REJECT' => 'Proposal ditolak',
@@ -87,7 +92,7 @@ class ProjectNotificationMail extends Mailable
 
         $data = [
             ...$this->brandData(),
-            'recipientName' => $this->recipient->name,
+            'recipientName' => $this->greetingName($this->recipient->name),
             'headline' => $this->title,
             'summary' => $this->summary,
             'rows' => $rows,

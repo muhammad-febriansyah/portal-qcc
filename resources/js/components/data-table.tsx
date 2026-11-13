@@ -14,6 +14,7 @@ import {
 import { useMemo } from 'react';
 import {
     Empty,
+    EmptyContent,
     EmptyDescription,
     EmptyHeader,
     EmptyMedia,
@@ -61,6 +62,7 @@ type DataTableProps<TData extends RowData> = {
     isLoading?: boolean;
     emptyTitle?: string;
     emptyDescription?: string;
+    emptyAction?: React.ReactNode;
     pageSizes?: number[];
     rowId?: (row: TData, index: number) => string;
     sortableColumns?: string[];
@@ -87,6 +89,7 @@ export function DataTable<TData extends RowData>({
     isLoading = false,
     emptyTitle = 'Belum ada data',
     emptyDescription = 'Data yang sesuai akan tampil di sini.',
+    emptyAction,
     pageSizes = [10, 25, 50],
     rowId,
     sortableColumns,
@@ -136,34 +139,36 @@ export function DataTable<TData extends RowData>({
             className={embedded ? 'space-y-0' : 'space-y-4'}
             aria-busy={isLoading}
         >
-            <div
-                className={cn(
-                    'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
-                    embedded && 'p-4 md:p-5',
-                )}
-            >
-                <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-                    {onSearchChange && (
-                        <div className="relative w-full sm:max-w-xs">
-                            <Search
-                                aria-hidden="true"
-                                className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                            />
-                            <Input
-                                value={search ?? ''}
-                                onChange={(event) =>
-                                    onSearchChange(event.target.value)
-                                }
-                                placeholder={searchPlaceholder}
-                                aria-label={searchPlaceholder}
-                                className="pl-9"
-                            />
-                        </div>
+            {(onSearchChange || filters || toolbar) && (
+                <div
+                    className={cn(
+                        'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
+                        embedded && 'p-4 md:p-5',
                     )}
-                    {filters}
+                >
+                    <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+                        {onSearchChange && (
+                            <div className="relative w-full sm:max-w-xs">
+                                <Search
+                                    aria-hidden="true"
+                                    className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                                />
+                                <Input
+                                    value={search ?? ''}
+                                    onChange={(event) =>
+                                        onSearchChange(event.target.value)
+                                    }
+                                    placeholder={searchPlaceholder}
+                                    aria-label={searchPlaceholder}
+                                    className="pl-9"
+                                />
+                            </div>
+                        )}
+                        {filters}
+                    </div>
+                    {toolbar}
                 </div>
-                {toolbar}
-            </div>
+            )}
             <div
                 className={
                     embedded
@@ -267,6 +272,9 @@ export function DataTable<TData extends RowData>({
                                     {emptyDescription}
                                 </EmptyDescription>
                             </EmptyHeader>
+                            {emptyAction && (
+                                <EmptyContent>{emptyAction}</EmptyContent>
+                            )}
                         </Empty>
                     </div>
                 )}

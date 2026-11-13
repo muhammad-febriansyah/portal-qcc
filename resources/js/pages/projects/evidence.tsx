@@ -1,26 +1,26 @@
-import { Head, Link, router, useForm, usePoll } from '@inertiajs/react';
+import { Head, router, useForm, usePoll } from '@inertiajs/react';
+import { format, parseISO } from 'date-fns';
+import { id as indonesianLocale } from 'date-fns/locale';
 import {
+    Download,
+    ExternalLink,
+    Eye,
     FileArchive,
     FileImage,
     FileText,
     Link2,
-    Search,
     ShieldCheck,
     UploadCloud,
 } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { FileUploader } from '@/components/file-uploader';
 import { FormField } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
+import { DataTable, type DataTableColumnDef } from '@/components/data-table';
+import { DataTableRowActions } from '@/components/data-table-row-actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    Empty,
-    EmptyHeader,
-    EmptyMedia,
-    EmptyTitle,
-} from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -38,6 +38,7 @@ import {
     index as evidenceIndex,
     store as evidenceStore,
 } from '@/routes/projects/evidence';
+import { randomId } from '@/lib/utils';
 
 type StepOption = { id: number; number: number; name: string };
 type EvidenceTargetType =
@@ -77,8 +78,8 @@ type Paginator<T> = {
     data: T[];
     current_page: number;
     last_page: number;
+    per_page: number;
     total: number;
-    links: { url: string | null; label: string; active: boolean }[];
 };
 type Props = {
     project: { id: number; code: string; title: string };
@@ -135,6 +136,14 @@ const scanVariants: Record<
     REJECTED: 'destructive',
     FAILED: 'warning',
     NOT_REQUIRED: 'secondary',
+};
+const scanBadgeClasses: Record<string, string> = {
+    PENDING: 'border-transparent bg-slate-100 text-slate-700',
+    PROCESSING: 'border-transparent bg-cyan-100 text-cyan-800',
+    PASSED: 'border-transparent bg-emerald-100 text-emerald-800',
+    REJECTED: 'border-transparent bg-rose-100 text-rose-800',
+    FAILED: 'border-transparent bg-amber-100 text-amber-900',
+    NOT_REQUIRED: 'border-transparent bg-slate-100 text-slate-700',
 };
 
 function formatBytes(bytes: number): string {
@@ -228,27 +237,242 @@ export default function ProjectEvidencePage({
         }));
     }
 
-    function changeSearch(event: FormEvent<HTMLFormElement>): void {
-        event.preventDefault();
+    function visitEvidence(nextSearch: string, page: number): void {
         router.get(
-            evidenceIndex.url(
-                { project: project.id },
-                search ? { query: { q: search } } : {},
-            ),
-            {},
+            evidenceIndex.url({ project: project.id }),
+            { q: nextSearch, page },
             {
                 preserveState: true,
                 preserveScroll: true,
                 replace: true,
+                only: ['evidence', 'search'],
             },
         );
     }
+
+    useEffect(() => setSearch(initialSearch), [initialSearch]);
+    useEffect(() => {
+        if (search === initialSearch) return;
+
+        const timeout = window.setTimeout(() => visitEvidence(search, 1), 350);
+
+        return () => window.clearTimeout(timeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [search]);
 
     const uploadItems = selectedFiles.map((item) => ({
         ...item,
         status: form.processing ? ('uploading' as const) : ('queued' as const),
         progress: form.progress?.percentage ?? 0,
     }));
+
+    const columns = useMemo<DataTableColumnDef<EvidenceItem>[]>(
+        () => [
+            {
+                id: 'evidence',
+                accessorKey: 'title',
+                header: 'Evidence',
+                cell: ({ row }) => {
+                    const item = row.original;
+                    const Icon =
+                        item.source_type === 'FILE'
+                            ? fileIcon(item.mime_type ?? '')
+                            : Link2;
+
+                    return (
+                        <div className="flex min-w-56 items-start gap-3">
+                            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                                {item.thumbnail_url ? (
+                                    <img
+                                        src={item.thumbnail_url}
+                                        alt=""
+                                        loading="lazy"
+                                        className="size-full rounded-lg object-cover"
+                                    />
+                                ) : (
+                                    <Icon aria-hidden="true" />
+                                )}
+                            </span>
+                            <div className="grid min-w-0 gap-1">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="font-medium text-foreground">
+                                        {item.title}
+                                    </span>
+                                    <Badge variant="outline">
+                                        v{item.version_number}
+                                    </Badge>
+                                    <Badge variant="outline">
+                                        {sourceTypes.find(
+                                            ([value]) =>
+                                                value === item.source_type,
+                                        )?.[1] ?? item.source_type}
+                                    </Badge>
+                                </div>
+                                <span className="truncate text-xs text-muted-foreground">
+                                    {item.source_type === 'FILE'
+                                        ? `${item.original_name ?? 'File'} · ${formatBytes(item.size_bytes ?? 0)}`
+                                        : (item.url ?? 'Tautan')}
+                                </span>
+                                {item.description && (
+                                    <span className="line-clamp-2 max-w-md text-xs text-muted-foreground">
+                                        {item.description}
+                                    </span>
+                                )}
+                                {item.summary && (
+                                    <span
+                                        className="line-clamp-2 max-w-md text-xs text-muted-foreground"
+                                        title={item.summary}
+                                    >
+                                        Ringkasan AI: {item.summary}
+                                    </span>
+                                )}
+                                {item.source_type === 'AI_CHAT_LINK' && (
+                                    <span className="text-xs text-muted-foreground">
+                                        Isi tautan percakapan tidak dibaca
+                                        sistem.
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    );
+                },
+            },
+            {
+                accessorKey: 'category',
+                header: 'Kategori',
+                cell: ({ row }) =>
+                    categories.find(
+                        ([value]) => value === row.original.category,
+                    )?.[1] ?? row.original.category,
+            },
+            {
+                id: 'targets',
+                header: 'Terkait',
+                cell: ({ row }) => (
+                    <div className="grid gap-1">
+                        {row.original.targets.map((target) => (
+                            <span key={target} className="text-sm">
+                                {target}
+                            </span>
+                        ))}
+                    </div>
+                ),
+            },
+            {
+                id: 'uploader',
+                header: 'Diunggah oleh',
+                cell: ({ row }) => (
+                    <div className="grid min-w-28 gap-1">
+                        <span>{row.original.uploader ?? 'Pengguna'}</span>
+                        <span className="text-xs text-muted-foreground">
+                            {row.original.uploaded_at
+                                ? format(
+                                      parseISO(row.original.uploaded_at),
+                                      'd MMM yyyy',
+                                      { locale: indonesianLocale },
+                                  )
+                                : '—'}
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                id: 'status',
+                header: 'Status file',
+                cell: ({ row }) => (
+                    <div className="grid justify-items-start gap-1">
+                        <Badge
+                            className={
+                                scanBadgeClasses[row.original.scan_status] ??
+                                'border-transparent bg-slate-100 text-slate-700'
+                            }
+                            variant={
+                                scanVariants[row.original.scan_status] ??
+                                'secondary'
+                            }
+                        >
+                            {row.original.scan_status === 'PASSED' && (
+                                <ShieldCheck data-icon="inline-start" />
+                            )}
+                            {scanLabels[row.original.scan_status] ??
+                                row.original.scan_status}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                            {row.original.source_type !== 'FILE'
+                                ? 'Tautan tersimpan'
+                                : row.original.processing_status === 'READY'
+                                  ? 'Pemrosesan siap'
+                                  : row.original.processing_status === 'FAILED'
+                                    ? 'Pemrosesan gagal'
+                                    : 'Sedang diproses'}
+                            {row.original.source_type === 'FILE' &&
+                                row.original.extraction_status === 'READY' &&
+                                ' · Teks tersedia'}
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                id: 'actions',
+                header: 'Aksi',
+                cell: ({ row }) => {
+                    const item = row.original;
+                    const hasAvailableAction =
+                        item.preview_url !== null ||
+                        item.download_url !== null ||
+                        (item.source_type !== 'FILE' && item.url !== null);
+
+                    if (!hasAvailableAction) {
+                        return <span className="text-muted-foreground">—</span>;
+                    }
+
+                    return (
+                        <div className="flex justify-end">
+                            <DataTableRowActions
+                                label={`Aksi evidence ${item.title}`}
+                                actions={[
+                                    {
+                                        label: 'Pratinjau',
+                                        icon: Eye,
+                                        onSelect: () =>
+                                            window.open(
+                                                item.preview_url!,
+                                                '_blank',
+                                                'noopener,noreferrer',
+                                            ),
+                                        hidden: !item.preview_url,
+                                    },
+                                    {
+                                        label: 'Unduh',
+                                        icon: Download,
+                                        onSelect: () =>
+                                            window.location.assign(
+                                                item.download_url!,
+                                            ),
+                                        hidden: !item.download_url,
+                                    },
+                                    {
+                                        label: 'Buka tautan',
+                                        icon: ExternalLink,
+                                        onSelect: () =>
+                                            window.open(
+                                                item.url!,
+                                                '_blank',
+                                                'noopener,noreferrer',
+                                            ),
+                                        hidden:
+                                            item.source_type === 'FILE' ||
+                                            !item.url,
+                                    },
+                                ]}
+                            />
+                        </div>
+                    );
+                },
+            },
+        ],
+        [],
+    );
 
     return (
         <>
@@ -610,7 +834,7 @@ export default function ProjectEvidencePage({
                                                         file
                                                             ? [
                                                                   {
-                                                                      id: crypto.randomUUID(),
+                                                                      id: randomId(),
                                                                       file,
                                                                   },
                                                               ]
@@ -655,270 +879,38 @@ export default function ProjectEvidencePage({
                 )}
 
                 <Card>
-                    <CardHeader className="gap-4 border-b sm:flex-row sm:items-center sm:justify-between">
+                    <CardHeader className="border-b">
                         <CardTitle>
                             Daftar Evidence{' '}
                             <span className="text-sm font-normal text-muted-foreground">
                                 ({evidence.total})
                             </span>
                         </CardTitle>
-                        <form
-                            onSubmit={changeSearch}
-                            className="flex w-full gap-2 sm:max-w-sm"
-                        >
-                            <Input
-                                value={search}
-                                onChange={(event) =>
-                                    setSearch(event.target.value)
-                                }
-                                placeholder="Cari judul atau nama file..."
-                                aria-label="Cari evidence"
-                                className="h-9"
-                            />
-                            <Button
-                                type="submit"
-                                variant="outline"
-                                size="icon"
-                                aria-label="Cari evidence"
-                            >
-                                <Search />
-                            </Button>
-                        </form>
                     </CardHeader>
-                    <CardContent className="grid gap-3">
-                        {evidence.data.length === 0 ? (
-                            <Empty className="min-h-56 border">
-                                <EmptyHeader>
-                                    <EmptyMedia variant="icon">
-                                        <FileText aria-hidden="true" />
-                                    </EmptyMedia>
-                                    <EmptyTitle>
-                                        {search
-                                            ? 'Evidence tidak ditemukan'
-                                            : 'Belum ada evidence'}
-                                    </EmptyTitle>
-                                </EmptyHeader>
-                            </Empty>
-                        ) : (
-                            evidence.data.map((item) => {
-                                const Icon =
-                                    item.source_type === 'FILE'
-                                        ? fileIcon(item.mime_type ?? '')
-                                        : Link2;
-
-                                return (
-                                    <article
-                                        key={item.id}
-                                        className="flex min-w-0 flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center"
-                                    >
-                                        <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
-                                            {item.thumbnail_url ? (
-                                                <img
-                                                    src={item.thumbnail_url}
-                                                    alt=""
-                                                    loading="lazy"
-                                                    className="size-full object-cover"
-                                                />
-                                            ) : (
-                                                <Icon
-                                                    className="size-6 text-muted-foreground"
-                                                    aria-hidden="true"
-                                                />
-                                            )}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <h2 className="font-medium">
-                                                    {item.title}
-                                                </h2>
-                                                <Badge variant="outline">
-                                                    v{item.version_number}
-                                                </Badge>
-                                                <Badge variant="outline">
-                                                    {sourceTypes.find(
-                                                        ([value]) =>
-                                                            value ===
-                                                            item.source_type,
-                                                    )?.[1] ?? item.source_type}
-                                                </Badge>
-                                                <Badge
-                                                    variant={
-                                                        scanVariants[
-                                                            item.scan_status
-                                                        ] ?? 'secondary'
-                                                    }
-                                                >
-                                                    {item.scan_status ===
-                                                        'PASSED' && (
-                                                        <ShieldCheck data-icon="inline-start" />
-                                                    )}
-                                                    {scanLabels[
-                                                        item.scan_status
-                                                    ] ?? item.scan_status}
-                                                </Badge>
-                                            </div>
-                                            {item.source_type === 'FILE' ? (
-                                                <p className="mt-1 truncate text-sm text-muted-foreground">
-                                                    {item.original_name} ·{' '}
-                                                    {formatBytes(
-                                                        item.size_bytes ?? 0,
-                                                    )}
-                                                </p>
-                                            ) : (
-                                                item.url && (
-                                                    <a
-                                                        href={item.url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="mt-1 block truncate text-sm text-primary underline-offset-4 hover:underline"
-                                                    >
-                                                        {item.url}
-                                                    </a>
-                                                )
-                                            )}
-                                            {item.source_type ===
-                                                'AI_CHAT_LINK' &&
-                                                item.summary && (
-                                                    <div className="mt-2 rounded-lg border border-info/30 bg-info/5 p-3 text-sm">
-                                                        <p className="text-info-foreground font-medium">
-                                                            Ringkasan percakapan
-                                                            AI
-                                                        </p>
-                                                        <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
-                                                            {item.summary}
-                                                        </p>
-                                                        <p className="mt-2 text-xs text-muted-foreground">
-                                                            Isi tautan tidak
-                                                            dibaca sistem.
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            {item.description && (
-                                                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                                                    {item.description}
-                                                </p>
-                                            )}
-                                            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                                <span>
-                                                    {categories.find(
-                                                        ([value]) =>
-                                                            value ===
-                                                            item.category,
-                                                    )?.[1] ?? item.category}
-                                                </span>
-                                                {item.targets.map((target) => (
-                                                    <span key={target}>
-                                                        {target}
-                                                    </span>
-                                                ))}
-                                                <span>
-                                                    {item.uploader ??
-                                                        'Pengguna'}
-                                                </span>
-                                                <span>
-                                                    {item.source_type !== 'FILE'
-                                                        ? 'Tidak memerlukan pemrosesan file'
-                                                        : item.processing_status ===
-                                                            'READY'
-                                                          ? 'Pemrosesan siap'
-                                                          : item.processing_status ===
-                                                              'FAILED'
-                                                            ? 'Pemrosesan gagal'
-                                                            : 'Sedang diproses'}
-                                                </span>
-                                                {item.source_type === 'FILE' &&
-                                                    item.extraction_status ===
-                                                        'READY' && (
-                                                        <span>
-                                                            Teks PDF tersedia
-                                                        </span>
-                                                    )}
-                                            </div>
-                                        </div>
-                                        <div className="flex shrink-0 items-center gap-2">
-                                            {item.preview_url && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    render={
-                                                        <a
-                                                            href={
-                                                                item.preview_url
-                                                            }
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                        />
-                                                    }
-                                                    nativeButton={false}
-                                                >
-                                                    Pratinjau
-                                                </Button>
-                                            )}
-                                            {item.download_url && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    render={
-                                                        <a
-                                                            href={
-                                                                item.download_url
-                                                            }
-                                                        />
-                                                    }
-                                                    nativeButton={false}
-                                                >
-                                                    Unduh
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </article>
-                                );
-                            })
-                        )}
-                        {evidence.last_page > 1 && (
-                            <nav
-                                aria-label="Halaman evidence"
-                                className="flex flex-wrap justify-center gap-1 border-t pt-4"
-                            >
-                                {evidence.links.map((item, index) =>
-                                    item.url ? (
-                                        <Button
-                                            key={`${item.label}-${index}`}
-                                            variant={
-                                                item.active
-                                                    ? 'default'
-                                                    : 'outline'
-                                            }
-                                            size="sm"
-                                            render={
-                                                <Link
-                                                    href={item.url}
-                                                    preserveScroll
-                                                />
-                                            }
-                                            nativeButton={false}
-                                        >
-                                            {item.label.replace(
-                                                /&laquo;|&raquo;/g,
-                                                '',
-                                            )}
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            key={`${item.label}-${index}`}
-                                            variant="outline"
-                                            size="sm"
-                                            disabled
-                                        >
-                                            {item.label.replace(
-                                                /&laquo;|&raquo;/g,
-                                                '',
-                                            )}
-                                        </Button>
-                                    ),
-                                )}
-                            </nav>
-                        )}
+                    <CardContent className="p-0">
+                        <DataTable
+                            embedded
+                            columns={columns}
+                            data={evidence.data}
+                            rowId={(item) => String(item.id)}
+                            page={evidence.current_page}
+                            pageSize={evidence.per_page}
+                            total={evidence.total}
+                            onPageChange={(page) => visitEvidence(search, page)}
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder="Cari judul atau nama file..."
+                            emptyTitle={
+                                search
+                                    ? 'Evidence tidak ditemukan'
+                                    : 'Belum ada evidence'
+                            }
+                            emptyDescription={
+                                search
+                                    ? 'Coba kata kunci lain atau hapus pencarian.'
+                                    : 'Evidence proyek, tautan, dan dokumen akan tampil di sini.'
+                            }
+                        />
                     </CardContent>
                 </Card>
             </div>

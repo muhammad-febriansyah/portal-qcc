@@ -25,6 +25,7 @@ class ConfirmProjectTeamRequest extends FormRequest
         return [
             'manual' => ['sometimes', 'boolean'],
             'run_id' => ['nullable', 'integer', 'required_unless:manual,true'],
+            'pic_id' => ['required', 'integer'],
             'members' => ['required', 'array', 'max:'.(TeamRuleValidator::MAX_MEMBERS + 5)],
             'members.*.user_id' => ['required', 'integer'],
             'members.*.role_in_project' => ['required', Rule::in(TeamRuleValidator::ROLES)],
@@ -38,6 +39,7 @@ class ConfirmProjectTeamRequest extends FormRequest
             'members.required' => 'Pilih minimal satu anggota tim.',
             'members.max' => 'Terlalu banyak anggota dipilih.',
             'members.*.role_in_project.in' => 'Peran anggota hanya boleh Leader atau Anggota.',
+            'pic_id.required' => 'Pilih PIC proposal dari anggota tim.',
         ];
     }
 }

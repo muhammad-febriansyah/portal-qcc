@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ProposalStatus;
+use App\Enums\ThemeCategory;
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,6 +20,10 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $submitted_at
  * @property Carbon|null $approved_at
  * @property array<int, string>|null $learning_goals_json
+ * @property string|null $supplementary_information
+ * @property string|null $cost_projection
+ * @property ThemeCategory|null $theme_category
+ * @property list<array{step_number: int, start_date?: string|null, target_date: string|null, deliverable?: string|null}>|null $step_timeline_json
  * @property int $steps_total
  * @property int $steps_completed
  * @property int $approved_steps_count
@@ -36,9 +41,11 @@ class Project extends Model
     {
         return [
             'proposal_status' => ProposalStatus::class,
+            'theme_category' => ThemeCategory::class,
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
             'learning_goals_json' => 'array',
+            'step_timeline_json' => 'array',
         ];
     }
 
@@ -52,6 +59,12 @@ class Project extends Model
     public function proposer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'proposer_id');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function pic(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'pic_id');
     }
 
     /** @return HasMany<ProjectAttachment, $this> */
@@ -145,26 +158,16 @@ class Project extends Model
             return $query->whereRaw('1 = 0');
         }
 
-        $projectRoles = [];
-
-        if ($user->hasRole('Team Leader')) {
-            $projectRoles[] = 'LEADER';
-        }
-
-        if ($user->hasRole('SIMer / Member')) {
-            $projectRoles[] = 'MEMBER';
-        }
-
         $isMentor = $user->hasRole('Mentor');
 
-        return $query->where(function (Builder $query) use ($user, $projectRoles, $isMentor): void {
-            $query->where(function (Builder $members) use ($user, $projectRoles): void {
-                $members->whereHas('members', function (Builder $members) use ($user, $projectRoles): void {
+        return $query->where(function (Builder $query) use ($user, $isMentor): void {
+            $query->where(function (Builder $members) use ($user): void {
+                $members->whereHas('members', function (Builder $members) use ($user): void {
                     $members
                         ->where('users.id', $user->id)
                         ->where('project_members.status', 'ACTIVE')
                         ->whereNull('project_members.left_at')
-                        ->whereIn('project_members.role_in_project', $projectRoles);
+                        ->whereIn('project_members.role_in_project', ['LEADER', 'MEMBER']);
                 });
             })->orWhere(function (Builder $proposals) use ($user): void {
                 $proposals->where('proposer_id', $user->id);

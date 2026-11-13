@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\BatchStatus;
 use App\Enums\ProposalStatus;
 use App\Models\ActionItem;
 use App\Models\AuditLog;
@@ -33,6 +34,7 @@ it('seeds realistic local demo data idempotently without changing existing accou
 
     expect(User::query()->where('email', 'like', 'demo.%@example.test')->count())->toBe(75)
         ->and(QccBatch::query()->where('code', 'like', 'DEMO-QCC-%')->count())->toBe(3)
+        ->and(QccBatch::query()->where('status', BatchStatus::Active)->pluck('name')->all())->toBe(['QCC Batch 4'])
         ->and(Project::query()->where('title', 'like', '[DEMO] %')->count())->toBe(15)
         ->and(Project::query()->where('proposal_status', ProposalStatus::Approved)->count())->toBe(3)
         ->and(Project::query()->where('proposal_status', ProposalStatus::Approved)->withCount('steps')->get()->sum('steps_count'))->toBe(24)
@@ -63,4 +65,23 @@ it('refuses to seed demo data outside local or testing environments', function (
         ->toThrow(RuntimeException::class, 'Demo QCC data may only be seeded into a local or test database.');
 
     expect(User::query()->count())->toBe(0);
+});
+
+it('fills demo proposals with the current proposal sections', function () {
+    Storage::fake(config('qcc_evidence.disk'));
+    Competency::factory()->count(3)->create(['is_active' => true]);
+
+    app(DemoQccSeeder::class)->run();
+
+    $proposals = Project::query()->where('title', 'like', '[DEMO] %')->withCount('requirements')->get();
+
+    expect($proposals)->each(fn ($proposal) => $proposal
+        ->cost_projection->not->toBeEmpty()
+        ->step_timeline_json->toHaveCount(8)
+        ->problem_statement->toBeNull()
+        ->rca->toBeNull()
+        ->business_benefit->toBeNull()
+        ->requirements_count->toBe(2))
+        ->and($proposals->first()->step_timeline_json[0]['deliverable'])->toBe('Tema dan data awal disepakati')
+        ->and($proposals->first()->step_timeline_json[0]['start_date'])->not->toBeNull();
 });

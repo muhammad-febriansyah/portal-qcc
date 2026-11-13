@@ -5,10 +5,8 @@ namespace App\Services;
 use App\Enums\BatchStatus;
 use App\Enums\CompetencyLevel;
 use App\Models\AuditLog;
-use App\Models\CompetencyGroup;
 use App\Models\Organization;
 use App\Models\QccBatch;
-use App\Models\RubricSet;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -97,44 +95,26 @@ class AdminDashboardOverview
     }
 
     /**
-     * How many competency entries sit at each level, per competency group.
-     * The verified level counts first, otherwise the self assessed level.
+     * How many competency entries of active people sit at each level, on current skills.
      *
-     * @return array{groups: list<string>, levels: array<int, array{label: non-falsy-string, data: list<int>}>}
+     * @return list<array{level: int, label: non-falsy-string, count: int}>
      */
     private function competencyLevels(): array
     {
-        $groups = CompetencyGroup::query()->orderBy('code')->get(['id', 'code', 'name']);
-        $effectiveLevel = 'COALESCE(member_competencies.verified_level, member_competencies.self_level)';
-
-        /** @var Collection<int, object{group_id: int, level: int, total: int}> $rows */
-        $rows = DB::table('member_competencies')
+        $counts = DB::table('member_competencies')
             ->join('users', 'users.id', '=', 'member_competencies.user_id')
             ->join('competency_master', 'competency_master.id', '=', 'member_competencies.competency_id')
             ->where('users.is_active', true)
-            ->selectRaw("competency_master.group_id as group_id, {$effectiveLevel} as level, COUNT(*) as total")
-            ->groupBy('competency_master.group_id', DB::raw($effectiveLevel))
-            ->get();
+            ->where('competency_master.is_active', true)
+            ->groupBy('member_competencies.self_level')
+            ->selectRaw('member_competencies.self_level as level, COUNT(*) as total')
+            ->pluck('total', 'level');
 
-        $counts = [];
-
-        foreach ($rows as $row) {
-            $counts[(int) $row->group_id][(int) $row->level] = (int) $row->total;
-        }
-
-        $levels = [];
-
-        foreach (CompetencyLevel::cases() as $level) {
-            $levels[$level->value] = [
-                'label' => $level->value.' · '.$level->label(),
-                'data' => array_values($groups->map(fn (CompetencyGroup $group): int => $counts[$group->id][$level->value] ?? 0)->all()),
-            ];
-        }
-
-        return [
-            'groups' => array_values($groups->map(fn (CompetencyGroup $group): string => $group->name)->all()),
-            'levels' => $levels,
-        ];
+        return array_map(fn (CompetencyLevel $level): array => [
+            'level' => $level->value,
+            'label' => $level->label(),
+            'count' => (int) ($counts[$level->value] ?? 0),
+        ], CompetencyLevel::cases());
     }
 
     /**
@@ -181,9 +161,30 @@ class AdminDashboardOverview
         $items = [
             ['key' => 'no_organization', 'label' => 'Peserta belum punya LOB / Divisi', 'count' => $this->participants()->whereNull('users.organization_id')->count()],
             ['key' => 'no_sim_id', 'label' => 'Peserta belum punya SIM ID', 'count' => $this->participants()->whereNull('users.sim_id')->count()],
+            ['key' => 'incomplete_contacts', 'label' => 'Peserta belum melengkapi nomor handphone', 'count' => $this->participants()->where(function (Builder $query): void {
+                $query->whereNull('users.phone_number')->orWhere('users.phone_number', '');
+            })->count()],
             ['key' => 'no_competency', 'label' => 'Peserta belum mengisi kompetensi', 'count' => $participantCount - $filledCount],
-            ['key' => 'unpublished_rubric', 'label' => 'Rubrik penilaian belum dipublikasikan', 'count' => RubricSet::query()->whereDoesntHave('versions', fn (Builder $versions): Builder => $versions->where('publication_status', 'published'))->count()],
         ];
+
+        if (Schema::hasTable('qcc_batch_schedules')) {
+            $items[] = [
+                'key' => 'batch_schedules_incomplete',
+                'label' => 'Jadwal bi-weekly / mentoring batch belum lengkap',
+                'count' => DB::table('qcc_batches')
+                    ->where('status', BatchStatus::Active->value)
+                    ->where(function ($query): void {
+                        foreach (['BIWEEKLY', 'MENTORING'] as $scheduleType) {
+                            $query->orWhereNotExists(fn ($scheduleQuery) => $scheduleQuery
+                                ->selectRaw('1')
+                                ->from('qcc_batch_schedules')
+                                ->whereColumn('qcc_batch_schedules.batch_id', 'qcc_batches.id')
+                                ->where('qcc_batch_schedules.schedule_type', $scheduleType));
+                        }
+                    })
+                    ->count(),
+            ];
+        }
 
         if (Schema::hasTable('system_settings')) {
             $settings = DB::table('system_settings')->whereIn('key', ['ai_api_key', 'ai_model'])->pluck('value', 'key');

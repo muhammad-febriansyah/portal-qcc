@@ -49,48 +49,55 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+    --color-brand-blue: var(--brand-blue);
+    --color-brand-tan: var(--brand-tan);
 }
 
 :root {
     color-scheme: light;
-    --background: #f7f8fd;
+    --background: #f5f9fb;
     --foreground: #182337;
     --card: #ffffff;
     --card-foreground: #182337;
     --popover: #ffffff;
     --popover-foreground: #182337;
-    --primary: #2547f9;
+    /* SIMGROUP blue from the logo (#0191C2), one step darker so white text and
+       links on white pass WCAG AA (4.9:1). The exact logo blue is --brand-blue. */
+    --primary: #0179a3;
     --primary-foreground: #ffffff;
-    --secondary: #eef1fa;
+    --secondary: #e8f4f9;
     --secondary-foreground: #182337;
-    --muted: #f1f3fa;
+    --muted: #eff5f8;
     --muted-foreground: #697386;
-    --accent: #eef1fa;
+    --accent: #e8f4f9;
     --accent-foreground: #182337;
     --destructive: #d92d20;
     --destructive-foreground: #ffffff;
-    --border: #e7eaf2;
-    --input: #e7eaf2;
-    --ring: #2547f9;
+    --border: #e2eaef;
+    --input: #e2eaef;
+    --ring: #0191c2;
     --success: #16834a;
     --warning: #c96b0d;
     --info: #087e8b;
     --violet: #7057c8;
     --teal: #0f766e;
-    --chart-1: #2547f9;
-    --chart-2: #16834a;
-    --chart-3: #c96b0d;
+    --chart-1: #0191c2;
+    --chart-2: #c4844f;
+    --chart-3: #16834a;
     --chart-4: #697386;
     --chart-5: #d92d20;
     --radius: 0.625rem;
     --sidebar: #ffffff;
     --sidebar-foreground: #182337;
-    --sidebar-primary: #2547f9;
+    --sidebar-primary: #0179a3;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #f1f3fa;
+    --sidebar-accent: #eaf4f8;
     --sidebar-accent-foreground: #182337;
-    --sidebar-border: #e7eaf2;
-    --sidebar-ring: #2547f9;
+    --sidebar-border: #e2eaef;
+    --sidebar-ring: #0191c2;
+    /* The two logo colors, for brand accents (not for text). */
+    --brand-blue: #0191c2;
+    --brand-tan: #d49e77;
 }
 
 @layer base {
@@ -105,6 +112,7 @@
     }
 
     body {
+        position: relative;
         @apply bg-background font-sans text-foreground;
     }
 }

@@ -288,6 +288,7 @@ export function FileUploader({
                                             size="icon-sm"
                                             variant="ghost"
                                             aria-label={`Hapus ${item.file.name}`}
+                                            disabled={status === 'uploading'}
                                             onClick={() => removeFile(item)}
                                         >
                                             <Trash2 aria-hidden="true" />

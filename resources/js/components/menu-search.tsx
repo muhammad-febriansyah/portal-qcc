@@ -122,11 +122,11 @@ export function MenuSearch() {
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="hidden h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-border/70 bg-background px-3 text-left text-[13px] text-muted-foreground transition-colors outline-none hover:border-border hover:bg-card focus-visible:ring-2 focus-visible:ring-ring md:flex"
+                className="hidden h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-border/70 bg-background px-3 text-left text-sm text-muted-foreground transition-colors outline-none hover:border-border hover:bg-card focus-visible:ring-2 focus-visible:ring-ring md:flex"
             >
                 <Search className="size-4 shrink-0" aria-hidden="true" />
                 <span className="flex-1 truncate">Cari menu...</span>
-                <kbd className="rounded border border-border bg-card px-1.5 font-sans text-[10px] font-medium">
+                <kbd className="rounded border border-border bg-card px-1.5 font-sans text-xs font-medium">
                     {shortcutLabel}
                 </kbd>
             </button>
@@ -143,7 +143,7 @@ export function MenuSearch() {
             <Dialog open={open} onOpenChange={handleOpenChange}>
                 <DialogContent
                     showCloseButton={false}
-                    className="top-[12vh] max-w-[calc(100%-2rem)] translate-y-0 gap-0 overflow-hidden rounded-2xl bg-white/75 p-0 shadow-[0_24px_60px_-16px_rgba(24,35,55,0.3)] ring-1 ring-white/70 backdrop-blur-xl backdrop-saturate-150 sm:max-w-xl"
+                    className="top-[12vh] max-w-[calc(100%-2rem)] translate-y-0 gap-0 overflow-hidden rounded-2xl bg-white/75 p-0 shadow-[0_16px_40px_-24px_rgba(24,35,55,0.28)] ring-1 ring-white/70 backdrop-blur-xl backdrop-saturate-150 sm:max-w-xl"
                 >
                     <DialogTitle className="sr-only">Cari menu</DialogTitle>
                     <DialogDescription className="sr-only">
@@ -213,7 +213,7 @@ export function MenuSearch() {
                                         key={`${result.section}-${result.title}`}
                                     >
                                         {isNewSection && (
-                                            <p className="px-2.5 pt-3 pb-1.5 text-[11px] font-medium tracking-wider text-muted-foreground uppercase first:pt-1">
+                                            <p className="px-2.5 pt-3 pb-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase first:pt-1">
                                                 {result.section}
                                             </p>
                                         )}
@@ -232,7 +232,7 @@ export function MenuSearch() {
                                             }
                                             onClick={() => selectResult(result)}
                                             className={cn(
-                                                'flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] text-foreground/85 transition-colors outline-none',
+                                                'flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm text-foreground/85 transition-colors outline-none',
                                                 isActive &&
                                                     'bg-primary/8 text-primary',
                                             )}
@@ -260,7 +260,7 @@ export function MenuSearch() {
                         )}
                     </div>
 
-                    <div className="flex items-center gap-4 border-t border-border/60 bg-white/50 px-4 py-2.5 text-[11px] text-muted-foreground">
+                    <div className="flex items-center gap-4 border-t border-border/60 bg-white/50 px-4 py-2.5 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1.5">
                             <kbd className="rounded border border-border/80 bg-white px-1 font-sans">
                                 ↵

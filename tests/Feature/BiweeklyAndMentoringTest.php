@@ -96,6 +96,14 @@ it('needs the meeting, agenda, summary, plan, actual and an attendee before it c
     expect($report->fresh()->status)->toBe(ReportStatus::Draft);
 });
 
+it('reserves bi-weekly report creation and submission for the team leader', function () {
+    $this->actingAs($this->member)
+        ->post(route('projects.biweekly.store', $this->project), reportPayload($this->attendees))
+        ->assertForbidden();
+
+    expect(BiweeklyReport::query()->where('project_id', $this->project->id)->exists())->toBeFalse();
+});
+
 it('goes through submit, revision, resubmit and approval with audit and notices', function () {
     $mentor = bmMentor();
     ProjectMentor::query()->create(['project_id' => $this->project->id, 'mentor_id' => $mentor->id, 'assigned_by' => $this->owner->id, 'status' => 'ACTIVE', 'assigned_at' => now()]);
@@ -112,13 +120,16 @@ it('goes through submit, revision, resubmit and approval with audit and notices'
     $this->actingAs($this->owner)->post(route('projects.biweekly.revision', [$this->project, $report]), ['reason' => ''])->assertSessionHasErrors('reason');
     $this->actingAs($this->owner)->post(route('projects.biweekly.revision', [$this->project, $report]), ['reason' => 'Lengkapi kendala'])->assertSessionHasNoErrors();
     expect($report->fresh()->status)->toBe(ReportStatus::RevisionRequired)->and($report->fresh()->review_note)->toBe('Lengkapi kendala')
-        ->and($this->leader->notifications()->count())->toBe(1);
+        ->and($this->leader->notifications()->count())->toBe(1)
+        ->and($this->leader->notifications()->where('data->decision', 'BIWEEKLY_REVISION')->count())->toBe(1);
 
     $this->actingAs($this->leader)->patch(route('projects.biweekly.update', [$this->project, $report]), reportPayload($this->attendees, ['issues' => 'Responden lambat']))->assertSessionHasNoErrors();
     $this->actingAs($this->leader)->post(route('projects.biweekly.submit', [$this->project, $report]), reportPayload($this->attendees, ['issues' => 'Responden lambat']));
     $this->actingAs($this->owner)->post(route('projects.biweekly.approve', [$this->project, $report]))->assertSessionHasNoErrors();
 
     expect($report->fresh()->status)->toBe(ReportStatus::Approved)->and($report->fresh()->reviewed_by)->toBe($this->owner->id)
+        ->and($this->leader->notifications()->where('data->decision', 'BIWEEKLY_APPROVED')->count())->toBe(1)
+        ->and($this->owner->notifications()->where('data->decision', 'BIWEEKLY_SUBMITTED')->count())->toBe(2)
         ->and(AuditLog::query()->where('event', 'like', 'biweekly.%')->orderBy('id')->pluck('event')->all())
         ->toBe(['biweekly.created', 'biweekly.submitted', 'biweekly.revision_requested', 'biweekly.updated', 'biweekly.submitted', 'biweekly.approved']);
 
@@ -329,20 +340,6 @@ it('stores corrective actions against the bi-weekly report and validates project
     expect($report->actions()->count())->toBe(1);
 });
 
-it('lets the Owner QCC assign a mentor, once, and tells the mentor and the leader', function () {
-    $mentor = bmMentor();
-
-    $this->actingAs($this->owner)->post(route('projects.mentoring.assign', $this->project), ['mentor_id' => $mentor->id])->assertSessionHasNoErrors();
-    $this->actingAs($this->owner)->post(route('projects.mentoring.assign', $this->project), ['mentor_id' => $mentor->id])->assertSessionHasErrors('mentor_id');
-    $this->actingAs($this->owner)->post(route('projects.mentoring.assign', $this->project), ['mentor_id' => $this->leader->id])->assertSessionHasErrors('mentor_id');
-
-    expect(ProjectMentor::query()->where('project_id', $this->project->id)->count())->toBe(1)
-        ->and($mentor->notifications()->count())->toBe(1)->and($this->leader->notifications()->count())->toBe(1)
-        ->and(AuditLog::query()->where('event', 'mentor.assigned')->count())->toBe(1);
-
-    $this->actingAs($this->leader)->post(route('projects.mentoring.assign', $this->project), ['mentor_id' => bmMentor()->id])->assertForbidden();
-});
-
 it('shows a mentor only the projects they are assigned to', function () {
     $mentor = bmMentor();
     $other = Project::factory()->status(ProposalStatus::Approved)->create();
@@ -355,7 +352,7 @@ it('shows a mentor only the projects they are assigned to', function () {
     $this->actingAs($mentor)->get(route('projects.mentoring.index', $other))->assertForbidden();
     expect(Project::query()->visibleTo($mentor)->pluck('id')->all())->toBe([$this->project->id]);
 
-    $this->actingAs($this->owner)->delete(route('projects.mentoring.assignments.end', [$this->project, ProjectMentor::query()->first()]))->assertSessionHasNoErrors();
+    ProjectMentor::query()->first()->forceFill(['status' => 'ENDED', 'ended_at' => now()])->save();
     $this->actingAs($mentor)->get(route('projects.mentoring.index', $this->project))->assertForbidden();
 });
 
@@ -371,7 +368,8 @@ it('walks a mentoring session from draft to the team response', function () {
     $this->actingAs($mentor)->post(route('projects.mentoring.submit', [$this->project, $report]), [...$payload, 'findings' => ''])->assertSessionHasErrors('findings');
     $this->actingAs($mentor)->post(route('projects.mentoring.submit', [$this->project, $report]), $payload)->assertSessionHasNoErrors();
     expect($report->fresh()->status)->toBe(ReportStatus::Submitted)
-        ->and($this->leader->notifications()->count())->toBe(1)->and($this->member->notifications()->count())->toBe(1)->and($mentor->notifications()->count())->toBe(0);
+        ->and($this->leader->notifications()->count())->toBe(1)->and($this->member->notifications()->count())->toBe(1)->and($mentor->notifications()->count())->toBe(0)
+        ->and($this->member->notifications()->where('data->decision', 'MENTORING_SUBMITTED')->count())->toBe(1);
 
     $this->actingAs($mentor)->patch(route('projects.mentoring.update', [$this->project, $report]), $payload)->assertSessionHasErrors('report');
 
@@ -380,6 +378,7 @@ it('walks a mentoring session from draft to the team response', function () {
 
     expect($report->fresh())->status->toBe(ReportStatus::Acknowledged)->team_response->toBe('Sampel akan ditambah')
         ->and($mentor->notifications()->count())->toBe(1)
+        ->and($mentor->notifications()->where('data->decision', 'MENTORING_ACKNOWLEDGED')->count())->toBe(1)
         ->and(AuditLog::query()->where('event', 'like', 'mentoring.%')->orderBy('id')->pluck('event')->all())->toBe(['mentoring.created', 'mentoring.submitted', 'mentoring.acknowledged']);
 });
 
@@ -451,7 +450,7 @@ it('keeps mentoring scoped to the assigned mentor and does not add mentoring app
     $payload = ['session_at' => '2026-11-20T10:00', 'topic' => 'Topik', 'findings' => 'a', 'suggestions' => 'b'];
 
     $this->actingAs($unassigned)->post(route('projects.mentoring.store', $this->project), $payload)->assertForbidden();
-    $this->actingAs($this->leader)->post(route('projects.mentoring.store', $this->project), $payload)->assertForbidden();
+    $this->actingAs($this->leader)->post(route('projects.mentoring.store', $this->project), [...$payload, 'project_mentor_id' => ProjectMentor::query()->first()->id])->assertSessionHasNoErrors();
     $this->actingAs($this->owner)->post(route('projects.mentoring.store', $this->project), $payload)->assertForbidden();
     $this->actingAs($mentor)->post(route('projects.mentoring.store', $this->project), [...$payload, 'topic' => ''])->assertSessionHasErrors('topic');
 
@@ -459,33 +458,40 @@ it('keeps mentoring scoped to the assigned mentor and does not add mentoring app
     $this->actingAs($mentor)->post(route('projects.mentoring.acknowledge', [$this->project, $report]), ['team_response' => 'ok'])->assertForbidden();
 });
 
-it('lets Owner assign an active Mentor to a project and records the assignment', function () {
+it('lets the assigned Mentor give feedback on a Team Leader mentoring report', function () {
     $mentor = bmMentor();
+    $assignment = ProjectMentor::query()->create(['project_id' => $this->project->id, 'mentor_id' => $mentor->id, 'assigned_by' => $this->owner->id, 'status' => 'ACTIVE', 'assigned_at' => now()]);
 
-    $this->actingAs($this->owner)
-        ->post(route('projects.mentoring.assign', $this->project), ['mentor_id' => $mentor->id])
-        ->assertRedirect(route('projects.mentoring.index', $this->project));
+    $this->actingAs($this->leader)->post(route('projects.mentoring.store', $this->project), [
+        'project_mentor_id' => $assignment->id,
+        'session_at' => '2026-11-20T10:00',
+        'topic' => 'Laporan pendampingan',
+        'findings' => 'Tim menguji solusi',
+        'suggestions' => 'Perlu tambah sampel',
+    ])->assertSessionHasNoErrors();
 
-    $assignment = ProjectMentor::query()->sole();
+    $report = MentoringReport::query()->firstOrFail();
+    $this->actingAs($this->leader)->post(route('projects.mentoring.submit', [$this->project, $report]), [
+        'project_mentor_id' => $assignment->id,
+        'session_at' => '2026-11-20T10:00',
+        'topic' => 'Laporan pendampingan',
+        'findings' => 'Tim menguji solusi',
+        'suggestions' => 'Perlu tambah sampel',
+    ])->assertSessionHasNoErrors();
 
-    expect($assignment->mentor_id)->toBe($mentor->id)
-        ->and($assignment->assigned_by)->toBe($this->owner->id)
-        ->and($assignment->status)->toBe('ACTIVE');
-    $this->assertDatabaseHas('audit_logs', [
-        'event' => 'mentor.assigned',
-        'actor_id' => $this->owner->id,
-        'subject_id' => $assignment->id,
-    ]);
+    $this->actingAs($mentor)->post(route('projects.mentoring.acknowledge', [$this->project, $report]), ['team_response' => 'Gunakan tiga shift sebagai sampel'])->assertSessionHasNoErrors();
+
+    expect($report->fresh()->status)->toBe(ReportStatus::Acknowledged)
+        ->and($report->fresh()->team_response)->toBe('Gunakan tiga shift sebagai sampel');
 });
 
 it('hands the mentoring page its lists and what the viewer may do', function () {
     $mentor = bmMentor();
     ProjectMentor::query()->create(['project_id' => $this->project->id, 'mentor_id' => $mentor->id, 'assigned_by' => $this->owner->id, 'status' => 'ACTIVE', 'assigned_at' => now()]);
-    $spare = bmMentor();
 
     $this->actingAs($this->owner)->get(route('projects.mentoring.index', $this->project))->assertInertia(fn (Assert $page) => $page
-        ->component('projects/mentoring')->has('assignments', 1)->where('can_assign', true)->where('can_write', false)
-        ->has('mentor_options', 1)->where('mentor_options.0.value', (string) $spare->id));
+        ->component('projects/mentoring')->has('assignments', 1)->where('can_write', false)
+        ->missing('can_assign')->missing('mentor_options'));
     $this->actingAs($mentor)->get(route('projects.mentoring.index', $this->project))->assertInertia(fn (Assert $page) => $page
-        ->where('can_write', true)->where('can_assign', false)->has('mentor_options', 0));
+        ->where('can_write', true));
 });

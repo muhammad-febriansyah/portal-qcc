@@ -4,25 +4,27 @@ import { id as indonesianLocale } from 'date-fns/locale';
 import {
     Download,
     FileText,
+    PencilLine,
     Plus,
     Send,
     Trash2,
-    UserMinus,
-    UserPlus,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { DataTable } from '@/components/data-table';
+import type { DataTableColumnDef } from '@/components/data-table';
+import { DataTableRowActions } from '@/components/data-table-row-actions';
 import { FormField } from '@/components/form-field';
 import { DatePicker } from '@/components/date-picker';
 import { PageHeader } from '@/components/page-header';
 import { CsvExportButton } from '@/components/csv-export-button';
-import { EmptyState } from '@/components/ui-states';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -41,18 +43,17 @@ import type { BadgeVariant } from '@/lib/badge-variants';
 import { dashboard } from '@/routes';
 import {
     acknowledge,
-    assign,
     index,
     store,
     submit,
     update,
     exportMethod as exportMentoringCsv,
 } from '@/routes/projects/mentoring';
-import { end } from '@/routes/projects/mentoring/assignments';
 
 type Assignment = {
     id: number;
     mentor: string | null;
+    author: string | null;
     status: string;
     assigned_at: string;
     ended_at: string | null;
@@ -61,6 +62,7 @@ type Report = {
     id: number;
     session_at: string;
     mentor: string | null;
+    author: string | null;
     topic: string;
     findings: string | null;
     suggestions: string | null;
@@ -86,6 +88,8 @@ type Report = {
     }[];
     can_edit: boolean;
     can_acknowledge: boolean;
+    author_type: 'MENTOR' | 'TEAM_LEADER';
+    project_mentor_id: number;
 };
 
 type Props = {
@@ -93,9 +97,8 @@ type Props = {
     assignments: Assignment[];
     reports: Report[];
     members: { value: string; label: string }[];
-    mentor_options: { value: string; label: string }[];
-    can_assign: boolean;
     can_write: boolean;
+    is_team_leader: boolean;
 };
 
 const variants: Record<string, BadgeVariant> = {
@@ -114,16 +117,30 @@ function SessionForm({
     projectId,
     editing,
     members,
+    assignments,
+    isTeamLeader,
     onClose,
 }: {
     projectId: number;
     editing: Report | null;
     members: Props['members'];
+    assignments: Assignment[];
+    isTeamLeader: boolean;
     onClose: () => void;
 }) {
+    const initialSessionAt = editing
+        ? format(parseISO(editing.session_at), "yyyy-MM-dd'T'HH:mm")
+        : '';
+    const [sessionDate, setSessionDate] = useState(
+        initialSessionAt.slice(0, 10),
+    );
+    const [sessionTime, setSessionTime] = useState(
+        initialSessionAt.slice(11, 16),
+    );
     const form = useForm({
-        session_at: editing
-            ? format(parseISO(editing.session_at), "yyyy-MM-dd'T'HH:mm")
+        session_at: initialSessionAt,
+        project_mentor_id: editing?.project_mentor_id
+            ? String(editing.project_mentor_id)
             : '',
         topic: editing?.topic ?? '',
         findings: editing?.findings ?? '',
@@ -175,20 +192,100 @@ function SessionForm({
                 </Alert>
             )}
             <div className="grid gap-6 sm:grid-cols-2">
+                {isTeamLeader && (
+                    <FormField
+                        id="project_mentor_id"
+                        label="Mentor ditugaskan"
+                        required
+                        error={form.errors.project_mentor_id}
+                    >
+                        <Select
+                            disabled={editing !== null}
+                            value={form.data.project_mentor_id}
+                            onValueChange={(value) =>
+                                form.setData('project_mentor_id', value ?? '')
+                            }
+                            items={assignments
+                                .filter((item) => item.status === 'ACTIVE')
+                                .map((item) => ({
+                                    value: String(item.id),
+                                    label: item.mentor ?? 'Mentor',
+                                }))}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Pilih mentor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {assignments
+                                    .filter((item) => item.status === 'ACTIVE')
+                                    .map((item) => (
+                                        <SelectItem
+                                            key={item.id}
+                                            value={String(item.id)}
+                                        >
+                                            {item.mentor ?? 'Mentor'}
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
+                    </FormField>
+                )}
                 <FormField
-                    id="session_at"
-                    label="Waktu sesi"
+                    id="session-date"
+                    label="Tanggal dan waktu sesi"
                     required
                     error={form.errors.session_at}
                 >
-                    <Input
-                        type="datetime-local"
-                        value={form.data.session_at}
-                        onChange={(e) =>
-                            form.setData('session_at', e.target.value)
-                        }
-                        className="h-10"
-                    />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid gap-1.5">
+                            <span className="text-xs text-muted-foreground">
+                                Tanggal
+                            </span>
+                            <DatePicker
+                                id="session-date"
+                                value={sessionDate || null}
+                                onValueChange={(value) => {
+                                    const nextDate = value ?? '';
+                                    setSessionDate(nextDate);
+                                    form.setData(
+                                        'session_at',
+                                        nextDate && sessionTime
+                                            ? `${nextDate}T${sessionTime}`
+                                            : '',
+                                    );
+                                }}
+                                required
+                                aria-invalid={Boolean(form.errors.session_at)}
+                                className="h-10"
+                            />
+                        </div>
+                        <div className="grid gap-1.5">
+                            <label
+                                htmlFor="session-time"
+                                className="text-xs text-muted-foreground"
+                            >
+                                Jam
+                            </label>
+                            <Input
+                                id="session-time"
+                                type="time"
+                                value={sessionTime}
+                                onChange={(event) => {
+                                    const nextTime = event.target.value;
+                                    setSessionTime(nextTime);
+                                    form.setData(
+                                        'session_at',
+                                        sessionDate && nextTime
+                                            ? `${sessionDate}T${nextTime}`
+                                            : '',
+                                    );
+                                }}
+                                required
+                                aria-invalid={Boolean(form.errors.session_at)}
+                                className="h-10"
+                            />
+                        </div>
+                    </div>
                 </FormField>
                 <FormField
                     id="topic"
@@ -431,7 +528,7 @@ function SessionForm({
                 </Button>
                 <Button
                     type="submit"
-                    variant="outline"
+                    variant="default"
                     disabled={form.processing}
                 >
                     {form.processing && <Spinner data-icon="inline-start" />}
@@ -452,7 +549,7 @@ function SessionForm({
                         }
                     >
                         <Send data-icon="inline-start" aria-hidden="true" />
-                        Kirim ke Tim
+                        Kirim {isTeamLeader ? 'ke Mentor' : 'ke Tim'}
                     </Button>
                 )}
             </DialogFooter>
@@ -483,11 +580,20 @@ function AckForm({
             }}
         >
             <DialogHeader>
-                <DialogTitle>Tanggapi feedback: {report.topic}</DialogTitle>
+                <DialogTitle>
+                    {report.author_type === 'TEAM_LEADER'
+                        ? 'Feedback Mentor'
+                        : 'Tanggapan tim'}
+                    : {report.topic}
+                </DialogTitle>
             </DialogHeader>
             <FormField
                 id="team_response"
-                label="Tanggapan tim"
+                label={
+                    report.author_type === 'TEAM_LEADER'
+                        ? 'Feedback Mentor'
+                        : 'Tanggapan tim'
+                }
                 required
                 error={form.errors.team_response}
             >
@@ -496,7 +602,11 @@ function AckForm({
                     onChange={(e) =>
                         form.setData('team_response', e.target.value)
                     }
-                    placeholder="Apa yang akan dilakukan tim?"
+                    placeholder={
+                        report.author_type === 'TEAM_LEADER'
+                            ? 'Tulis tanggapan mentor untuk laporan tim'
+                            : 'Apa yang akan dilakukan tim?'
+                    }
                     className="min-h-28"
                 />
             </FormField>
@@ -513,21 +623,323 @@ function AckForm({
     );
 }
 
+function MentoringReportDetail({ report }: { report: Report }) {
+    const sections = [
+        ['Temuan', report.findings],
+        ['Saran', report.suggestions],
+        ['Tindak lanjut', report.next_steps],
+        ['Tanggapan tim', report.team_response],
+    ];
+
+    return (
+        <div className="grid gap-5">
+            <DialogHeader>
+                <DialogTitle className="pr-8 text-xl font-semibold">
+                    {report.topic}
+                </DialogTitle>
+                <DialogDescription>
+                    {when(report.session_at)} ·{' '}
+                    {report.mentor ?? 'Mentor belum ditugaskan'}
+                </DialogDescription>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <Badge variant={variants[report.status] ?? 'secondary'}>
+                        {report.status_label}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                        {report.author_type === 'TEAM_LEADER'
+                            ? `Dibuat ${report.author ?? 'Team Leader'}`
+                            : `Mentor ${report.mentor ?? 'tidak diketahui'}`}
+                    </span>
+                </div>
+            </DialogHeader>
+
+            <div className="grid max-h-[68dvh] gap-5 overflow-y-auto px-1 pb-1">
+                <div className="grid gap-3 md:grid-cols-2">
+                    {sections.map(([label, value]) => (
+                        <Card key={label} className="gap-0 py-0">
+                            <CardHeader className="border-b p-4">
+                                <CardTitle className="text-sm font-semibold">
+                                    {label}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="px-4 py-3 text-sm leading-6 break-words whitespace-pre-wrap">
+                                {value || (
+                                    <span className="text-muted-foreground">
+                                        Belum diisi
+                                    </span>
+                                )}
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+
+                <Card className="gap-0 py-0">
+                    <CardHeader className="border-b p-4">
+                        <CardTitle className="text-sm font-semibold">
+                            Action item
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                        {report.actions.length ? (
+                            <ul className="grid gap-3 md:grid-cols-2">
+                                {report.actions.map((action) => (
+                                    <li
+                                        key={action.id}
+                                        className="grid gap-2 rounded-lg border p-3"
+                                    >
+                                        <div className="grid gap-1">
+                                            <p className="text-sm font-medium">
+                                                {action.title}
+                                            </p>
+                                            {action.description && (
+                                                <p className="text-sm whitespace-pre-line text-muted-foreground">
+                                                    {action.description}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <p className="border-t pt-2 text-xs text-muted-foreground">
+                                            PIC{' '}
+                                            {action.pic ?? 'Belum ditentukan'} ·
+                                            tenggat{' '}
+                                            {format(
+                                                parseISO(action.due_date),
+                                                'd MMM yyyy',
+                                                {
+                                                    locale: indonesianLocale,
+                                                },
+                                            )}{' '}
+                                            · {action.status}
+                                        </p>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">
+                                Belum ada action item.
+                            </p>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="gap-0 py-0">
+                    <CardHeader className="border-b p-4">
+                        <CardTitle className="text-sm font-semibold">
+                            Evidence
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                        {report.evidence.length ? (
+                            <ul className="grid gap-3 md:grid-cols-2">
+                                {report.evidence.map((item) => (
+                                    <li
+                                        key={item.id}
+                                        className="flex min-w-0 items-center justify-between gap-3 rounded-lg border p-3"
+                                    >
+                                        <div className="flex min-w-0 items-start gap-2.5">
+                                            <FileText
+                                                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                                                aria-hidden="true"
+                                            />
+                                            <div className="grid min-w-0 gap-1">
+                                                <span className="text-sm font-medium break-words">
+                                                    {item.title}
+                                                </span>
+                                                <span className="text-xs break-all text-muted-foreground">
+                                                    {item.original_name}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {item.download_url ? (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                render={
+                                                    <a
+                                                        href={item.download_url}
+                                                    />
+                                                }
+                                            >
+                                                <Download
+                                                    data-icon="inline-start"
+                                                    aria-hidden="true"
+                                                />
+                                                Unduh
+                                            </Button>
+                                        ) : (
+                                            <Badge variant="secondary">
+                                                Pemeriksaan{' '}
+                                                {item.scan_status.toLowerCase()}
+                                            </Badge>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">
+                                Belum ada evidence tertaut.
+                            </p>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+}
+
 export default function ProjectMentoring({
     project,
     assignments,
     reports,
     members,
-    mentor_options: mentorOptions,
-    can_assign: canAssign,
     can_write: canWrite,
+    is_team_leader: isTeamLeader,
 }: Props) {
     const [dialog, setDialog] = useState<{
-        mode: 'session' | 'ack';
+        mode: 'session' | 'ack' | 'detail';
         report: Report | null;
     } | null>(null);
-    const [mentorId, setMentorId] = useState('');
-    const [assignError, setAssignError] = useState<string | null>(null);
+    const [search, setSearch] = useState('');
+    const filteredReports = reports.filter((report) =>
+        [
+            report.topic,
+            when(report.session_at),
+            report.mentor,
+            report.author,
+            report.status_label,
+            report.findings,
+            report.suggestions,
+            report.next_steps,
+            report.team_response,
+            report.actions.map((action) => action.title).join(' '),
+            report.evidence
+                .map((item) => `${item.title} ${item.original_name}`)
+                .join(' '),
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLocaleLowerCase('id')
+            .includes(search.trim().toLocaleLowerCase('id')),
+    );
+    const columns = useMemo<DataTableColumnDef<Report>[]>(
+        () => [
+            {
+                id: 'session',
+                header: 'Sesi',
+                cell: ({ row }) => (
+                    <div className="grid max-w-64 gap-1 whitespace-normal">
+                        <span className="font-medium">
+                            {row.original.topic}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                            {when(row.original.session_at)}
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                id: 'mentor',
+                header: 'Mentor & pelapor',
+                cell: ({ row }) => (
+                    <div className="grid max-w-56 gap-1 whitespace-normal">
+                        <span>
+                            {row.original.mentor ?? 'Mentor belum ditugaskan'}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                            {row.original.author_type === 'TEAM_LEADER'
+                                ? `Dibuat ${row.original.author ?? 'Team Leader'}`
+                                : 'Feedback mentor'}
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                id: 'summary',
+                header: 'Ringkasan',
+                cell: ({ row }) => (
+                    <div className="grid max-w-md gap-1 text-sm whitespace-normal">
+                        <p>
+                            <span className="font-medium">Temuan:</span>{' '}
+                            {row.original.findings || 'Belum diisi'}
+                        </p>
+                        <p className="text-muted-foreground">
+                            <span className="font-medium">Saran:</span>{' '}
+                            {row.original.suggestions || 'Belum diisi'}
+                        </p>
+                    </div>
+                ),
+            },
+            {
+                id: 'follow_up',
+                header: 'Tindak lanjut',
+                cell: ({ row }) => (
+                    <div className="grid max-w-xs gap-1 whitespace-normal">
+                        <span className="text-sm">
+                            {row.original.next_steps ||
+                                'Belum ada tindak lanjut'}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                            {row.original.actions.length} action item ·{' '}
+                            {row.original.evidence.length} evidence
+                        </span>
+                    </div>
+                ),
+            },
+            {
+                id: 'status',
+                header: 'Status',
+                cell: ({ row }) => (
+                    <Badge
+                        variant={variants[row.original.status] ?? 'secondary'}
+                    >
+                        {row.original.status_label}
+                    </Badge>
+                ),
+            },
+            {
+                id: 'actions',
+                header: 'Aksi',
+                cell: ({ row }) => (
+                    <div className="flex justify-end">
+                        <DataTableRowActions
+                            label={`Aksi sesi ${row.original.topic}`}
+                            actions={[
+                                {
+                                    label: 'Detail',
+                                    icon: FileText,
+                                    onSelect: () =>
+                                        setDialog({
+                                            mode: 'detail',
+                                            report: row.original,
+                                        }),
+                                },
+                                {
+                                    label: 'Ubah',
+                                    icon: PencilLine,
+                                    onSelect: () =>
+                                        setDialog({
+                                            mode: 'session',
+                                            report: row.original,
+                                        }),
+                                    hidden: !row.original.can_edit,
+                                },
+                                {
+                                    label: 'Tanggapi',
+                                    icon: Send,
+                                    onSelect: () =>
+                                        setDialog({
+                                            mode: 'ack',
+                                            report: row.original,
+                                        }),
+                                    hidden: !row.original.can_acknowledge,
+                                },
+                            ]}
+                        />
+                    </div>
+                ),
+            },
+        ],
+        [],
+    );
 
     return (
         <>
@@ -572,8 +984,9 @@ export default function ProjectMentoring({
                     <CardContent className="grid gap-4 p-5">
                         <p className="text-sm font-medium">Mentor proyek</p>
                         {assignments.length === 0 ? (
-                            <p className="text-[13px] text-muted-foreground">
-                                Belum ada mentor yang ditugaskan.
+                            <p className="text-sm text-muted-foreground">
+                                Belum ada mentor. Mentor otomatis diisi Div/LOB
+                                Head organisasi pengusul saat proposal diajukan.
                             </p>
                         ) : (
                             <ul className="grid gap-2">
@@ -583,7 +996,7 @@ export default function ProjectMentoring({
                                         className="flex items-center justify-between gap-3 rounded-lg border p-3"
                                     >
                                         <div className="grid">
-                                            <p className="text-[13px] font-medium">
+                                            <p className="text-sm font-medium">
                                                 {item.mentor}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
@@ -604,352 +1017,67 @@ export default function ProjectMentoring({
                                                 ? 'Aktif'
                                                 : 'Berakhir'}
                                         </Badge>
-                                        {canAssign &&
-                                            item.status === 'ACTIVE' && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        router.delete(
-                                                            end.url({
-                                                                project:
-                                                                    project.id,
-                                                                assignment:
-                                                                    item.id,
-                                                            }),
-                                                            {
-                                                                preserveScroll: true,
-                                                            },
-                                                        )
-                                                    }
-                                                >
-                                                    <UserMinus
-                                                        data-icon="inline-start"
-                                                        aria-hidden="true"
-                                                    />
-                                                    Akhiri
-                                                </Button>
-                                            )}
                                     </li>
                                 ))}
                             </ul>
                         )}
-                        {canAssign && (
-                            <div className="flex flex-wrap items-end gap-3">
-                                <div className="grid gap-1.5">
-                                    <Select
-                                        value={mentorId}
-                                        onValueChange={(next) =>
-                                            setMentorId(next ?? '')
-                                        }
-                                        items={mentorOptions}
-                                    >
-                                        <SelectTrigger
-                                            aria-label="Pilih mentor"
-                                            className="w-64"
-                                        >
-                                            <SelectValue placeholder="Pilih mentor" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {mentorOptions.map((option) => (
-                                                <SelectItem
-                                                    key={option.value}
-                                                    value={option.value}
-                                                >
-                                                    {option.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {assignError && (
-                                        <p className="text-[13px] text-destructive">
-                                            {assignError}
-                                        </p>
-                                    )}
-                                </div>
-                                <Button
-                                    disabled={mentorId === ''}
-                                    onClick={() =>
-                                        router.post(
-                                            assign.url(project.id),
-                                            { mentor_id: mentorId },
-                                            {
-                                                preserveScroll: true,
-                                                onSuccess: () =>
-                                                    setMentorId(''),
-                                                onError: (errors) =>
-                                                    setAssignError(
-                                                        errors.mentor_id ??
-                                                            null,
-                                                    ),
-                                            },
-                                        )
-                                    }
-                                >
-                                    <UserPlus
-                                        data-icon="inline-start"
-                                        aria-hidden="true"
-                                    />
-                                    Tugaskan
-                                </Button>
-                            </div>
-                        )}
                         <p className="text-xs text-muted-foreground">
-                            Mentor dapat meninjau, meminta revisi, dan
-                            menyetujui 8 Step pada proyek bimbingan aktif.
-                            Persetujuan proposal dan scoring tetap oleh reviewer
-                            QCC.
+                            Mentor adalah mentor LOB/Div organisasi pengusul dan
+                            terkunci sejak proposal diajukan. Mentor mereview
+                            dan menyetujui proposal, lalu meninjau, meminta revisi,
+                            dan menyetujui 8 Step serta laporan bi-weekly. Team
+                            Leader mengirim laporan mentoring; Mentor memberi
+                            feedback.
                         </p>
                     </CardContent>
                 </Card>
 
-                {reports.length === 0 ? (
-                    <div className="rounded-xl border border-dashed">
-                        <EmptyState
-                            icon={FileText}
-                            title="Belum ada sesi mentoring"
-                            description="Catatan sesi dan feedback mentor akan muncul di sini."
-                        />
-                    </div>
-                ) : (
-                    <ul className="grid gap-3">
-                        {reports.map((report) => (
-                            <li key={report.id}>
-                                <Card className="gap-0 py-0">
-                                    <CardContent className="grid gap-3 p-5">
-                                        <div className="flex flex-wrap items-start justify-between gap-3">
-                                            <div className="grid gap-0.5">
-                                                <p className="text-sm font-semibold">
-                                                    {report.topic}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {when(report.session_at)} ·{' '}
-                                                    {report.mentor}
-                                                </p>
-                                            </div>
-                                            <Badge
-                                                variant={
-                                                    variants[report.status] ??
-                                                    'secondary'
-                                                }
-                                            >
-                                                {report.status_label}
-                                            </Badge>
-                                        </div>
-                                        {[
-                                            ['Temuan', report.findings],
-                                            ['Saran', report.suggestions],
-                                            [
-                                                'Tindak lanjut',
-                                                report.next_steps,
-                                            ],
-                                            [
-                                                'Tanggapan tim',
-                                                report.team_response,
-                                            ],
-                                        ].map(
-                                            ([label, value]) =>
-                                                value && (
-                                                    <p
-                                                        key={label}
-                                                        className="text-[13px] whitespace-pre-line"
-                                                    >
-                                                        <span className="font-medium">
-                                                            {label}:
-                                                        </span>{' '}
-                                                        {value}
-                                                    </p>
-                                                ),
-                                        )}
-                                        {report.actions.length > 0 && (
-                                            <div className="grid gap-2">
-                                                <p className="text-[13px] font-medium">
-                                                    Action item
-                                                </p>
-                                                {report.actions.map(
-                                                    (action) => (
-                                                        <div
-                                                            key={action.id}
-                                                            className="rounded-lg border px-3 py-2.5"
-                                                        >
-                                                            <p className="text-sm font-medium">
-                                                                {action.title}
-                                                            </p>
-                                                            {action.description && (
-                                                                <p className="text-xs text-muted-foreground">
-                                                                    {
-                                                                        action.description
-                                                                    }
-                                                                </p>
-                                                            )}
-                                                            <p className="mt-1 text-xs text-muted-foreground">
-                                                                PIC {action.pic}{' '}
-                                                                · tenggat{' '}
-                                                                {format(
-                                                                    parseISO(
-                                                                        action.due_date,
-                                                                    ),
-                                                                    'd MMM yyyy',
-                                                                    {
-                                                                        locale: indonesianLocale,
-                                                                    },
-                                                                )}{' '}
-                                                                ·{' '}
-                                                                {action.status}
-                                                            </p>
-                                                        </div>
-                                                    ),
-                                                )}
-                                            </div>
-                                        )}
-                                        {report.evidence.length > 0 && (
-                                            <div className="grid gap-2">
-                                                <p className="text-[13px] font-medium">
-                                                    Evidence
-                                                </p>
-                                                {report.evidence.map((item) => (
-                                                    <div
-                                                        key={item.id}
-                                                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
-                                                    >
-                                                        <div className="flex min-w-0 items-center gap-2.5">
-                                                            <FileText
-                                                                className="size-4 shrink-0 text-muted-foreground"
-                                                                aria-hidden="true"
-                                                            />
-                                                            <span className="truncate text-sm">
-                                                                {item.title} ·{' '}
-                                                                {
-                                                                    item.original_name
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                        {item.download_url ? (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                render={
-                                                                    <a
-                                                                        href={
-                                                                            item.download_url
-                                                                        }
-                                                                    />
-                                                                }
-                                                            >
-                                                                <Download
-                                                                    data-icon="inline-start"
-                                                                    aria-hidden="true"
-                                                                />
-                                                                Unduh
-                                                            </Button>
-                                                        ) : (
-                                                            <Badge variant="secondary">
-                                                                Pemeriksaan{' '}
-                                                                {item.scan_status.toLowerCase()}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {report.evidence.length > 0 && (
-                                            <div className="grid gap-2">
-                                                <p className="text-[13px] font-medium">
-                                                    Evidence
-                                                </p>
-                                                {report.evidence.map((item) => (
-                                                    <div
-                                                        key={item.id}
-                                                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
-                                                    >
-                                                        <div className="flex min-w-0 items-center gap-2.5">
-                                                            <FileText
-                                                                className="size-4 shrink-0 text-muted-foreground"
-                                                                aria-hidden="true"
-                                                            />
-                                                            <span className="truncate text-sm">
-                                                                {item.title} ·{' '}
-                                                                {
-                                                                    item.original_name
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                        {item.download_url ? (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                render={
-                                                                    <a
-                                                                        href={
-                                                                            item.download_url
-                                                                        }
-                                                                    />
-                                                                }
-                                                            >
-                                                                <Download
-                                                                    data-icon="inline-start"
-                                                                    aria-hidden="true"
-                                                                />
-                                                                Unduh
-                                                            </Button>
-                                                        ) : (
-                                                            <Badge variant="secondary">
-                                                                Pemeriksaan{' '}
-                                                                {item.scan_status.toLowerCase()}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        <div className="flex gap-2">
-                                            {report.can_edit && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        setDialog({
-                                                            mode: 'session',
-                                                            report,
-                                                        })
-                                                    }
-                                                >
-                                                    Ubah
-                                                </Button>
-                                            )}
-                                            {report.can_acknowledge && (
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        setDialog({
-                                                            mode: 'ack',
-                                                            report,
-                                                        })
-                                                    }
-                                                >
-                                                    Tanggapi
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </li>
-                        ))}
-                    </ul>
-                )}
+                <Card className="gap-0 py-0">
+                    <DataTable
+                        embedded
+                        columns={columns}
+                        data={filteredReports}
+                        rowId={(report) => String(report.id)}
+                        page={1}
+                        pageSize={Math.max(filteredReports.length, 1)}
+                        total={filteredReports.length}
+                        onPageChange={() => {}}
+                        search={search}
+                        onSearchChange={setSearch}
+                        searchPlaceholder="Cari sesi, mentor, pelapor, catatan, status..."
+                        emptyTitle={
+                            reports.length === 0
+                                ? 'Belum ada sesi mentoring'
+                                : 'Sesi mentoring tidak ditemukan'
+                        }
+                        emptyDescription={
+                            reports.length === 0
+                                ? 'Catatan sesi dan feedback mentor akan muncul di sini.'
+                                : 'Coba kata kunci lain.'
+                        }
+                    />
+                </Card>
             </div>
 
             <Dialog
                 open={dialog !== null}
                 onOpenChange={(open) => !open && setDialog(null)}
             >
-                <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+                <DialogContent
+                    className={
+                        dialog?.mode === 'detail'
+                            ? 'max-h-[90dvh] overflow-y-auto sm:max-w-5xl'
+                            : 'max-h-[90dvh] overflow-y-auto sm:max-w-4xl'
+                    }
+                >
                     {dialog?.mode === 'session' && (
                         <SessionForm
                             key={dialog.report?.id ?? 'new'}
                             projectId={project.id}
                             editing={dialog.report}
                             members={members}
+                            assignments={assignments}
+                            isTeamLeader={isTeamLeader}
                             onClose={() => setDialog(null)}
                         />
                     )}
@@ -960,6 +1088,9 @@ export default function ProjectMentoring({
                             report={dialog.report}
                             onClose={() => setDialog(null)}
                         />
+                    )}
+                    {dialog?.mode === 'detail' && dialog.report && (
+                        <MentoringReportDetail report={dialog.report} />
                     )}
                 </DialogContent>
             </Dialog>

@@ -22,6 +22,7 @@
         "apexcharts": "^8.4.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "cn": "^0.5.1",
         "concurrently": "^10.0.3",
         "date-fns": "^4.4.0",
         "laravel-vite-plugin": "^3.0.0",

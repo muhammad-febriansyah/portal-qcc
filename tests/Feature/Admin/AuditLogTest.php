@@ -127,7 +127,7 @@ test('user creation records the new account and its role without secrets', funct
         'sim_id' => 'SIM-1',
         'email' => 'budi@example.com',
         'organization_id' => $organization->id,
-        'role' => 'Mentor',
+        'roles' => ['Mentor'],
     ]);
 
     $created = AuditLog::query()->where('event', 'user.created')->where('subject_label', 'like', 'Budi Santoso%')->firstOrFail();
@@ -150,13 +150,13 @@ test('changing a role is logged and an unchanged role is not', function () {
         'sim_id' => 'SIM-9',
         'email' => $target->email,
         'organization_id' => $target->organization_id,
-        'role' => 'Mentor',
+        'roles' => ['Mentor'],
     ];
 
     $this->actingAs($admin)->put(route('admin.users.update', $target), $payload);
     expect(AuditLog::query()->where('event', 'user.role_changed')->count())->toBe(0);
 
-    $this->put(route('admin.users.update', $target), [...$payload, 'role' => 'Team Leader']);
+    $this->put(route('admin.users.update', $target), [...$payload, 'roles' => ['Team Leader']]);
     $log = AuditLog::query()->where('event', 'user.role_changed')->firstOrFail();
 
     expect($log->before_json)->toBe(['role' => 'Mentor'])

@@ -1,12 +1,16 @@
+import { FormattedText } from '@/components/formatted-text';
+import { TimelineTable } from '@/components/step-timeline-table';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as indonesianLocale } from 'date-fns/locale';
 import {
     ArrowLeft,
     Download,
+    Eye,
     FileText,
     PencilLine,
     Paperclip,
+    Presentation,
     ClipboardCheck,
     CheckCircle2,
     UsersRound,
@@ -17,6 +21,7 @@ import { PageHeader } from '@/components/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Card,
     CardContent,
@@ -36,7 +41,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { BadgeVariant } from '@/lib/badge-variants';
 import { dashboard } from '@/routes';
-import { candidates, edit, index } from '@/routes/proposals';
+import { candidates, edit, index, presentation } from '@/routes/proposals';
 import proposalRoutes from '@/routes/proposals';
 import type { BreadcrumbItem } from '@/types';
 
@@ -46,7 +51,7 @@ type ProposalAttachment = {
     mime_type: string;
     size_bytes: number;
     scan_status: string;
-    preview_url: string;
+    preview_url: string | null;
 };
 
 type Proposal = {
@@ -55,25 +60,36 @@ type Proposal = {
     title: string;
     batch: string | null;
     proposer: string | null;
+    pic: string | null;
     organization: string | null;
     status: string;
     status_label: string;
     theme: string | null;
+    theme_category: string | null;
     background: string | null;
-    problem_statement: string | null;
     current_situation: string | null;
-    baseline: string | null;
+    improvement_plan: string | null;
     target: string | null;
     scope: string | null;
+    supplementary_information: string | null;
+    cost_projection: string | null;
     learning_goals: string[];
-    rca: string | null;
-    improvement_plan: string | null;
-    business_benefit: string | null;
+    step_timeline: {
+        step_number: number;
+        name: string;
+        start_date: string | null;
+        target_date: string | null;
+        deliverable: string | null;
+    }[];
+    batch_starts_on: string | null;
+    legacy_sections: { label: string; value: string }[];
     updated_at: string | null;
     attachments: ProposalAttachment[];
     can_edit_draft: boolean;
     can_find_candidates: boolean;
+    has_team: boolean;
     can_submit: boolean;
+    export_missing: string[];
     team_confirmed: boolean;
     team_status_message: string | null;
     can_start_review: boolean;
@@ -108,12 +124,12 @@ function DetailField({
     value: string | null | undefined;
 }) {
     return (
-        <div className="min-w-0 space-y-1">
-            <dt className="text-xs font-medium text-muted-foreground">
+        <div className="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-4">
+            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">
                 {label}
             </dt>
-            <dd className="text-sm whitespace-pre-wrap text-foreground">
-                {value?.trim() ? value : '—'}
+            <dd className="mt-2 text-sm leading-6 text-foreground">
+                <FormattedText value={value} />
             </dd>
         </div>
     );
@@ -127,11 +143,16 @@ function fileSize(bytes: number): string {
 
 export default function ProposalShow({ proposal }: Props) {
     const [decisionOpen, setDecisionOpen] = useState(false);
+    const [previewAttachment, setPreviewAttachment] =
+        useState<ProposalAttachment | null>(null);
     const decisionForm = useForm<{ decision: string; reason: string }>({
         decision: 'APPROVE',
         reason: '',
     });
     const { errors } = usePage().props as { errors: Record<string, string> };
+    const latestRevision = proposal.review_history
+        .filter((item) => item.decision === 'REQUEST_REVISION')
+        .at(-1);
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: dashboard() },
         { title: 'Proposal QCC', href: index() },
@@ -158,6 +179,30 @@ export default function ProposalShow({ proposal }: Props) {
                     description={`${proposal.code} · ${proposal.batch ?? 'Tanpa batch'}`}
                     actions={
                         <>
+                            {proposal.export_missing.length === 0 ? (
+                                <Button
+                                    variant="outline"
+                                    render={
+                                        <a
+                                            href={presentation.url(proposal.id)}
+                                            download
+                                        />
+                                    }
+                                    nativeButton={false}
+                                >
+                                    <Presentation data-icon="inline-start" />
+                                    Export PPT
+                                </Button>
+                            ) : (
+                                <Button
+                                    variant="outline"
+                                    disabled
+                                    title={`Lengkapi dulu: ${proposal.export_missing.join(', ')}`}
+                                >
+                                    <Presentation data-icon="inline-start" />
+                                    Export PPT
+                                </Button>
+                            )}
                             {proposal.can_edit_draft && (
                                 <Button
                                     variant="outline"
@@ -182,12 +227,13 @@ export default function ProposalShow({ proposal }: Props) {
                                     nativeButton={false}
                                 >
                                     <UsersRound data-icon="inline-start" />
-                                    Cari kandidat tim
+                                    {proposal.has_team
+                                        ? 'Kelola tim'
+                                        : 'Cari kandidat tim'}
                                 </Button>
                             )}
                             {proposal.can_submit && (
                                 <Button
-                                    disabled={!proposal.team_confirmed}
                                     onClick={() =>
                                         router.post(
                                             proposalRoutes.submit.url(
@@ -236,29 +282,18 @@ export default function ProposalShow({ proposal }: Props) {
                 />
 
                 <div className="space-y-5">
-                    {proposal.can_edit_draft &&
-                        !proposal.can_find_candidates && (
+                    {proposal.team_status_message &&
+                        proposal.status === 'APPROVED' && (
                             <Alert>
                                 <UsersRound aria-hidden="true" />
                                 <AlertTitle>
-                                    {proposal.team_confirmed
-                                        ? 'Tim proposal sudah dikonfirmasi'
-                                        : 'Susunan tim menunggu Owner QCC'}
+                                    Tim proposal sudah dikonfirmasi
                                 </AlertTitle>
                                 <AlertDescription>
                                     {proposal.team_status_message}
                                 </AlertDescription>
                             </Alert>
                         )}
-                    {proposal.can_submit && !proposal.team_confirmed && (
-                        <p
-                            className="text-sm text-muted-foreground"
-                            role="status"
-                        >
-                            Proposal belum dapat diajukan karena tim belum
-                            dikonfirmasi.
-                        </p>
-                    )}
                     {Object.keys(errors).length > 0 && (
                         <div
                             role="alert"
@@ -276,245 +311,439 @@ export default function ProposalShow({ proposal }: Props) {
                             </ul>
                         </div>
                     )}
-                    <Card>
-                        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
-                            <div className="space-y-1">
-                                <CardTitle className="text-base">
-                                    Informasi proposal
-                                </CardTitle>
-                                <CardDescription>
-                                    Terakhir diperbarui{' '}
-                                    {proposal.updated_at
-                                        ? format(
-                                              parseISO(proposal.updated_at),
-                                              'd MMMM yyyy, HH:mm',
-                                              { locale: indonesianLocale },
-                                          )
-                                        : '—'}
-                                </CardDescription>
-                            </div>
-                            <Badge
-                                variant={
-                                    statusVariants[proposal.status] ??
-                                    'secondary'
-                                }
-                            >
-                                {proposal.status_label}
-                            </Badge>
-                        </CardHeader>
-                        <CardContent>
-                            <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-                                <DetailField
-                                    label="Pengaju"
-                                    value={proposal.proposer}
-                                />
-                                <DetailField
-                                    label="LOB / Divisi"
-                                    value={proposal.organization}
-                                />
-                                <DetailField
-                                    label="Tema Improvement"
-                                    value={proposal.theme}
-                                />
-                            </dl>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base">
-                                Masalah & baseline
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
-                                <DetailField
-                                    label="Latar belakang"
-                                    value={proposal.background}
-                                />
-                                <DetailField
-                                    label="Pernyataan masalah"
-                                    value={proposal.problem_statement}
-                                />
-                                <DetailField
-                                    label="Kondisi saat ini"
-                                    value={proposal.current_situation}
-                                />
-                                <DetailField
-                                    label="Baseline"
-                                    value={proposal.baseline}
-                                />
-                            </dl>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base">
-                                Target & manfaat
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
-                                <DetailField
-                                    label="Target"
-                                    value={proposal.target}
-                                />
-                                <DetailField
-                                    label="Ruang lingkup"
-                                    value={proposal.scope}
-                                />
-                                <DetailField
-                                    label="Root cause analysis"
-                                    value={proposal.rca}
-                                />
-                                <DetailField
-                                    label="Rencana improvement"
-                                    value={proposal.improvement_plan}
-                                />
-                                <DetailField
-                                    label="Manfaat bisnis"
-                                    value={proposal.business_benefit}
-                                />
-                                <div className="space-y-1">
-                                    <dt className="text-xs font-medium text-muted-foreground">
-                                        Tujuan pembelajaran
-                                    </dt>
-                                    <dd>
-                                        {proposal.learning_goals.length > 0 ? (
-                                            <ul className="list-inside list-disc space-y-1 text-sm">
-                                                {proposal.learning_goals.map(
-                                                    (goal, position) => (
-                                                        <li key={position}>
-                                                            {goal}
-                                                        </li>
-                                                    ),
-                                                )}
-                                            </ul>
-                                        ) : (
-                                            <span className="text-sm text-foreground">
-                                                —
-                                            </span>
-                                        )}
-                                    </dd>
-                                </div>
-                            </dl>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-base">
-                                <Paperclip
-                                    className="size-4 text-muted-foreground"
-                                    aria-hidden="true"
-                                />
-                                Lampiran ({proposal.attachments.length})
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {proposal.attachments.length > 0 ? (
-                                <ul className="divide-y divide-border/60">
-                                    {proposal.attachments.map((attachment) => (
-                                        <li
-                                            key={attachment.id}
-                                            className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center"
-                                        >
-                                            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                                <FileText
-                                                    className="size-4"
-                                                    aria-hidden="true"
-                                                />
-                                            </span>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-sm font-medium break-all">
-                                                    {attachment.name}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {attachment.mime_type} ·{' '}
-                                                    {fileSize(
-                                                        attachment.size_bytes,
-                                                    )}
-                                                </p>
-                                            </div>
-                                            {attachment.scan_status ===
-                                                'PENDING_SCAN' && (
-                                                <Badge variant="warning">
-                                                    Menunggu pemindaian
-                                                </Badge>
-                                            )}
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                render={
-                                                    <a
-                                                        href={
-                                                            attachment.preview_url
-                                                        }
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                    />
-                                                }
-                                                nativeButton={false}
-                                            >
-                                                <Download data-icon="inline-start" />
-                                                Buka
-                                            </Button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p className="text-sm text-muted-foreground">
-                                    Belum ada lampiran.
-                                </p>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {proposal.review_history.length > 0 && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-base">
-                                    Riwayat pengajuan & review
-                                </CardTitle>
-                                <CardDescription>
-                                    Catatan keputusan tersimpan sebagai riwayat
-                                    proposal.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <ol className="space-y-4">
-                                    {proposal.review_history.map((item) => (
-                                        <li
-                                            key={item.id}
-                                            className="relative border-l border-border pl-4 last:border-transparent"
-                                        >
-                                            <p className="text-sm font-medium">
-                                                {decisionLabels[
-                                                    item.decision
-                                                ] ?? item.decision}
-                                            </p>
-                                            <p className="mt-1 text-xs text-muted-foreground">
-                                                {item.actor ?? 'Pengguna'} ·{' '}
-                                                {format(
-                                                    parseISO(item.decided_at),
-                                                    'd MMMM yyyy, HH:mm',
-                                                    {
-                                                        locale: indonesianLocale,
-                                                    },
-                                                )}
-                                            </p>
-                                            {item.reason && (
-                                                <p className="mt-2 text-sm whitespace-pre-wrap">
-                                                    {item.reason}
-                                                </p>
-                                            )}
-                                        </li>
-                                    ))}
-                                </ol>
-                            </CardContent>
-                        </Card>
+                    {proposal.export_missing.length > 0 && (
+                        <Alert>
+                            <Presentation aria-hidden="true" />
+                            <AlertTitle>
+                                Export PPT tersedia setelah isian wajib lengkap
+                            </AlertTitle>
+                            <AlertDescription>
+                                Belum diisi:{' '}
+                                {proposal.export_missing.join(', ')}.
+                            </AlertDescription>
+                        </Alert>
                     )}
+                    {proposal.status === 'REVISION_REQUIRED' && (
+                        <Alert className="border-warning/40 bg-warning/10">
+                            <AlertTitle>
+                                Proposal perlu revisi · feedback mentor
+                            </AlertTitle>
+                            <AlertDescription>
+                                <span className="block whitespace-pre-line">
+                                    {latestRevision?.reason ??
+                                        'Mentor belum mencatat feedback revisi.'}
+                                </span>
+                                {latestRevision?.decided_at && (
+                                    <span className="mt-1 block text-xs">
+                                        {latestRevision.actor ?? 'Mentor'} ·{' '}
+                                        {format(
+                                            parseISO(latestRevision.decided_at),
+                                            'd MMMM yyyy, HH:mm',
+                                            { locale: indonesianLocale },
+                                        )}
+                                    </span>
+                                )}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    <Tabs defaultValue="summary" className="gap-5">
+                        <TabsList
+                            aria-label="Bagian detail proposal"
+                            className="w-full max-w-full flex-wrap justify-start sm:w-fit"
+                        >
+                            <TabsTrigger value="summary">
+                                <FileText
+                                    aria-hidden="true"
+                                    data-icon="inline-start"
+                                />
+                                Ringkasan & situasi
+                            </TabsTrigger>
+                            <TabsTrigger value="plan">
+                                <ClipboardCheck
+                                    aria-hidden="true"
+                                    data-icon="inline-start"
+                                />
+                                Rencana & timeline
+                            </TabsTrigger>
+                            <TabsTrigger value="documents">
+                                <Paperclip
+                                    aria-hidden="true"
+                                    data-icon="inline-start"
+                                />
+                                Lampiran & riwayat
+                                <Badge variant="secondary" className="ml-1">
+                                    {proposal.attachments.length +
+                                        proposal.review_history.length}
+                                </Badge>
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="summary" className="space-y-5">
+                            <Card>
+                                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <CardTitle className="text-base">
+                                            Ringkasan proposal
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Informasi pengajuan · Terakhir
+                                            diperbarui{' '}
+                                            {proposal.updated_at
+                                                ? format(
+                                                      parseISO(
+                                                          proposal.updated_at,
+                                                      ),
+                                                      'd MMMM yyyy, HH:mm',
+                                                      {
+                                                          locale: indonesianLocale,
+                                                      },
+                                                  )
+                                                : '—'}
+                                        </CardDescription>
+                                    </div>
+                                    <Badge
+                                        variant={
+                                            statusVariants[proposal.status] ??
+                                            'secondary'
+                                        }
+                                    >
+                                        {proposal.status_label}
+                                    </Badge>
+                                </CardHeader>
+                                <CardContent>
+                                    <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                        <DetailField
+                                            label="Pengaju"
+                                            value={proposal.proposer}
+                                        />
+                                        <DetailField
+                                            label="PIC proposal"
+                                            value={proposal.pic}
+                                        />
+                                        <DetailField
+                                            label="LOB / Divisi"
+                                            value={proposal.organization}
+                                        />
+                                        <DetailField
+                                            label="Kategori Tema"
+                                            value={proposal.theme_category}
+                                        />
+                                        <DetailField
+                                            label="Tema Improvement"
+                                            value={proposal.theme}
+                                        />
+                                    </dl>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base">
+                                        Latar belakang & situasi
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Konteks dan data awal yang menjadi dasar
+                                        perbaikan.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <dl className="grid gap-3 sm:grid-cols-2">
+                                        <DetailField
+                                            label="Latar belakang"
+                                            value={proposal.background}
+                                        />
+                                        <DetailField
+                                            label="Situasi saat ini & baseline"
+                                            value={proposal.current_situation}
+                                        />
+                                    </dl>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                        <TabsContent value="plan" className="space-y-5">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base">
+                                        Rencana & target
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Arah solusi, sasaran, ruang lingkup, dan
+                                        kebutuhan biaya proyek.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <dl className="grid gap-3 sm:grid-cols-2">
+                                        <DetailField
+                                            label="Rencana perbaikan / arah solusi"
+                                            value={proposal.improvement_plan}
+                                        />
+                                        <DetailField
+                                            label="Target / tujuan"
+                                            value={proposal.target}
+                                        />
+                                        <DetailField
+                                            label="Ruang lingkup proyek"
+                                            value={proposal.scope}
+                                        />
+                                        <DetailField
+                                            label="Informasi dan data pelengkap"
+                                            value={
+                                                proposal.supplementary_information
+                                            }
+                                        />
+                                        <DetailField
+                                            label="Proyeksi kebutuhan biaya proyek"
+                                            value={proposal.cost_projection}
+                                        />
+                                        <div className="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-4">
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">
+                                                Tiga hal yang akan dipelajari
+                                            </dt>
+                                            <dd className="mt-2">
+                                                {proposal.learning_goals
+                                                    .length > 0 ? (
+                                                    <ol className="list-decimal space-y-1 pl-5 text-sm leading-6">
+                                                        {proposal.learning_goals.map(
+                                                            (
+                                                                goal,
+                                                                position,
+                                                            ) => (
+                                                                <li
+                                                                    key={
+                                                                        position
+                                                                    }
+                                                                >
+                                                                    {goal}
+                                                                </li>
+                                                            ),
+                                                        )}
+                                                    </ol>
+                                                ) : (
+                                                    <span className="text-sm text-foreground">
+                                                        —
+                                                    </span>
+                                                )}
+                                            </dd>
+                                        </div>
+                                    </dl>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base">
+                                        Timeline
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Rencana waktu, target selesai, dan
+                                        deliverable setiap step QCC.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <TimelineTable
+                                        rows={proposal.step_timeline.map(
+                                            (row) => ({
+                                                number: row.step_number,
+                                                name: row.name,
+                                                startDate: row.start_date,
+                                                date: row.target_date,
+                                                deliverable: row.deliverable,
+                                            }),
+                                        )}
+                                        startDate={proposal.batch_starts_on}
+                                    />
+                                </CardContent>
+                            </Card>
+
+                            {proposal.legacy_sections.length > 0 && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-base">
+                                            Bagian proposal versi sebelumnya
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Bagian ini sudah tidak ada di
+                                            formulir, tetapi masih diisi pada
+                                            proposal ini.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <dl className="grid gap-3 sm:grid-cols-2">
+                                            {proposal.legacy_sections.map(
+                                                (section) => (
+                                                    <DetailField
+                                                        key={section.label}
+                                                        label={section.label}
+                                                        value={section.value}
+                                                    />
+                                                ),
+                                            )}
+                                        </dl>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </TabsContent>
+                        <TabsContent value="documents" className="space-y-5">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <Paperclip
+                                            className="size-4 text-muted-foreground"
+                                            aria-hidden="true"
+                                        />
+                                        Lampiran ({proposal.attachments.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {proposal.attachments.length > 0 ? (
+                                        <ul className="grid gap-3">
+                                            {proposal.attachments.map(
+                                                (attachment) => (
+                                                    <li
+                                                        key={attachment.id}
+                                                        className="flex flex-col gap-3 rounded-lg border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center"
+                                                    >
+                                                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                                            <FileText
+                                                                className="size-4"
+                                                                aria-hidden="true"
+                                                            />
+                                                        </span>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-sm font-medium break-words">
+                                                                {
+                                                                    attachment.name
+                                                                }
+                                                            </p>
+                                                            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                                                {
+                                                                    attachment.mime_type
+                                                                }{' '}
+                                                                ·{' '}
+                                                                {fileSize(
+                                                                    attachment.size_bytes,
+                                                                )}
+                                                            </p>
+                                                        </div>
+                                                        {attachment.scan_status !==
+                                                            'PASSED' && (
+                                                            <Badge variant="warning">
+                                                                {attachment.scan_status ===
+                                                                'PENDING_SCAN'
+                                                                    ? 'Menunggu pemeriksaan format'
+                                                                    : 'Format belum lolos pemeriksaan'}
+                                                            </Badge>
+                                                        )}
+                                                        {attachment.preview_url &&
+                                                            (attachment.mime_type ===
+                                                                'application/pdf' ||
+                                                                attachment.mime_type.startsWith(
+                                                                    'image/',
+                                                                )) && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() =>
+                                                                        setPreviewAttachment(
+                                                                            attachment,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Eye data-icon="inline-start" />
+                                                                    Pratinjau
+                                                                </Button>
+                                                            )}
+                                                        {attachment.preview_url &&
+                                                            attachment.mime_type !==
+                                                                'application/pdf' &&
+                                                            !attachment.mime_type.startsWith(
+                                                                'image/',
+                                                            ) && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    render={
+                                                                        <a
+                                                                            href={
+                                                                                attachment.preview_url
+                                                                            }
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                        />
+                                                                    }
+                                                                    nativeButton={
+                                                                        false
+                                                                    }
+                                                                >
+                                                                    <Download data-icon="inline-start" />
+                                                                    Buka file
+                                                                </Button>
+                                                            )}
+                                                    </li>
+                                                ),
+                                            )}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">
+                                            Belum ada lampiran.
+                                        </p>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {proposal.review_history.length > 0 && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-base">
+                                            Riwayat pengajuan & review
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Catatan keputusan tersimpan sebagai
+                                            riwayat proposal.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <ol className="space-y-4">
+                                            {proposal.review_history.map(
+                                                (item) => (
+                                                    <li
+                                                        key={item.id}
+                                                        className="relative border-l border-border pl-4 last:border-transparent"
+                                                    >
+                                                        <p className="text-sm font-medium">
+                                                            {decisionLabels[
+                                                                item.decision
+                                                            ] ?? item.decision}
+                                                        </p>
+                                                        <p className="mt-1 text-xs text-muted-foreground">
+                                                            {item.actor ??
+                                                                'Pengguna'}{' '}
+                                                            ·{' '}
+                                                            {format(
+                                                                parseISO(
+                                                                    item.decided_at,
+                                                                ),
+                                                                'd MMMM yyyy, HH:mm',
+                                                                {
+                                                                    locale: indonesianLocale,
+                                                                },
+                                                            )}
+                                                        </p>
+                                                        {item.reason && (
+                                                            <p className="mt-2 text-sm whitespace-pre-wrap">
+                                                                {item.reason}
+                                                            </p>
+                                                        )}
+                                                    </li>
+                                                ),
+                                            )}
+                                        </ol>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </TabsContent>
+                    </Tabs>
 
                     <div className="flex flex-wrap gap-2">
                         <Button
@@ -531,10 +760,10 @@ export default function ProposalShow({ proposal }: Props) {
             <Dialog open={decisionOpen} onOpenChange={setDecisionOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Keputusan review</DialogTitle>
+                        <DialogTitle>Keputusan mentor</DialogTitle>
                         <DialogDescription>
-                            Pilih hasil review proposal. Alasan wajib untuk
-                            revisi atau penolakan.
+                            Setujui proposal, atau kembalikan ke SIMer untuk
+                            direvisi. Feedback wajib diisi saat meminta revisi.
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={submitDecision} className="space-y-4">
@@ -555,14 +784,36 @@ export default function ProposalShow({ proposal }: Props) {
                                 <option value="REQUEST_REVISION">
                                     Minta revisi
                                 </option>
-                                <option value="REJECT">Tolak</option>
                             </select>
+                            {(decisionForm.errors as Record<string, string>)
+                                .decision && (
+                                <p className="text-sm text-destructive">
+                                    {
+                                        (
+                                            decisionForm.errors as Record<
+                                                string,
+                                                string
+                                            >
+                                        ).decision
+                                    }
+                                </p>
+                            )}
                         </div>
-                        {decisionForm.data.decision !== 'APPROVE' && (
-                            <div className="space-y-2">
+                        <div className="space-y-2">
                                 <Label htmlFor="review-reason">
-                                    Alasan{' '}
-                                    <span className="text-destructive">*</span>
+                                    Feedback untuk SIMer
+                                    {decisionForm.data.decision ===
+                                    'REQUEST_REVISION' ? (
+                                        <span className="text-destructive">
+                                            {' '}
+                                            *
+                                        </span>
+                                    ) : (
+                                        <span className="font-normal text-muted-foreground">
+                                            {' '}
+                                            (opsional)
+                                        </span>
+                                    )}
                                 </Label>
                                 <Textarea
                                     id="review-reason"
@@ -575,7 +826,12 @@ export default function ProposalShow({ proposal }: Props) {
                                     }
                                     maxLength={5000}
                                     rows={4}
-                                    placeholder="Tuliskan masukan yang perlu diketahui pengaju."
+                                    placeholder={
+                                        decisionForm.data.decision ===
+                                        'REQUEST_REVISION'
+                                            ? 'Bagian mana yang perlu diperbaiki dan seperti apa perbaikannya.'
+                                            : 'Catatan untuk SIMer sebelum tim disusun.'
+                                    }
                                 />
                                 {decisionForm.errors.reason && (
                                     <p className="text-sm text-destructive">
@@ -583,7 +839,6 @@ export default function ProposalShow({ proposal }: Props) {
                                     </p>
                                 )}
                             </div>
-                        )}
                         {(decisionForm.errors as Record<string, string>)
                             .proposal && (
                             <p className="text-sm text-destructive">
@@ -615,6 +870,41 @@ export default function ProposalShow({ proposal }: Props) {
                             </Button>
                         </DialogFooter>
                     </form>
+                </DialogContent>
+            </Dialog>
+            <Dialog
+                open={previewAttachment !== null}
+                onOpenChange={(open) => {
+                    if (!open) setPreviewAttachment(null);
+                }}
+            >
+                <DialogContent className="grid h-[min(88vh,900px)] w-[calc(100vw-2rem)] max-w-6xl grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden p-4 sm:max-w-6xl sm:p-6">
+                    <DialogHeader className="pr-8">
+                        <DialogTitle className="break-all">
+                            {previewAttachment?.name ?? 'Pratinjau lampiran'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {previewAttachment
+                                ? `${previewAttachment.mime_type} · ${fileSize(previewAttachment.size_bytes)}`
+                                : 'Pratinjau file proposal.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {previewAttachment?.preview_url &&
+                        (previewAttachment.mime_type === 'application/pdf' ? (
+                            <iframe
+                                title={`Pratinjau ${previewAttachment.name}`}
+                                src={previewAttachment.preview_url}
+                                className="h-full min-h-0 w-full rounded-lg border bg-muted/20"
+                            />
+                        ) : (
+                            <div className="flex min-h-0 items-center justify-center overflow-auto rounded-lg border bg-muted/20 p-3">
+                                <img
+                                    src={previewAttachment.preview_url}
+                                    alt={previewAttachment.name}
+                                    className="max-h-full max-w-full object-contain"
+                                />
+                            </div>
+                        ))}
                 </DialogContent>
             </Dialog>
         </>

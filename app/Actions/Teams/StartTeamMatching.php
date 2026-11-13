@@ -16,6 +16,10 @@ use Illuminate\Validation\ValidationException;
 
 class StartTeamMatching
 {
+    private const QUEUED_TIMEOUT_SECONDS = 120;
+
+    private const PROCESSING_TIMEOUT_SECONDS = 180;
+
     public function __construct(
         private readonly AiConnection $ai,
         private readonly CandidateShortlist $shortlist,
@@ -29,6 +33,12 @@ class StartTeamMatching
      */
     public function handle(Project $project, User $requester): TeamMatchingRun
     {
+        $project->refresh();
+
+        if (! $project->proposal_status->allowsTeamFormation()) {
+            throw ValidationException::withMessages(['matching' => 'AI Matching hanya tersedia untuk proposal yang sudah disetujui.']);
+        }
+
         if (! $this->ai->isReady()) {
             throw ValidationException::withMessages(['ai' => AiConnection::MESSAGE_NOT_READY]);
         }
@@ -40,18 +50,41 @@ class StartTeamMatching
         }
 
         if ($shortlist['candidates'] === []) {
-            throw ValidationException::withMessages(['matching' => 'Belum ada kandidat yang memenuhi kompetensi dan level minimum proyek ini.']);
+            throw ValidationException::withMessages(['matching' => 'Belum ada kandidat yang memiliki kompetensi yang dibutuhkan proyek ini.']);
         }
 
         $snapshot = $this->shortlist->snapshot($project, $shortlist);
 
         $run = DB::transaction(function () use ($project, $requester, $snapshot): TeamMatchingRun {
-            Project::query()->whereKey($project->id)->lockForUpdate()->first();
+            $lockedProject = Project::query()->whereKey($project->id)->lockForUpdate()->firstOrFail();
+
+            if (! $lockedProject->proposal_status->allowsTeamFormation()) {
+                throw ValidationException::withMessages(['matching' => 'AI Matching hanya tersedia untuk proposal yang sudah disetujui.']);
+            }
 
             $latest = TeamMatchingRun::query()->where('project_id', $project->id)->latest('id')->first();
 
             if ($latest?->status->isActive()) {
-                throw ValidationException::withMessages(['matching' => 'Rekomendasi sebelumnya masih diproses.']);
+                $timeoutSeconds = $latest->status === TeamMatchingStatus::Queued
+                    ? self::QUEUED_TIMEOUT_SECONDS
+                    : self::PROCESSING_TIMEOUT_SECONDS;
+
+                if ($latest->updated_at->lessThan(now()->subSeconds($timeoutSeconds))) {
+                    $latest->forceFill([
+                        'status' => TeamMatchingStatus::Failed,
+                        'error_code' => $latest->status === TeamMatchingStatus::Queued
+                            ? 'queue_timeout'
+                            : 'processing_timeout',
+                    ])->save();
+
+                    $this->audit->record(
+                        'team_matching.failed',
+                        $latest,
+                        subjectLabel: 'Proposal PRP-'.sprintf('%04d', $project->id),
+                    );
+                } else {
+                    throw ValidationException::withMessages(['matching' => 'Rekomendasi sebelumnya masih diproses.']);
+                }
             }
 
             $cooldown = (int) config('team_matching.cooldown_seconds');
