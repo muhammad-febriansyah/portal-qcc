@@ -89,6 +89,7 @@ type Proposal = {
     can_find_candidates: boolean;
     has_team: boolean;
     can_submit: boolean;
+    export_missing: string[];
     team_confirmed: boolean;
     team_status_message: string | null;
     can_start_review: boolean;
@@ -178,19 +179,30 @@ export default function ProposalShow({ proposal }: Props) {
                     description={`${proposal.code} · ${proposal.batch ?? 'Tanpa batch'}`}
                     actions={
                         <>
-                            <Button
-                                variant="outline"
-                                render={
-                                    <a
-                                        href={presentation.url(proposal.id)}
-                                        download
-                                    />
-                                }
-                                nativeButton={false}
-                            >
-                                <Presentation data-icon="inline-start" />
-                                Export PPT
-                            </Button>
+                            {proposal.export_missing.length === 0 ? (
+                                <Button
+                                    variant="outline"
+                                    render={
+                                        <a
+                                            href={presentation.url(proposal.id)}
+                                            download
+                                        />
+                                    }
+                                    nativeButton={false}
+                                >
+                                    <Presentation data-icon="inline-start" />
+                                    Export PPT
+                                </Button>
+                            ) : (
+                                <Button
+                                    variant="outline"
+                                    disabled
+                                    title={`Lengkapi dulu: ${proposal.export_missing.join(', ')}`}
+                                >
+                                    <Presentation data-icon="inline-start" />
+                                    Export PPT
+                                </Button>
+                            )}
                             {proposal.can_edit_draft && (
                                 <Button
                                     variant="outline"
@@ -298,6 +310,18 @@ export default function ProposalShow({ proposal }: Props) {
                                 )}
                             </ul>
                         </div>
+                    )}
+                    {proposal.export_missing.length > 0 && (
+                        <Alert>
+                            <Presentation aria-hidden="true" />
+                            <AlertTitle>
+                                Export PPT tersedia setelah isian wajib lengkap
+                            </AlertTitle>
+                            <AlertDescription>
+                                Belum diisi:{' '}
+                                {proposal.export_missing.join(', ')}.
+                            </AlertDescription>
+                        </Alert>
                     )}
                     {proposal.status === 'REVISION_REQUIRED' && (
                         <Alert className="border-warning/40 bg-warning/10">

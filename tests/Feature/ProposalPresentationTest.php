@@ -1,13 +1,17 @@
 <?php
 
 use App\Enums\ProposalStatus;
+use App\Enums\QccStep;
 use App\Enums\ThemeCategory;
+use App\Models\Competency;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Models\ProjectMentor;
 use App\Models\QccBatch;
 use App\Models\ReviewDecision;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Inertia\Testing\AssertableInertia;
 use Spatie\Permission\Models\Permission;
 
 /**
@@ -92,7 +96,7 @@ test('a proposal downloads as a filled presentation', function () {
 
 test('a long text gets a smaller font and is cut to fit its card', function () {
     $proposer = presentationViewer();
-    $project = Project::factory()->create([
+    $project = Project::factory()->status(ProposalStatus::Submitted)->create([
         'proposer_id' => $proposer->id,
         'background' => str_repeat('Data proses verifikasi dokumen. ', 30),
         'scope' => str_repeat('Ruang lingkup yang sangat panjang sekali. ', 60),
@@ -118,11 +122,72 @@ test('only people who may open the proposal can download it', function () {
 test('the mentor card falls back to the organization mentors before anyone is assigned', function () {
     $proposer = presentationViewer();
     $proposer->organization->mentors()->attach(User::factory()->create(['name' => 'Eka Mentor']));
-    $project = Project::factory()->status(ProposalStatus::Draft)->create(['proposer_id' => $proposer->id]);
+    $project = Project::factory()->status(ProposalStatus::Submitted)->create(['proposer_id' => $proposer->id]);
 
     $response = $this->actingAs($proposer)->get(route('proposals.presentation', $project))->assertOk();
     $slides = presentationSlides($response->baseResponse->getFile()->getPathname());
 
     expect($slides[6])->toContain('Eka Mentor', 'Mentor DIV IT')
         ->and($slides[6])->not->toContain('Disetujui');
+});
+
+/**
+ * A draft with every mandatory part of a proposal filled in.
+ */
+function completeDraft(User $proposer): Project
+{
+    $project = Project::factory()->status(ProposalStatus::Draft)->create([
+        'proposer_id' => $proposer->id,
+        'title' => 'Digitalisasi verifikasi',
+        'theme' => 'Proses verifikasi',
+        'theme_category' => ThemeCategory::Productivity,
+        'background' => 'Latar belakang',
+        'current_situation' => 'Baseline 10 jam',
+        'improvement_plan' => 'Checklist digital',
+        'target' => 'Target 5 jam',
+        'scope' => 'Unit verifikasi',
+        'learning_goals_json' => ['Analisis data', 'Lean', 'SOP'],
+        'step_timeline_json' => array_map(fn (QccStep $step): array => [
+            'step_number' => $step->value,
+            'start_date' => now()->addWeeks($step->value - 1)->toDateString(),
+            'target_date' => now()->addWeeks($step->value)->toDateString(),
+        ], QccStep::cases()),
+    ]);
+    DB::table('project_requirements')->insert([
+        'project_id' => $project->id,
+        'competency_id' => Competency::factory()->create()->id,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return $project;
+}
+
+test('a draft exports once every mandatory part is filled, before it is submitted', function () {
+    $proposer = presentationViewer();
+    $project = completeDraft($proposer);
+
+    $this->actingAs($proposer)->get(route('proposals.presentation', $project))->assertOk();
+
+    $this->get(route('proposals.show', $project))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('proposal.export_missing', []));
+
+    expect($project->fresh()->proposal_status)->toBe(ProposalStatus::Draft);
+});
+
+test('a draft with mandatory parts missing cannot be exported and says what is missing', function () {
+    $proposer = presentationViewer();
+    $proposer->givePermissionTo(Permission::findOrCreate('projects.update', 'web'));
+    $project = completeDraft($proposer);
+    $project->forceFill(['target' => null, 'learning_goals_json' => ['Analisis data']])->save();
+
+    $this->actingAs($proposer)->get(route('proposals.presentation', $project))->assertStatus(422);
+
+    $this->get(route('proposals.show', $project))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('proposal.export_missing', ['Target/tujuan', '3 hal yang akan dipelajari']));
+
+    $this->get(route('proposals.edit', $project))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('project.export_missing', ['Target/tujuan', '3 hal yang akan dipelajari']));
 });

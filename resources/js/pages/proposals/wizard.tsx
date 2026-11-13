@@ -6,6 +6,7 @@ import {
     ChevronRight,
     FileText,
     MessageSquareWarning,
+    Presentation,
     Save,
     Trash2,
     TriangleAlert,
@@ -58,6 +59,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
     create as proposalCreate,
     index as proposalsIndex,
+    presentation as proposalPresentation,
     submit as proposalSubmit,
     store as proposalStore,
     update as proposalUpdate,
@@ -109,6 +111,7 @@ type ProjectDraft = {
     step_deliverables: string[];
     wizard_step: number;
     status?: string;
+    export_missing?: string[];
     revision_feedback?: {
         reason: string | null;
         actor: string | null;
@@ -344,6 +347,7 @@ export default function ProposalWizard({
     attachmentLimit = { maxFiles: 5, maxSizeMb: 50 },
 }: Props) {
     const isRevision = project?.status === 'REVISION_REQUIRED';
+    const exportMissing = project?.export_missing ?? [];
     const [requirementsDirty, setRequirementsDirty] = useState(false);
     const [pendingFiles, setPendingFiles] = useState<UploadItem[]>([]);
     const [activeStep, setActiveStep] = useState(project?.wizard_step ?? step);
@@ -1417,6 +1421,38 @@ export default function ProposalWizard({
                                         )}
                                         Simpan Draft
                                     </Button>
+                                    {project &&
+                                        activeStep === steps.length &&
+                                        (exportMissing.length === 0 &&
+                                        !form.isDirty &&
+                                        !requirementsDirty ? (
+                                            <Button
+                                                variant="outline"
+                                                className="h-10 px-4"
+                                                render={
+                                                    <a
+                                                        href={proposalPresentation.url(
+                                                            project.id,
+                                                        )}
+                                                        download
+                                                    />
+                                                }
+                                                nativeButton={false}
+                                            >
+                                                <Presentation data-icon="inline-start" />
+                                                Export PPT
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="h-10 px-4"
+                                                disabled
+                                            >
+                                                <Presentation data-icon="inline-start" />
+                                                Export PPT
+                                            </Button>
+                                        ))}
                                     {project?.can_submit &&
                                         activeStep === steps.length && (
                                             <Button
@@ -1440,11 +1476,23 @@ export default function ProposalWizard({
                                         )}
                                 </div>
                             </div>
-                            {project?.can_submit &&
+                            {project &&
                                 activeStep === steps.length &&
-                                form.isDirty && (
+                                (form.isDirty || requirementsDirty) && (
                                     <p className="text-xs text-muted-foreground">
-                                        Simpan draft dulu sebelum mengajukan.
+                                        Simpan draft dulu sebelum mengekspor PPT
+                                        atau mengajukan.
+                                    </p>
+                                )}
+                            {project &&
+                                activeStep === steps.length &&
+                                !form.isDirty &&
+                                !requirementsDirty &&
+                                exportMissing.length > 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Export PPT tersedia setelah isian wajib
+                                        lengkap. Belum diisi:{' '}
+                                        {exportMissing.join(', ')}.
                                     </p>
                                 )}
                         </CardFooter>

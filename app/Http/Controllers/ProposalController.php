@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Proposals\ProposalCompleteness;
 use App\Actions\Proposals\ReviewProposal;
 use App\Actions\Proposals\SubmitProposal;
 use App\Actions\Teams\ConfirmProjectTeam;
@@ -162,7 +163,7 @@ class ProposalController extends Controller
         ]);
     }
 
-    public function show(Request $request, Project $project, TeamMatchingInputFingerprint $fingerprint): Response
+    public function show(Request $request, Project $project, TeamMatchingInputFingerprint $fingerprint, ProposalCompleteness $completeness): Response
     {
         Gate::authorize('view', $project);
 
@@ -236,6 +237,7 @@ class ProposalController extends Controller
                 'can_submit' => $project->proposer_id === $request->user()->id
                     && in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true)
                     && $request->user()->can('projects.submit'),
+                'export_missing' => $completeness->canExportPresentation($project) ? [] : $completeness->missingLabels($project),
                 'team_confirmed' => $teamConfirmed,
                 'team_status_message' => $teamConfirmed && ! $request->user()->can('findCandidates', $project)
                     ? 'Tim sudah dikonfirmasi oleh Owner QCC.'

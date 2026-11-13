@@ -3,7 +3,6 @@
 namespace App\Actions\Proposals;
 
 use App\Enums\ProposalStatus;
-use App\Enums\QccStep;
 use App\Models\Project;
 use App\Models\ReviewDecision;
 use App\Models\User;
@@ -20,6 +19,7 @@ class SubmitProposal
         private readonly AuditService $audit,
         private readonly ProjectNotifier $notifier,
         private readonly AssignOrganizationMentors $assignOrganizationMentors,
+        private readonly ProposalCompleteness $completeness,
     ) {}
 
     public function handle(Project $project, User $actor): void
@@ -31,42 +31,7 @@ class SubmitProposal
                 throw ValidationException::withMessages(['proposal' => 'Proposal hanya bisa diajukan dari status draf atau perlu revisi.']);
             }
 
-            $requiredFields = [
-                'title' => 'Judul proposal',
-                'theme' => 'Tema improvement',
-                'theme_category' => 'Kategori tema',
-                'background' => 'Latar belakang',
-                'current_situation' => 'Situasi saat ini & baseline',
-                'improvement_plan' => 'Rencana perbaikan',
-                'target' => 'Target/tujuan',
-                'scope' => 'Ruang lingkup proyek',
-            ];
-            $missing = [];
-
-            foreach ($requiredFields as $field => $label) {
-                if (blank($project->{$field})) {
-                    $missing[$field] = "{$label} wajib diisi sebelum proposal diajukan.";
-                }
-            }
-
-            $goals = array_filter($project->learning_goals_json ?? [], fn ($goal): bool => filled($goal));
-
-            if (count($goals) !== 3) {
-                $missing['learning_goals'] = 'Isi tepat 3 hal yang akan dipelajari sebelum proposal diajukan.';
-            }
-
-            $plannedSteps = array_filter(
-                $project->step_timeline_json ?? [],
-                fn (array $step): bool => filled($step['start_date'] ?? null) && filled($step['target_date'] ?? null),
-            );
-
-            if (count($plannedSteps) !== count(QccStep::cases())) {
-                $missing['step_timeline'] = 'Isi tanggal mulai dan target selesai semua step QCC sebelum proposal diajukan.';
-            }
-
-            if (! $project->requirements()->exists()) {
-                $missing['requirements'] = 'Tambahkan minimal satu kebutuhan kompetensi sebelum proposal diajukan.';
-            }
+            $missing = $this->completeness->missing($project);
 
             if ($missing !== []) {
                 throw ValidationException::withMessages($missing);

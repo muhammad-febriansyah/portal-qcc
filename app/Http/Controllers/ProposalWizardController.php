@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Proposals\InspectProposalAttachment;
+use App\Actions\Proposals\ProposalCompleteness;
 use App\Enums\BatchStatus;
 use App\Enums\CompetencyLevel;
 use App\Enums\ProposalStatus;
@@ -77,7 +78,7 @@ class ProposalWizardController extends Controller
         return to_route('proposals.edit', $project);
     }
 
-    public function edit(Request $request, Project $project): Response
+    public function edit(Request $request, Project $project, ProposalCompleteness $completeness): Response
     {
         Gate::authorize('update', $project);
         abort_unless(in_array($project->proposal_status, [ProposalStatus::Draft, ProposalStatus::RevisionRequired], true), 404);
@@ -110,6 +111,8 @@ class ProposalWizardController extends Controller
                 'step_deliverables' => $this->timelineValues($project, 'deliverable'),
                 'wizard_step' => $project->wizard_step,
                 'status' => $project->proposal_status->value,
+                // Saved mandatory parts still empty; the presentation can be exported once none are left.
+                'export_missing' => $completeness->missingLabels($project),
                 'revision_feedback' => $revisionRequest === null ? null : [
                     'reason' => $revisionRequest->reason,
                     'actor' => $revisionRequest->actor?->name,

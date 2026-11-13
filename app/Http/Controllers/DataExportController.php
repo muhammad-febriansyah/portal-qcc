@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Proposals\InitializeProjectSteps;
+use App\Actions\Proposals\ProposalCompleteness;
 use App\Enums\ActionStatus;
 use App\Enums\ProposalStatus;
 use App\Enums\QccStep;
@@ -66,9 +67,14 @@ class DataExportController extends Controller
     /**
      * The proposal as a PowerPoint deck built from the program's presentation template.
      */
-    public function proposalPresentation(Project $project, ProposalPresentationBuilder $builder, AuditService $audit): BinaryFileResponse
+    public function proposalPresentation(Project $project, ProposalPresentationBuilder $builder, AuditService $audit, ProposalCompleteness $completeness): BinaryFileResponse
     {
         Gate::authorize('view', $project);
+        abort_unless(
+            $completeness->canExportPresentation($project),
+            422,
+            'Lengkapi isian wajib proposal sebelum mengekspor PPT: '.implode(', ', $completeness->missingLabels($project)).'.',
+        );
 
         $path = $builder->build($project);
 
