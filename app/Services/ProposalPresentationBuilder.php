@@ -7,6 +7,8 @@ use App\Enums\QccStep;
 use App\Models\Project;
 use App\Models\ProjectMentor;
 use App\Models\ReviewDecision;
+use App\Services\Presentation\SlidePackage;
+use App\Services\Presentation\SlideText;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -14,51 +16,100 @@ use Throwable;
 use ZipArchive;
 
 /**
- * Fills the proposal presentation template (resources/templates/proposal-presentation.pptx)
- * with one proposal. The template holds a {{token}} for every value; long texts get a smaller
- * font so they stay inside their card, and the schedule slide draws each QCC step as a bar.
+ * Builds the proposal deck from the template (resources/templates/proposal-presentation.pptx):
+ * a cover, the proposal's sections as bordered white cards flowing over two columns, the QCC
+ * step schedule as a weekly gantt table, the approval slide and a closing slide.
+ *
+ * Nothing is ever cut short: a card that does not fit continues in the next column or on the
+ * next slide, and a schedule too tall for one slide continues on the next, with its header
+ * repeated.
  */
 class ProposalPresentationBuilder
 {
     public const TEMPLATE = 'templates/proposal-presentation.pptx';
 
-    /** Months the schedule slide shows, four week columns each. */
+    /** Template slides, by file number. */
+    private const COVER = 1;
+
+    private const FRAME = 2;
+
+    private const APPROVAL = 3;
+
+    private const CLOSING = 4;
+
+    public const PRIMARY = '0179A3';
+
+    private const TEXT = '1E293B';
+
+    private const MUTED = '64748B';
+
+    private const BORDER = 'E2E8F0';
+
+    private const TINT = 'E6F3F8';
+
+    /** Content area of a frame slide, in inches. */
+    private const LEFT = 0.6;
+
+    private const WIDTH = 12.13;
+
+    private const TOP = 1.8;
+
+    private const BOTTOM = 6.95;
+
+    private const COLUMN_GAP = 0.3;
+
+    private const CARD_GAP = 0.2;
+
+    private const CARD_PADDING_X = 0.2;
+
+    private const CARD_PADDING_Y = 0.16;
+
+    private const LABEL_SIZE = 10.5;
+
+    private const LABEL_GAP = 6;
+
+    private const BODY_SIZE = 12;
+
+    /** A card continued elsewhere still shows at least this many lines where it starts. */
+    private const MIN_LINES = 3;
+
+    /** Months the schedule shows, four week columns each. */
     private const SCHEDULE_MONTHS = 7;
 
-    private const BAR_COLOR = '1F4E79';
+    private const TABLE_SIZE = 8;
+
+    /** Schedule columns: step, one per week, start, finish, deliverable (inches). */
+    private const STEP_COLUMN = 2.55;
+
+    private const WEEK_COLUMN = 0.2;
+
+    private const DATE_COLUMN = 0.82;
+
+    private const HEADER_ROW = 0.28;
+
+    private const MIN_ROW = 0.3;
 
     /**
-     * Space for each multi-line value: width and height in inches, largest and smallest font in points.
+     * Single values on the cover and approval slides that shrink to fit their box:
+     * width and height in inches, largest and smallest font in points.
      *
      * @var array<string, array{0: float, 1: float, 2: int, 3: int}>
      */
     private const TEXT_BOXES = [
-        'judul_proposal' => [9.7, 0.95, 22, 16],
-        'judul_proyek' => [5.49, 0.42, 14, 10],
-        'tema_improvement' => [5.49, 0.42, 14, 10],
-        'latar_belakang' => [5.31, 3.0, 14, 10],
-        'situasi_saat_ini_baseline' => [5.31, 3.0, 14, 10],
-        'ruang_lingkup_proyek' => [5.31, 1.05, 14, 10],
-        'rencana_perbaikan_arah_solusi' => [5.31, 4.3, 14, 10],
-        'target_tujuan' => [5.31, 2.5, 14, 10],
-        'proyeksi_kebutuhan_biaya' => [5.31, 1.85, 14, 10],
-        'informasi_data_pelengkap' => [5.31, 4.3, 14, 10],
-        'hal_yang_dipelajari_1' => [5.31, 0.5, 14, 9],
-        'hal_yang_dipelajari_2' => [5.31, 0.5, 14, 9],
-        'hal_yang_dipelajari_3' => [5.31, 0.5, 14, 9],
-        // One line per mentor (two for LOB CCCM and KISS), above the mentor's title.
+        'judul_proposal' => [9.7, 0.85, 22, 14],
         'nama_approver' => [3.3, 0.45, 15, 10],
     ];
+
+    private int $shapeId = 100;
 
     /**
      * Build the presentation into a temporary file. The caller deletes it.
      */
     public function build(Project $project): string
     {
-        $template = resource_path(self::TEMPLATE);
         $path = tempnam(sys_get_temp_dir(), 'qcc-proposal-');
 
-        if ($path === false || ! copy($template, $path)) {
+        if ($path === false || ! copy(resource_path(self::TEMPLATE), $path)) {
             throw new RuntimeException('Tidak dapat menyiapkan file presentasi.');
         }
 
@@ -70,21 +121,8 @@ class ProposalPresentationBuilder
             }
 
             $project->loadMissing(['batch', 'proposer.organization.mentors', 'reviewDecisions', 'mentorAssignments.mentor']);
-            $values = $this->values($project);
-            $schedule = $this->schedule($project);
-
-            for ($index = 0; $index < $archive->numFiles; $index++) {
-                $name = (string) $archive->getNameIndex($index);
-
-                if (preg_match('#^ppt/slides/slide\d+\.xml$#', $name) !== 1) {
-                    continue;
-                }
-
-                $xml = (string) $archive->getFromIndex($index);
-                $xml = $this->fillSchedule($xml, $schedule);
-                $xml = $this->fillText($xml, [...$values, ...$schedule['texts']]);
-                $archive->addFromString($name, $xml);
-            }
+            $package = new SlidePackage($archive);
+            $package->replaceSlides($this->slides($project, $package));
 
             if (! $archive->close()) {
                 throw new RuntimeException('Presentasi tidak dapat disimpan.');
@@ -109,13 +147,49 @@ class ProposalPresentationBuilder
     }
 
     /**
+     * @return list<array{xml: string, rels: string}>
+     */
+    private function slides(Project $project, SlidePackage $package): array
+    {
+        $values = $this->values($project);
+        $frame = $package->templateSlide(self::FRAME);
+        $frameRels = $package->templateRelationships(self::FRAME);
+        $pages = [];
+
+        foreach ($this->sectionPages($this->sections($project)) as $index => $cards) {
+            $pages[] = ['title' => 'Proposal Proyek', 'subtitle' => $index === 0 ? 'Isi proposal yang diajukan.' : 'Isi proposal (lanjutan).', 'body' => $cards];
+        }
+
+        foreach ($this->schedulePages($project) as $index => $table) {
+            $pages[] = ['title' => 'Jadwal Proyek', 'subtitle' => $index === 0 ? 'Rencana aktivitas dan target waktu pelaksanaan proyek.' : 'Rencana aktivitas (lanjutan).', 'body' => $table];
+        }
+
+        $slides = [['xml' => $this->fill($package->templateSlide(self::COVER), $values), 'rels' => $package->templateRelationships(self::COVER)]];
+        $number = 2;
+
+        foreach ($pages as $page) {
+            $xml = $this->fill($frame, [
+                ...$values,
+                'slide_title' => $page['title'],
+                'slide_subtitle' => $page['subtitle'],
+                'page_number' => sprintf('%02d', $number++),
+            ]);
+            $slides[] = ['xml' => str_replace('</p:spTree>', $page['body'].'</p:spTree>', $xml), 'rels' => $frameRels];
+        }
+
+        $slides[] = ['xml' => $this->fill($package->templateSlide(self::APPROVAL), [...$values, 'page_number' => sprintf('%02d', $number)]), 'rels' => $package->templateRelationships(self::APPROVAL)];
+        $slides[] = ['xml' => $this->fill($package->templateSlide(self::CLOSING), $values), 'rels' => $package->templateRelationships(self::CLOSING)];
+
+        return $slides;
+    }
+
+    /**
      * @return array<string, string>
      */
     private function values(Project $project): array
     {
         $proposer = $project->proposer;
         $batch = $project->batch;
-        $learning = array_values(array_filter((array) $project->learning_goals_json, 'filled'));
         $approval = $project->reviewDecisions
             ->where('decision', 'APPROVE')
             ->sortByDesc('decided_at')
@@ -129,18 +203,6 @@ class ProposalPresentationBuilder
             'sim_id' => $proposer?->sim_id === null ? '-' : 'SIM ID '.$proposer->sim_id,
             'lob_divisi' => $proposer?->organization?->name ?? '-',
             'kategori_tema' => $project->theme_category === null ? '' : 'Kategori tema: '.$project->theme_category->label(),
-            'judul_proyek' => (string) $project->title,
-            'tema_improvement' => $this->text($project->theme),
-            'latar_belakang' => $this->text($project->background),
-            'situasi_saat_ini_baseline' => $this->text($project->current_situation),
-            'ruang_lingkup_proyek' => $this->text($project->scope),
-            'rencana_perbaikan_arah_solusi' => $this->text($project->improvement_plan),
-            'target_tujuan' => $this->text($project->target),
-            'proyeksi_kebutuhan_biaya' => $this->text($project->cost_projection),
-            'informasi_data_pelengkap' => $this->text($project->supplementary_information),
-            'hal_yang_dipelajari_1' => '1. '.($learning[0] ?? '-'),
-            'hal_yang_dipelajari_2' => '2. '.($learning[1] ?? '-'),
-            'hal_yang_dipelajari_3' => '3. '.($learning[2] ?? '-'),
             'nama_pengusul' => $proposer?->name ?? '-',
             'jabatan_pengusul' => $proposer?->position ?? '-',
             'tanggal_pengajuan' => $project->submitted_at === null ? 'Belum diajukan' : 'Diajukan '.$this->date($project->submitted_at),
@@ -179,9 +241,262 @@ class ProposalPresentationBuilder
     }
 
     /**
-     * The eight QCC steps with their dates, and the months the schedule slide shows.
+     * The proposal's sections in reading order, each a label and its text.
      *
-     * @return array{texts: array<string, string>, bars: array<string, bool>}
+     * @return list<array{label: string, text: string}>
+     */
+    private function sections(Project $project): array
+    {
+        $learning = array_values(array_filter((array) $project->learning_goals_json, 'filled'));
+
+        $sections = [
+            ['label' => 'Judul Proyek', 'text' => (string) $project->title],
+            ['label' => 'Tema Improvement', 'text' => (string) $project->theme],
+            ['label' => 'Latar Belakang', 'text' => (string) $project->background],
+            ['label' => 'Situasi Saat Ini / Baseline', 'text' => (string) $project->current_situation],
+            // Sections removed from the form; still shown for proposals written before the change.
+            ['label' => 'Pernyataan Masalah', 'text' => (string) $project->problem_statement, 'legacy' => true],
+            ['label' => 'Root Cause Analysis (RCA)', 'text' => (string) $project->rca, 'legacy' => true],
+            ['label' => 'Rencana Perbaikan / Arah Solusi', 'text' => (string) $project->improvement_plan],
+            ['label' => 'Ruang Lingkup Proyek', 'text' => (string) $project->scope],
+            ['label' => 'Target / Tujuan', 'text' => (string) $project->target],
+            ['label' => 'Manfaat Bisnis', 'text' => (string) $project->business_benefit, 'legacy' => true],
+            ['label' => 'Informasi Data Pelengkap', 'text' => (string) $project->supplementary_information],
+            ['label' => 'Proyeksi Kebutuhan Biaya', 'text' => (string) $project->cost_projection],
+            ['label' => '3 Hal yang Akan Dipelajari', 'text' => implode("\n", array_map(
+                fn (int $index): string => ($index + 1).'. '.($learning[$index] ?? '-'),
+                [0, 1, 2],
+            ))],
+        ];
+
+        return array_values(array_map(
+            fn (array $section): array => ['label' => $section['label'], 'text' => $section['text']],
+            array_filter($sections, fn (array $section): bool => ! ($section['legacy'] ?? false) || filled($section['text'])),
+        ));
+    }
+
+    /**
+     * Lay the sections out as cards over two columns, column by column and slide by slide.
+     * A section that does not fit where it starts is split, and continues at the top of the
+     * next column with "(lanjutan)" after its label.
+     *
+     * @param  list<array{label: string, text: string}>  $sections
+     * @return list<string> The card shapes of each slide.
+     */
+    private function sectionPages(array $sections): array
+    {
+        $columnWidth = (self::WIDTH - self::COLUMN_GAP) / 2;
+        $textWidth = $columnWidth - 2 * self::CARD_PADDING_X;
+        $chrome = 2 * self::CARD_PADDING_Y + SlideText::lineHeight(self::LABEL_SIZE) + self::LABEL_GAP / 72;
+        $pages = [];
+        $page = '';
+        $column = 0;
+        $y = self::TOP;
+
+        $nextColumn = function () use (&$pages, &$page, &$column, &$y): void {
+            if ($column === 0) {
+                $column = 1;
+            } else {
+                $pages[] = $page;
+                $page = '';
+                $column = 0;
+            }
+
+            $y = self::TOP;
+        };
+
+        foreach ($sections as $section) {
+            $paragraphs = SlideText::paragraphs($section['text']);
+            $label = Str::upper($section['label']);
+
+            while ($paragraphs !== []) {
+                $x = self::LEFT + $column * ($columnWidth + self::COLUMN_GAP);
+                $room = self::BOTTOM - $y;
+                $height = $chrome + SlideText::height($paragraphs, $textWidth, self::BODY_SIZE);
+
+                if ($height <= $room) {
+                    $page .= $this->card($label, $paragraphs, $x, $y, $columnWidth, $height);
+                    $y += $height + self::CARD_GAP;
+                    $paragraphs = [];
+
+                    continue;
+                }
+
+                $columnIsEmpty = $y === self::TOP;
+
+                if ($room >= $chrome + self::MIN_LINES * SlideText::lineHeight(self::BODY_SIZE) || $columnIsEmpty) {
+                    [$fits, $rest] = SlideText::split($paragraphs, $textWidth, self::BODY_SIZE, $room - $chrome);
+
+                    if ($fits === [] && $columnIsEmpty) {
+                        // Cannot happen with real text (a column holds over 20 lines), but never loop.
+                        [$fits, $rest] = [$paragraphs, []];
+                    }
+
+                    if ($fits !== []) {
+                        $page .= $this->card($label, $fits, $x, $y, $columnWidth, $room);
+                        $paragraphs = $rest;
+                        $label = Str::upper($section['label']).' (LANJUTAN)';
+                    }
+                }
+
+                $nextColumn();
+            }
+        }
+
+        if ($page !== '') {
+            $pages[] = $page;
+        }
+
+        return $pages;
+    }
+
+    /**
+     * A bordered white card holding a label and its paragraphs.
+     *
+     * @param  list<array{text: string, bullet: bool}>  $paragraphs
+     */
+    private function card(string $label, array $paragraphs, float $x, float $y, float $width, float $height): string
+    {
+        $id = $this->shapeId++;
+        $label = '<a:p><a:pPr algn="l"><a:spcAft><a:spcPts val="'.(self::LABEL_GAP * 100).'"/></a:spcAft><a:buNone/></a:pPr>'
+            .'<a:r>'.SlideText::runProperties(self::LABEL_SIZE, self::PRIMARY, true, false, 40).'<a:t>'.SlideText::escape($label).'</a:t></a:r></a:p>';
+        $body = implode('', array_map(
+            fn (array $paragraph): string => SlideText::paragraphXml($paragraph, self::BODY_SIZE, self::TEXT),
+            $paragraphs,
+        ));
+
+        return '<p:sp><p:nvSpPr><p:cNvPr id="'.$id.'" name="Card '.$id.'"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
+            .'<p:spPr><a:xfrm><a:off x="'.SlideText::emu($x).'" y="'.SlideText::emu($y).'"/><a:ext cx="'.SlideText::emu($width).'" cy="'.SlideText::emu($height).'"/></a:xfrm>'
+            .'<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 3500"/></a:avLst></a:prstGeom>'
+            .'<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="'.self::BORDER.'"/></a:solidFill></a:ln></p:spPr>'
+            .'<p:txBody><a:bodyPr wrap="square" lIns="'.SlideText::emu(self::CARD_PADDING_X).'" tIns="'.SlideText::emu(self::CARD_PADDING_Y).'" rIns="'.SlideText::emu(self::CARD_PADDING_X).'" bIns="'.SlideText::emu(self::CARD_PADDING_Y).'" anchor="t" rtlCol="0"><a:noAutofit/></a:bodyPr><a:lstStyle/>'
+            .$label.$body.'</p:txBody></p:sp>';
+    }
+
+    /**
+     * The schedule as gantt tables, one per slide, each with the month and week header.
+     *
+     * @return list<string>
+     */
+    private function schedulePages(Project $project): array
+    {
+        $schedule = $this->schedule($project);
+        $deliverableWidth = self::WIDTH - self::STEP_COLUMN - self::SCHEDULE_MONTHS * 4 * self::WEEK_COLUMN - 2 * self::DATE_COLUMN;
+        $room = self::BOTTOM - self::TOP - 2 * self::HEADER_ROW;
+        $pages = [];
+        $rows = '';
+        $used = 0.0;
+
+        foreach ($schedule['steps'] as $step) {
+            $lines = max(
+                SlideText::lineCount(['text' => $step['label'], 'bullet' => false], self::STEP_COLUMN - 0.12, self::TABLE_SIZE),
+                SlideText::lineCount(['text' => $step['deliverable'], 'bullet' => false], $deliverableWidth - 0.12, self::TABLE_SIZE),
+            );
+            $height = max(self::MIN_ROW, $lines * SlideText::lineHeight(self::TABLE_SIZE) + 0.1);
+
+            if ($rows !== '' && $used + $height > $room) {
+                $pages[] = $this->scheduleTable($schedule['months'], $rows, $used, $deliverableWidth);
+                $rows = '';
+                $used = 0.0;
+            }
+
+            $rows .= $this->scheduleRow($step, $height);
+            $used += $height;
+        }
+
+        $pages[] = $this->scheduleTable($schedule['months'], $rows, $used, $deliverableWidth);
+
+        return $pages;
+    }
+
+    /**
+     * @param  list<string>  $months
+     */
+    private function scheduleTable(array $months, string $rows, float $rowsHeight, float $deliverableWidth): string
+    {
+        $id = $this->shapeId++;
+        $weeks = self::SCHEDULE_MONTHS * 4;
+        $grid = '<a:gridCol w="'.SlideText::emu(self::STEP_COLUMN).'"/>'
+            .str_repeat('<a:gridCol w="'.SlideText::emu(self::WEEK_COLUMN).'"/>', $weeks)
+            .str_repeat('<a:gridCol w="'.SlideText::emu(self::DATE_COLUMN).'"/>', 2)
+            .'<a:gridCol w="'.SlideText::emu($deliverableWidth).'"/>';
+
+        $monthRow = $this->cell('Step QCC', header: true, align: 'l', rowSpan: 2);
+
+        foreach ($months as $month) {
+            $monthRow .= $this->cell($month, header: true, gridSpan: 4).str_repeat($this->cell('', header: true, hMerge: true, narrow: true), 3);
+        }
+
+        $monthRow .= $this->cell('Mulai', header: true, rowSpan: 2).$this->cell('Selesai', header: true, rowSpan: 2).$this->cell('Deliverable', header: true, align: 'l', rowSpan: 2);
+
+        $weekRow = $this->cell('', header: true, vMerge: true);
+
+        for ($week = 0; $week < $weeks; $week++) {
+            $weekRow .= $this->cell((string) ($week % 4 + 1), fill: self::TINT, color: self::PRIMARY, bold: true, narrow: true);
+        }
+
+        $weekRow .= str_repeat($this->cell('', header: true, vMerge: true), 3);
+        $header = SlideText::emu(self::HEADER_ROW);
+        $height = 2 * self::HEADER_ROW + $rowsHeight;
+
+        return '<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="'.$id.'" name="Jadwal '.$id.'"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>'
+            .'<p:xfrm><a:off x="'.SlideText::emu(self::LEFT).'" y="'.SlideText::emu(self::TOP).'"/><a:ext cx="'.SlideText::emu(self::WIDTH).'" cy="'.SlideText::emu($height).'"/></p:xfrm>'
+            .'<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1"/><a:tblGrid>'.$grid.'</a:tblGrid>'
+            .'<a:tr h="'.$header.'">'.$monthRow.'</a:tr><a:tr h="'.$header.'">'.$weekRow.'</a:tr>'.$rows
+            .'</a:tbl></a:graphicData></a:graphic></p:graphicFrame>';
+    }
+
+    /**
+     * @param  array{label: string, start: string, finish: string, deliverable: string, bars: list<bool>}  $step
+     */
+    private function scheduleRow(array $step, float $height): string
+    {
+        $cells = $this->cell($step['label'], align: 'l', color: self::TEXT);
+
+        foreach ($step['bars'] as $active) {
+            $cells .= $this->cell('', fill: $active ? self::PRIMARY : 'FFFFFF', narrow: true);
+        }
+
+        $cells .= $this->cell($step['start']).$this->cell($step['finish']).$this->cell($step['deliverable'], align: 'l', color: self::TEXT);
+
+        return '<a:tr h="'.SlideText::emu($height).'">'.$cells.'</a:tr>';
+    }
+
+    private function cell(
+        string $text,
+        bool $header = false,
+        string $align = 'ctr',
+        string $fill = 'FFFFFF',
+        string $color = self::MUTED,
+        bool $bold = false,
+        int $gridSpan = 1,
+        int $rowSpan = 1,
+        bool $hMerge = false,
+        bool $vMerge = false,
+        bool $narrow = false,
+    ): string {
+        if ($header) {
+            [$fill, $color, $bold] = [self::PRIMARY, 'FFFFFF', true];
+        }
+
+        $attributes = ($gridSpan > 1 ? ' gridSpan="'.$gridSpan.'"' : '').($rowSpan > 1 ? ' rowSpan="'.$rowSpan.'"' : '')
+            .($hMerge ? ' hMerge="1"' : '').($vMerge ? ' vMerge="1"' : '');
+        $paragraph = $text === ''
+            ? '<a:p><a:pPr algn="'.$align.'"/><a:endParaRPr lang="id-ID" sz="'.(self::TABLE_SIZE * 100).'" dirty="0"/></a:p>'
+            : '<a:p><a:pPr algn="'.$align.'"/><a:r>'.SlideText::runProperties(self::TABLE_SIZE, $color, $bold).'<a:t>'.SlideText::escape($text).'</a:t></a:r></a:p>';
+        $border = fn (string $side): string => '<a:'.$side.' w="6350"><a:solidFill><a:srgbClr val="'.self::BORDER.'"/></a:solidFill></a:'.$side.'>';
+
+        return '<a:tc'.$attributes.'><a:txBody><a:bodyPr/><a:lstStyle/>'.$paragraph.'</a:txBody>'
+            // Week cells are 0.2" wide: no side margins, so viewers keep them at their set width.
+            .'<a:tcPr marL="'.($narrow ? 0 : 54864).'" marR="'.($narrow ? 0 : 54864).'" marT="36576" marB="36576" anchor="ctr">'
+            .$border('lnL').$border('lnR').$border('lnT').$border('lnB')
+            .'<a:solidFill><a:srgbClr val="'.$fill.'"/></a:solidFill></a:tcPr></a:tc>';
+    }
+
+    /**
+     * The eight QCC steps with their dates and the weeks they run through, and the months shown.
+     *
+     * @return array{months: list<string>, steps: list<array{label: string, start: string, finish: string, deliverable: string, bars: list<bool>}>}
      */
     private function schedule(Project $project): array
     {
@@ -200,7 +515,7 @@ class ProposalPresentationBuilder
                 $start = $finish;
             }
 
-            $steps[$step->value] = ['step' => $step, 'start' => $start, 'finish' => $finish, 'deliverable' => (string) ($row['deliverable'] ?? '')];
+            $steps[] = ['step' => $step, 'start' => $start, 'finish' => $finish, 'deliverable' => trim((string) ($row['deliverable'] ?? ''))];
             $previousFinish = $finish ?? $previousFinish;
         }
 
@@ -208,66 +523,45 @@ class ProposalPresentationBuilder
             ?? CarbonImmutable::parse($project->batch?->execution_starts_on ?? $project->submitted_at ?? now());
         $firstMonth = CarbonImmutable::parse($firstDate)->startOfMonth();
 
-        $texts = [];
-        $bars = [];
+        $months = [];
 
-        for ($month = 1; $month <= self::SCHEDULE_MONTHS; $month++) {
-            $texts["month_{$month}"] = $firstMonth->addMonths($month - 1)->format('M-y');
+        for ($month = 0; $month < self::SCHEDULE_MONTHS; $month++) {
+            $months[] = $firstMonth->addMonths($month)->format('M-y');
         }
 
-        foreach ($steps as $number => $step) {
-            $texts["step_label_{$number}"] = "{$number}. ".$step['step']->label();
-            $texts["start_{$number}"] = $step['start'] === null ? '-' : $this->date($step['start']);
-            $texts["finish_{$number}"] = $step['finish'] === null ? '-' : $this->date($step['finish']);
-            $texts["deliverable_{$number}"] = $step['deliverable'] === '' ? '-' : $step['deliverable'];
+        return [
+            'months' => $months,
+            'steps' => array_map(function (array $step) use ($firstMonth): array {
+                $bars = [];
 
-            for ($column = 1; $column <= self::SCHEDULE_MONTHS * 4; $column++) {
-                $month = $firstMonth->addMonths(intdiv($column - 1, 4));
-                $week = ($column - 1) % 4;
-                $weekStart = $month->addDays($week * 7);
-                $weekEnd = $week === 3 ? $month->endOfMonth()->startOfDay() : $weekStart->addDays(6);
+                for ($column = 0; $column < self::SCHEDULE_MONTHS * 4; $column++) {
+                    $month = $firstMonth->addMonths(intdiv($column, 4));
+                    $week = $column % 4;
+                    $weekStart = $month->addDays($week * 7);
+                    $weekEnd = $week === 3 ? $month->endOfMonth()->startOfDay() : $weekStart->addDays(6);
 
-                $bars["bar_{$number}_{$column}"] = $step['start'] !== null && $step['finish'] !== null
-                    && $step['start']->lte($weekEnd) && $step['finish']->gte($weekStart);
-            }
-        }
-
-        return ['texts' => $texts, 'bars' => $bars];
-    }
-
-    /**
-     * Colour the week cells a step runs through and empty the rest.
-     *
-     * @param  array{texts: array<string, string>, bars: array<string, bool>}  $schedule
-     */
-    private function fillSchedule(string $xml, array $schedule): string
-    {
-        if (! str_contains($xml, '{{bar_')) {
-            return $xml;
-        }
-
-        return (string) preg_replace_callback(
-            '#<a:tc>(?:(?!</a:tc>).)*?\{\{(bar_\d+_\d+)\}\}.*?</a:tc>#s',
-            function (array $match) use ($schedule): string {
-                $cell = str_replace('{{'.$match[1].'}}', '', $match[0]);
-
-                if (! ($schedule['bars'][$match[1]] ?? false)) {
-                    return $cell;
+                    $bars[] = $step['start'] !== null && $step['finish'] !== null
+                        && $step['start']->lte($weekEnd) && $step['finish']->gte($weekStart);
                 }
 
-                return str_replace('</a:tcPr>', '<a:solidFill><a:srgbClr val="'.self::BAR_COLOR.'"/></a:solidFill></a:tcPr>', $cell);
-            },
-            $xml,
-        );
+                return [
+                    'label' => $step['step']->value.'. '.$step['step']->label(),
+                    'start' => $step['start'] === null ? '-' : $this->date($step['start']),
+                    'finish' => $step['finish'] === null ? '-' : $this->date($step['finish']),
+                    'deliverable' => $step['deliverable'] === '' ? '-' : $step['deliverable'],
+                    'bars' => $bars,
+                ];
+            }, $steps),
+        ];
     }
 
     /**
-     * Replace every token. A token alone in its paragraph becomes one paragraph per line,
-     * in a font size that keeps the text inside its box.
+     * Replace every {{token}} of a template slide. A value with its own text box (see
+     * TEXT_BOXES) gets one paragraph per line, in the largest font that fits the box.
      *
      * @param  array<string, string>  $values
      */
-    private function fillText(string $xml, array $values): string
+    private function fill(string $xml, array $values): string
     {
         $xml = (string) preg_replace_callback(
             '#<a:p>((?:(?!</a:p>).)*?)<a:r>(<a:rPr\b[^>]*?(?:/>|>(?:(?!</a:rPr>).)*</a:rPr>))<a:t>\{\{([a-z0-9_]+)\}\}</a:t></a:r>((?:(?!</a:p>).)*?)</a:p>#s',
@@ -278,11 +572,25 @@ class ProposalPresentationBuilder
                     return $whole;
                 }
 
-                [$lines, $size] = $this->fit($values[$key] ?? '', ...self::TEXT_BOXES[$key]);
-                $runStyle = $this->withSize($runStyle, $size);
+                [$width, $height, $largest, $smallest] = self::TEXT_BOXES[$key];
+                $lines = preg_split('/\R/u', trim($values[$key] ?? '') === '' ? '-' : trim($values[$key])) ?: ['-'];
+                $paragraphs = array_map(fn (string $line): array => ['text' => $line, 'bullet' => false], $lines);
+                $size = $smallest;
+
+                for ($candidate = $largest; $candidate >= $smallest; $candidate--) {
+                    if (SlideText::height($paragraphs, $width, $candidate) <= $height) {
+                        $size = $candidate;
+
+                        break;
+                    }
+                }
+
+                $runStyle = str_contains($runStyle, ' sz="')
+                    ? (string) preg_replace('/ sz="\d+"/', ' sz="'.($size * 100).'"', $runStyle, 1)
+                    : (string) preg_replace('/^<a:rPr/', '<a:rPr sz="'.($size * 100).'"', $runStyle, 1);
 
                 return implode('', array_map(
-                    fn (string $line): string => $this->paragraph($line, $before, $runStyle, $after),
+                    fn (string $line): string => '<a:p>'.$before.'<a:r>'.$runStyle.'<a:t xml:space="preserve">'.SlideText::escape(SlideText::plain($line)).'</a:t></a:r>'.$after.'</a:p>',
                     $lines,
                 ));
             },
@@ -291,137 +599,9 @@ class ProposalPresentationBuilder
 
         return (string) preg_replace_callback(
             '#\{\{([a-z0-9_]+)\}\}#',
-            fn (array $match): string => $this->escape($this->plain($values[$match[1]] ?? '')),
+            fn (array $match): string => SlideText::escape(SlideText::plain($values[$match[1]] ?? '')),
             $xml,
         );
-    }
-
-    /**
-     * One line of proposal text as a paragraph. Proposal text keeps a small Markdown subset
-     * (see resources/js/lib/rich-text.ts): "- " starts a bullet, **bold** and *italic* style a run.
-     */
-    private function paragraph(string $line, string $before, string $runStyle, string $after): string
-    {
-        if (preg_match('/^\s*[-•]\s+(.*)$/u', $line, $bullet) === 1) {
-            $line = $bullet[1];
-            $before = (string) preg_replace(
-                '#<a:pPr\b([^>]*?)\s*/>#',
-                '<a:pPr$1 marL="285750" indent="-285750"><a:buFont typeface="Arial"/><a:buChar char="•"/></a:pPr>',
-                $before,
-                1,
-            );
-        }
-
-        $runs = '';
-
-        foreach (preg_split('/(\*\*[^*\n]+\*\*|\*[^*\n]+\*)/u', $line, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [] as $part) {
-            $style = $runStyle;
-
-            if (preg_match('/^\*\*(.+)\*\*$/u', $part, $bold) === 1) {
-                [$part, $style] = [$bold[1], $this->withFlag($runStyle, 'b')];
-            } elseif (preg_match('/^\*(.+)\*$/u', $part, $italic) === 1) {
-                [$part, $style] = [$italic[1], $this->withFlag($runStyle, 'i')];
-            }
-
-            $runs .= '<a:r>'.$style.'<a:t xml:space="preserve">'.$this->escape($part).'</a:t></a:r>';
-        }
-
-        return '<a:p>'.$before.($runs === '' ? '' : $runs).$after.'</a:p>';
-    }
-
-    private function withFlag(string $runStyle, string $flag): string
-    {
-        return str_contains($runStyle, " {$flag}=\"")
-            ? (string) preg_replace('/ '.$flag.'="\d"/', " {$flag}=\"1\"", $runStyle, 1)
-            : (string) preg_replace('/^<a:rPr/', "<a:rPr {$flag}=\"1\"", $runStyle, 1);
-    }
-
-    /** Text as it reads, without the Markdown markers. */
-    private function plain(string $text): string
-    {
-        $text = (string) preg_replace('/\*\*([^*\n]+)\*\*|\*([^*\n]+)\*/u', '$1$2', $text);
-
-        return (string) preg_replace('/^\s*[-•]\s+/mu', '• ', $text);
-    }
-
-    /**
-     * The largest font that fits the box, and the lines to write. Text too long even at the
-     * smallest font is cut and ends with an ellipsis.
-     *
-     * @return array{0: list<string>, 1: int}
-     */
-    private function fit(string $text, float $width, float $height, int $largest, int $smallest): array
-    {
-        $lines = preg_split('/\R/u', $text === '' ? '-' : $text) ?: ['-'];
-
-        for ($size = $largest; $size >= $smallest; $size--) {
-            if ($this->height($lines, $width, $size) <= $height) {
-                return [$lines, $size];
-            }
-        }
-
-        $kept = [];
-
-        foreach ($lines as $line) {
-            $candidate = [...$kept, $line];
-
-            if ($this->height($candidate, $width, $smallest) <= $height) {
-                $kept = $candidate;
-
-                continue;
-            }
-
-            $room = $this->charactersPerLine($width, $smallest)
-                * max(0, (int) floor(($height - $this->height($kept, $width, $smallest)) / $this->lineHeight($smallest)));
-            $kept[] = Str::limit($this->plain($line), max(0, $room - 1), '…');
-
-            break;
-        }
-
-        return [$kept === [] ? ['…'] : $kept, $smallest];
-    }
-
-    /**
-     * @param  list<string>  $lines
-     */
-    private function height(array $lines, float $width, int $size): float
-    {
-        $perLine = $this->charactersPerLine($width, $size);
-        $count = array_sum(array_map(fn (string $line): int => max(1, (int) ceil(mb_strlen($this->plain($line)) / $perLine)), $lines));
-
-        return $count * $this->lineHeight($size);
-    }
-
-    /** Average character is about half the font size wide. */
-    private function charactersPerLine(float $width, int $size): int
-    {
-        return max(1, (int) floor($width / ($size / 72 * 0.52)));
-    }
-
-    private function lineHeight(int $size): float
-    {
-        return $size / 72 * 1.2;
-    }
-
-    private function withSize(string $runStyle, int $size): string
-    {
-        return str_contains($runStyle, ' sz="')
-            ? (string) preg_replace('/ sz="\d+"/', ' sz="'.($size * 100).'"', $runStyle, 1)
-            : (string) preg_replace('/^<a:rPr/', '<a:rPr sz="'.($size * 100).'"', $runStyle, 1);
-    }
-
-    private function text(?string $value): string
-    {
-        $value = trim(str_replace("\r\n", "\n", (string) $value));
-
-        return $value === '' ? '-' : (string) preg_replace("/\n{3,}/", "\n\n", $value);
-    }
-
-    private function escape(string $value): string
-    {
-        $value = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $value);
-
-        return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
     }
 
     private function date(mixed $date): string

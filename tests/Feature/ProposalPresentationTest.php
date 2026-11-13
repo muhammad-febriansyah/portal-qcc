@@ -10,26 +10,58 @@ use App\Models\ProjectMentor;
 use App\Models\QccBatch;
 use App\Models\ReviewDecision;
 use App\Models\User;
+use App\Services\ProposalPresentationBuilder;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 use Spatie\Permission\Models\Permission;
 
 /**
- * @return array<string, string> slide XML keyed by slide number
+ * The slides of a deck in presentation order, numbered from 1.
+ *
+ * @return array<int, string> slide XML
  */
 function presentationSlides(string $path): array
 {
     $archive = new ZipArchive;
     expect($archive->open($path))->toBeTrue();
+    preg_match_all('#<p:sldId [^>]*r:id="([^"]+)"#', (string) $archive->getFromName('ppt/presentation.xml'), $ids);
+    $relationships = (string) $archive->getFromName('ppt/_rels/presentation.xml.rels');
     $slides = [];
 
-    for ($number = 1; $number <= 7; $number++) {
-        $slides[$number] = (string) $archive->getFromName("ppt/slides/slide{$number}.xml");
+    foreach ($ids[1] as $index => $id) {
+        preg_match('#Id="'.preg_quote($id, '#').'"[^>]*Target="([^"]+)"#', $relationships, $target);
+        $slides[$index + 1] = (string) $archive->getFromName('ppt/'.$target[1]);
     }
 
     $archive->close();
 
     return $slides;
+}
+
+/**
+ * The first slide whose text contains $needle.
+ *
+ * @param  array<int, string>  $slides
+ */
+function slideWith(array $slides, string $needle): string
+{
+    foreach ($slides as $slide) {
+        if (str_contains(slideText($slide), $needle)) {
+            return $slide;
+        }
+    }
+
+    throw new RuntimeException("No slide contains {$needle}.");
+}
+
+/**
+ * The words written on a slide.
+ */
+function slideText(string $xml): string
+{
+    preg_match_all('#<a:t(?: [^>]*)?>([^<]*)</a:t>#', $xml, $runs);
+
+    return html_entity_decode(implode(' ', $runs[1]), ENT_QUOTES | ENT_XML1);
 }
 
 function presentationViewer(): User
@@ -78,23 +110,31 @@ test('a proposal downloads as a filled presentation', function () {
         ->assertDownload(sprintf('Proposal PRP-%04d - Digitalisasi verifikasi arsip.pptx', $project->id));
 
     $slides = presentationSlides($response->baseResponse->getFile()->getPathname());
+    $content = slideWith($slides, 'JUDUL PROYEK');
+    $schedule = slideWith($slides, 'Jadwal Proyek');
+    $approval = slideWith($slides, 'APPROVAL');
+    // Body rows of the gantt table; the two header rows come first.
+    $bodyRows = implode('', array_slice(explode('<a:tr ', $schedule), 3));
 
     expect(implode('', $slides))->not->toContain('{{')
         ->and($slides[1])->toContain('Digitalisasi verifikasi &amp; arsip', 'Ayu Pengusul  |  SIM ID 2551 | DIV IT', 'Kategori tema: Productivity', 'SIMGROUP  |  QCC BATCH 4', '2026–2027')
-        ->and($slides[2])->toContain('masih manual</a:t>', ' b="1"', '<a:buChar char="•"/>', 'Banyak salah input')
-        ->and($slides[2])->not->toContain('**')
-        ->and($slides[4])->toContain('1. Analisis data', '3. SOP')
-        ->and($slides[5])->toContain('Jan-27', '4 Jan 2027', '15 Jan 2027', 'Tema terpilih', '-')
+        ->and($content)->toContain('masih manual</a:t>', ' b="1"', '<a:buChar char="•"/>', 'Banyak salah input')
+        ->and(slideText(slideWith($slides, '3 HAL YANG AKAN DIPELAJARI')))->toContain('1. Analisis data', '3. SOP')
+        ->and($content)->not->toContain('**')
+        // Bordered white cards without shadows.
+        ->and($content)->toContain('<a:ln w="9525"><a:solidFill><a:srgbClr val="E2E8F0"/>')
+        ->and(implode('', $slides))->not->toContain('effectRef idx="2"')
+        ->and(slideText($schedule))->toContain('Jan-27', '4 Jan 2027', '15 Jan 2027', 'Tema terpilih')
         // Step 1 runs through weeks 1-3 of January, step 2 through weeks 3-4.
-        ->and(substr_count($slides[5], '<a:srgbClr val="1F4E79"/></a:solidFill></a:tcPr>'))->toBe(5)
-        ->and($slides[6])->toContain('MENTOR', 'Citra Mentor', 'Dodi Mentor', 'DIV IT HEAD', 'Disetujui 7 Nov 2026')
-        ->and($slides[6])->not->toContain('Budi Owner')
-        ->and($slides[6])->not->toContain('Owner QCC')
-        ->and($slides[6])->not->toContain('LOLOS SELEKSI')
-        ->and($slides[6])->not->toContain('SUDAH DIAJUKAN');
+        ->and(substr_count($bodyRows, '<a:srgbClr val="'.ProposalPresentationBuilder::PRIMARY.'"/></a:solidFill></a:tcPr>'))->toBe(5)
+        ->and(slideText($approval))->toContain('MENTOR', 'Citra Mentor', 'Dodi Mentor', 'DIV IT HEAD', 'Disetujui 7 Nov 2026')
+        ->and(slideText($approval))->not->toContain('Budi Owner')
+        ->and(slideText($approval))->not->toContain('Owner QCC')
+        ->and(slideText($approval))->not->toContain('LOLOS SELEKSI')
+        ->and(slideText($approval))->not->toContain('SUDAH DIAJUKAN');
 });
 
-test('a long text gets a smaller font and is cut to fit its card', function () {
+test('long text continues on the next card instead of being cut', function () {
     $proposer = presentationViewer();
     $project = Project::factory()->status(ProposalStatus::Submitted)->create([
         'proposer_id' => $proposer->id,
@@ -105,11 +145,18 @@ test('a long text gets a smaller font and is cut to fit its card', function () {
     $response = $this->actingAs($proposer)->get(route('proposals.presentation', $project))->assertOk();
     $slides = presentationSlides($response->baseResponse->getFile()->getPathname());
 
-    expect($slides[2])->toMatch('/sz="1[0-3]00"[^>]*>(?:(?!<\/a:rPr>).)*<\/a:rPr><a:t xml:space="preserve">Data proses/s')
-        ->and($slides[3])->toContain('…')
-        ->and($slides[6])->toContain('MENTOR', 'Belum ditentukan', 'Belum diajukan')
-        ->and($slides[6])->not->toContain('DRAF')
-        ->and($slides[6])->not->toContain('Owner QCC');
+    $text = implode(' ', array_map(slideText(...), $slides));
+    $approval = slideText(slideWith($slides, 'APPROVAL'));
+
+    // Every word arrives, nothing ends in an ellipsis, and the overflow is labelled.
+    expect(substr_count($text, 'verifikasi'))->toBe(30)
+        ->and(substr_count($text, 'sekali'))->toBe(60)
+        ->and($text)->not->toContain('…')
+        ->and($text)->toContain('RUANG LINGKUP PROYEK (LANJUTAN)')
+        ->and(count($slides))->toBeGreaterThan(5)
+        ->and($approval)->toContain('MENTOR', 'Belum ditentukan', 'Belum diajukan')
+        ->and($approval)->not->toContain('DRAF')
+        ->and($approval)->not->toContain('Owner QCC');
 });
 
 test('only people who may open the proposal can download it', function () {
@@ -127,8 +174,10 @@ test('the mentor card falls back to the organization mentors before anyone is as
     $response = $this->actingAs($proposer)->get(route('proposals.presentation', $project))->assertOk();
     $slides = presentationSlides($response->baseResponse->getFile()->getPathname());
 
-    expect($slides[6])->toContain('Eka Mentor', 'DIV IT HEAD')
-        ->and($slides[6])->not->toContain('Disetujui');
+    $approval = slideText(slideWith($slides, 'APPROVAL'));
+
+    expect($approval)->toContain('Eka Mentor', 'DIV IT HEAD')
+        ->and($approval)->not->toContain('Disetujui');
 });
 
 /**
