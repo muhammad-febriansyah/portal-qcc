@@ -332,32 +332,40 @@ export default function UsersIndex({
             {
                 id: 'mentor_names',
                 header: 'Mentor',
-                cell: ({ row }) =>
-                    row.original.mentor_names.length > 0 ? (
-                        <span className="flex flex-col">
-                            {row.original.mentor_names.map((name) => (
-                                <span key={name}>{name}</span>
-                            ))}
+                cell: ({ row }) => {
+                    const { mentor_names: mentorNames, mentor_of: mentorOf } =
+                        row.original;
+
+                    if (mentorNames.length === 0 && mentorOf.length === 0) {
+                        return (
+                            <span className="text-muted-foreground">
+                                Belum diatur
+                            </span>
+                        );
+                    }
+
+                    return (
+                        <span className="flex flex-col gap-1">
+                            {mentorNames.length > 0 && (
+                                <span className="flex flex-col">
+                                    {mentorNames.map((name) => (
+                                        <span key={name}>{name}</span>
+                                    ))}
+                                </span>
+                            )}
+                            {mentorOf.length > 0 && (
+                                <span className="flex flex-col">
+                                    <span className="text-xs text-muted-foreground">
+                                        Mentor untuk
+                                    </span>
+                                    {mentorOf.map((name) => (
+                                        <span key={name}>{name}</span>
+                                    ))}
+                                </span>
+                            )}
                         </span>
-                    ) : (
-                        <span className="text-muted-foreground">
-                            Belum diatur
-                        </span>
-                    ),
-            },
-            {
-                id: 'mentor_of',
-                header: 'Mentor untuk',
-                cell: ({ row }) =>
-                    row.original.mentor_of.length > 0 ? (
-                        <span className="flex flex-col">
-                            {row.original.mentor_of.map((name) => (
-                                <span key={name}>{name}</span>
-                            ))}
-                        </span>
-                    ) : (
-                        <span className="text-muted-foreground">—</span>
-                    ),
+                    );
+                },
             },
             {
                 id: 'roles',
