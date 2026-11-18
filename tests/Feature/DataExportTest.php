@@ -107,7 +107,7 @@ test('biweekly export downloads a formatted Excel workbook with action item deta
 
     expect(simplexml_load_string($sheet))->toBeInstanceOf(SimpleXMLElement::class);
     expect(simplexml_load_string($styles))->toBeInstanceOf(SimpleXMLElement::class);
-    expect($styles)->toContain('FF203864');
+    expect($styles)->toContain('FF0179A3');
 
     expect(AuditLog::query()->where('event', 'data.exported')->sole()->after_json)
         ->toMatchArray(['type' => 'laporan_biweekly', 'format' => 'xlsx', 'row_count' => 1]);

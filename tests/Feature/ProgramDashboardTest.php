@@ -4,6 +4,7 @@ use App\Actions\Proposals\InitializeProjectSteps;
 use App\Enums\ProposalStatus;
 use App\Enums\StepStatus;
 use App\Enums\ThemeCategory;
+use App\Models\AuditLog;
 use App\Models\BiweeklyReport;
 use App\Models\Competency;
 use App\Models\MemberCompetency;
@@ -405,6 +406,54 @@ test('program details follow the phases the viewer may read', function () {
     $this->actingAs($leader)->getJson(route('dashboard.program-details', ['metric' => 'registered']))->assertForbidden();
     $this->actingAs(programOwner())->getJson(route('dashboard.program-details', ['metric' => 'passed']))->assertForbidden();
     $this->actingAs(programOwner())->getJson(route('dashboard.program-details', ['metric' => 'unknown']))->assertUnprocessable();
+});
+
+test('the list behind a dashboard number downloads as an Excel file', function () {
+    Carbon::setTestNow('2026-11-20 10:00:00');
+    $batch = programBatch();
+    $finance = Organization::factory()->create(['name' => 'DIV FINANCE', 'is_active' => true]);
+    $proposer = programParticipant($finance);
+    $proposer->update(['name' => 'Ayu Pengusul', 'sim_id' => '1031']);
+    $proposal = Project::factory()->status(ProposalStatus::Submitted)->create([
+        'batch_id' => $batch->id,
+        'proposer_id' => $proposer->id,
+        'title' => 'Digitalisasi absensi',
+        'submitted_at' => now(),
+    ]);
+    $owner = programOwner();
+    $sheetOf = function ($response): array {
+        $workbook = new ZipArchive;
+        expect($workbook->open($response->baseResponse->getFile()->getPathname()))->toBeTrue();
+        $files = [$workbook->getFromName('xl/worksheets/sheet1.xml'), $workbook->getFromName('xl/workbook.xml')];
+        $workbook->close();
+
+        return $files;
+    };
+
+    $people = $this->actingAs($owner)->get(route('dashboard.program-details-export', ['metric' => 'registered']));
+    $people->assertOk()
+        ->assertDownload('dashboard-simers-terdaftar.xlsx')
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    [$sheet, $workbook] = $sheetOf($people);
+    expect($sheet)->toContain('SIMERS TERDAFTAR')->toContain('QCC Batch 4')->toContain('Ayu Pengusul')->toContain('1031')->toContain('DIV FINANCE');
+    expect($workbook)->toContain('name="SIMers terdaftar"');
+    expect(simplexml_load_string($sheet))->toBeInstanceOf(SimpleXMLElement::class);
+
+    $proposals = $this->actingAs($owner)->get(route('dashboard.program-details-export', ['metric' => 'organization_proposals', 'key' => $finance->id]));
+    $proposals->assertOk()->assertDownload('dashboard-div-finance.xlsx');
+    [$sheet] = $sheetOf($proposals);
+    expect($sheet)->toContain(sprintf('PRP-%04d', $proposal->id))->toContain('Digitalisasi absensi')->toContain('2026-11-20 10:00');
+
+    expect(AuditLog::query()->where('event', 'data.exported')->latest('id')->first()->after_json)
+        ->toMatchArray(['type' => 'dashboard_organization_proposals', 'format' => 'xlsx', 'row_count' => 1]);
+});
+
+test('dashboard Excel exports follow the phases the viewer may read', function () {
+    Carbon::setTestNow('2026-11-20 10:00:00');
+    programBatch();
+
+    $this->actingAs(programParticipant())->get(route('dashboard.program-details-export', ['metric' => 'registered']))->assertForbidden();
+    $this->actingAs(programOwner())->get(route('dashboard.program-details-export', ['metric' => 'passed']))->assertForbidden();
 });
 
 test('a selection number opens the proposals and teams behind it', function () {

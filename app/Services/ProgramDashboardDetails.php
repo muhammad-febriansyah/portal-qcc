@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\QccBatch;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -137,6 +138,38 @@ class ProgramDashboardDetails
             'matching_band' => $this->matchingBand($viewer, $batch, (string) $key),
             'team_size' => $this->teamSize($viewer, $batch, (int) $key),
             default => throw new NotFoundHttpException,
+        };
+    }
+
+    /**
+     * The columns and rows of a detail list as they go into its Excel export.
+     *
+     * @param  array{title: string, description: string, kind: 'people'|'proposals'|'organizations', rows: list<array<string, mixed>>}  $detail
+     * @return array{headers: list<string>, rows: list<list<mixed>>}
+     */
+    public function spreadsheet(array $detail): array
+    {
+        return match ($detail['kind']) {
+            'people' => [
+                'headers' => ['No.', 'Nama', 'SIM ID', 'Jabatan', 'LOB/Div', 'Jumlah Skill', 'Jumlah Proposal'],
+                'rows' => array_map(fn (array $row, int $index): array => [
+                    $index + 1, $row['name'], $row['sim_id'], $row['position'], $row['organization'], $row['competencies'], $row['proposals'],
+                ], $detail['rows'], array_keys($detail['rows'])),
+            ],
+            'organizations' => [
+                'headers' => ['No.', 'LOB/Div', 'Jumlah SIMers', 'Jumlah Pengusul', 'Jumlah Proposal'],
+                'rows' => array_map(fn (array $row, int $index): array => [
+                    $index + 1, $row['name'], $row['participants'], $row['submitters'], $row['proposals'],
+                ], $detail['rows'], array_keys($detail['rows'])),
+            ],
+            'proposals' => [
+                'headers' => ['No.', 'Kode', 'Judul Proposal', 'Pengusul', 'LOB/Div', 'Tema', 'Status', 'Anggota Tim', 'Diajukan'],
+                'rows' => array_map(fn (array $row, int $index): array => [
+                    $index + 1, $row['code'], $row['title'], $row['proposer'], $row['organization'], $row['theme'], $row['status'],
+                    $row['team_size'],
+                    $row['submitted_at'] === null ? null : Carbon::parse($row['submitted_at'])->format('Y-m-d H:i'),
+                ], $detail['rows'], array_keys($detail['rows'])),
+            ],
         };
     }
 
