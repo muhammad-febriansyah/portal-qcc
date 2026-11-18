@@ -21,7 +21,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { programDetails } from '@/routes/dashboard';
+import { ExcelExportButton } from '@/components/excel-export-button';
+import { programDetails, programDetailsExport } from '@/routes/dashboard';
 
 type PersonRow = {
     id: number;
@@ -113,18 +114,20 @@ export function ProgramDetailProvider({ children }: { children: ReactNode }) {
     const [search, setSearch] = useState('');
     const [detail, setDetail] = useState<ProgramDetail | null>(null);
     const [failed, setFailed] = useState(false);
+    const [exportUrl, setExportUrl] = useState('');
     const http = useHttp<Record<string, never>, ProgramDetail>({});
 
     const openDetail: OpenDetail = (metric, title, key) => {
+        const query = { metric, key: key === undefined ? null : String(key) };
+
         setHeading(title);
         setSearch('');
         setDetail(null);
         setFailed(false);
+        setExportUrl(programDetailsExport.url({ query }));
         setOpen(true);
         http.get(
-            programDetails.url({
-                query: { metric, key: key === undefined ? null : String(key) },
-            }),
+            programDetails.url({ query }),
             {
                 onSuccess: (response) => setDetail(response),
                 onHttpException: () => {
@@ -166,21 +169,28 @@ export function ProgramDetailProvider({ children }: { children: ReactNode }) {
                         </div>
                     ) : (
                         <>
-                            {detail.rows.length > 8 && (
-                                <div className="relative">
-                                    <Search
-                                        aria-hidden="true"
-                                        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                                    />
-                                    <Input
-                                        value={search}
-                                        onChange={(event) =>
-                                            setSearch(event.target.value)
-                                        }
-                                        placeholder="Cari nama, LOB/Div, judul..."
-                                        aria-label="Cari data"
-                                        className="pl-8"
-                                    />
+                            {detail.rows.length > 0 && (
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                    {detail.rows.length > 8 && (
+                                        <div className="relative min-w-48 flex-1">
+                                            <Search
+                                                aria-hidden="true"
+                                                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                                            />
+                                            <Input
+                                                value={search}
+                                                onChange={(event) =>
+                                                    setSearch(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                placeholder="Cari nama, LOB/Div, judul..."
+                                                aria-label="Cari data"
+                                                className="h-10 pl-8"
+                                            />
+                                        </div>
+                                    )}
+                                    <ExcelExportButton href={exportUrl} />
                                 </div>
                             )}
                             <div className="min-h-0 flex-1 overflow-auto rounded-lg border">

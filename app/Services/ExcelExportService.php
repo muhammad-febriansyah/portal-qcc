@@ -26,6 +26,7 @@ class ExcelExportService
         int $rowCount,
         array $filters,
         AuditService $audit,
+        string $sheetName = 'Bi-weekly Report',
     ): BinaryFileResponse {
         $path = tempnam(sys_get_temp_dir(), 'qcc-excel-');
 
@@ -40,7 +41,7 @@ class ExcelExportService
                 throw new RuntimeException('Unable to open temporary Excel export.');
             }
 
-            foreach ($this->files($title, $subtitle, $headers, $rows) as $name => $contents) {
+            foreach ($this->files($title, $subtitle, $headers, $rows, $sheetName) as $name => $contents) {
                 if (! $archive->addFromString($name, $contents)) {
                     throw new RuntimeException('Unable to write Excel export.');
                 }
@@ -73,12 +74,12 @@ class ExcelExportService
      * @param  iterable<array<int, mixed>>  $rows
      * @return array<string, string>
      */
-    private function files(string $title, string $subtitle, array $headers, iterable $rows): array
+    private function files(string $title, string $subtitle, array $headers, iterable $rows, string $sheetName): array
     {
         return [
             '[Content_Types].xml' => $this->contentTypesXml(),
             '_rels/.rels' => $this->rootRelationshipsXml(),
-            'xl/workbook.xml' => $this->workbookXml(),
+            'xl/workbook.xml' => $this->workbookXml($sheetName),
             'xl/_rels/workbook.xml.rels' => $this->workbookRelationshipsXml(),
             'xl/styles.xml' => $this->stylesXml(),
             'xl/worksheets/sheet1.xml' => $this->worksheetXml($title, $subtitle, $headers, $rows),
@@ -94,7 +95,7 @@ class ExcelExportService
         $lastColumn = $this->columnName(count($headers));
         $sheetRows = [
             '<row r="1" ht="32" customHeight="1">'.$this->cell('A1', $title, 1).'</row>',
-            '<row r="2" ht="24" customHeight="1">'.$this->cell('A2', $subtitle, 2).'</row>',
+            '<row r="2" ht="30" customHeight="1">'.$this->cell('A2', $subtitle, 2).'</row>',
             '<row r="3" ht="8" customHeight="1"></row>',
         ];
         $headerCells = '';
@@ -105,6 +106,8 @@ class ExcelExportService
 
         $sheetRows[] = '<row r="4" ht="32" customHeight="1">'.$headerCells.'</row>';
         $rowNumber = 5;
+        $contentLengths = [];
+        $numberColumn = array_search('No.', $headers, true);
 
         foreach ($rows as $row) {
             $cells = '';
@@ -113,8 +116,9 @@ class ExcelExportService
                 $cells .= $this->cell(
                     $this->columnName($index + 1).$rowNumber,
                     $value,
-                    $rowNumber % 2 === 1 ? 4 : 5,
+                    ($rowNumber % 2 === 1 ? 4 : 5) + ($index === $numberColumn ? 2 : 0),
                 );
+                $contentLengths[$index] = max($contentLengths[$index] ?? 0, $this->displayLength($value));
             }
 
             $sheetRows[] = '<row r="'.$rowNumber.'">'.$cells.'</row>';
@@ -125,7 +129,7 @@ class ExcelExportService
         $columnDefinitions = '';
 
         foreach ($headers as $index => $header) {
-            $width = $this->columnWidth($header);
+            $width = $this->columnWidth($header, $contentLengths[$index] ?? 0);
             $column = $index + 1;
             $columnDefinitions .= '<col min="'.$column.'" max="'.$column.'" width="'.$width.'" customWidth="1"/>';
         }
@@ -171,13 +175,41 @@ class ExcelExportService
         return '<c r="'.$reference.'"'.$styleAttribute.' t="inlineStr"><is><t xml:space="preserve">'.$text.'</t></is></c>';
     }
 
-    private function columnWidth(string $header): int
+    /**
+     * Wide enough for the header and the longest value, so most cells stay on one line;
+     * very long text wraps inside a 50-character column instead of stretching the sheet.
+     */
+    private function columnWidth(string $header, int $contentLength): int
     {
+        $width = min(50, max(mb_strlen($header) + 4, (int) ceil($contentLength * 1.2) + 3, 8));
+
         if (preg_match('/agenda|ringkasan|rencana|realisasi|isu|keputusan|action item/i', $header) === 1) {
-            return 34;
+            return max(34, $width);
         }
 
-        return min(30, max(14, mb_strlen($header) + 4));
+        return $width;
+    }
+
+    /**
+     * Characters of the longest line a value shows in its cell.
+     */
+    private function displayLength(mixed $value): int
+    {
+        if ($value === null) {
+            return 0;
+        }
+
+        if ($value instanceof BackedEnum) {
+            $value = $value->value;
+        } elseif ($value instanceof DateTimeInterface) {
+            $value = $value->format('Y-m-d H:i:s');
+        } elseif (is_array($value)) {
+            $value = implode(', ', array_map(static fn (mixed $item): string => (string) $item, $value));
+        } elseif (is_bool($value)) {
+            return 5;
+        }
+
+        return max(array_map(mb_strlen(...), explode("\n", (string) $value)));
     }
 
     private function columnName(int $number): string
@@ -213,11 +245,17 @@ class ExcelExportService
             .'</Relationships>';
     }
 
-    private function workbookXml(): string
+    /**
+     * Excel refuses sheet names longer than 31 characters or holding any of : \ / ? * [ ].
+     */
+    private function workbookXml(string $sheetName): string
     {
+        $name = trim(mb_substr((string) preg_replace('/[:\\\\\/?*\[\]]/', ' ', $sheetName), 0, 31));
+        $name = htmlspecialchars($name === '' ? 'Data' : $name, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-            .'<sheets><sheet name="Bi-weekly Report" sheetId="1" r:id="rId1"/></sheets></workbook>';
+            .'<sheets><sheet name="'.$name.'" sheetId="1" r:id="rId1"/></sheets></workbook>';
     }
 
     private function workbookRelationshipsXml(): string
@@ -229,15 +267,43 @@ class ExcelExportService
             .'</Relationships>';
     }
 
+    /**
+     * Title and column headers use the portal's primary color (#0179A3) with white text;
+     * every second data row gets a light tint of it so long lists stay easy to follow.
+     * Styles 6 and 7 are the centered "No." column of styles 4 and 5.
+     */
     private function stylesXml(): string
     {
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            .'<fonts count="3"><font><sz val="10"/><color rgb="FF172033"/><name val="Aptos"/></font><font><b/><sz val="18"/><color rgb="FFFFFFFF"/><name val="Aptos Display"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Aptos"/></font></fonts>'
-            .'<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF203864"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F5F9"/><bgColor indexed="64"/></patternFill></fill></fills>'
-            .'<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFE2E8F0"/></left><right style="thin"><color rgb="FFE2E8F0"/></right><top style="thin"><color rgb="FFE2E8F0"/></top><bottom style="thin"><color rgb="FFE2E8F0"/></bottom><diagonal/></border></borders>'
+            .'<fonts count="4">'
+            .'<font><sz val="10"/><color rgb="FF172033"/><name val="Aptos"/></font>'
+            .'<font><b/><sz val="16"/><color rgb="FFFFFFFF"/><name val="Aptos Display"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Aptos"/></font>'
+            .'<font><sz val="10"/><color rgb="FF64748B"/><name val="Aptos"/></font>'
+            .'</fonts>'
+            .'<fills count="4">'
+            .'<fill><patternFill patternType="none"/></fill>'
+            .'<fill><patternFill patternType="gray125"/></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FF0179A3"/><bgColor indexed="64"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFEEF7FB"/><bgColor indexed="64"/></patternFill></fill>'
+            .'</fills>'
+            .'<borders count="3">'
+            .'<border><left/><right/><top/><bottom/><diagonal/></border>'
+            .'<border><left style="thin"><color rgb="FFE2E8F0"/></left><right style="thin"><color rgb="FFE2E8F0"/></right><top style="thin"><color rgb="FFE2E8F0"/></top><bottom style="thin"><color rgb="FFE2E8F0"/></bottom><diagonal/></border>'
+            .'<border><left style="thin"><color rgb="FF01698E"/></left><right style="thin"><color rgb="FF01698E"/></right><top style="thin"><color rgb="FF01698E"/></top><bottom style="thin"><color rgb="FF01698E"/></bottom><diagonal/></border>'
+            .'</borders>'
             .'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-            .'<cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>'
+            .'<cellXfs count="8">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center" indent="1"/></xf>'
+            .'<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>'
+            .'<xf numFmtId="0" fontId="2" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
+            .'<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+            .'<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+            .'</cellXfs>'
             .'<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
     }
 }
