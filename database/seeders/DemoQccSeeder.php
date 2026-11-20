@@ -215,15 +215,16 @@ class DemoQccSeeder extends Seeder
                 'pic_id' => $leader->id,
                 'theme' => $description['theme'],
                 'theme_category' => ThemeCategory::cases()[$index % count(ThemeCategory::cases())],
-                'background' => $description['background'],
-                'current_situation' => $description['current']."\n\n**Baseline:** ".$description['baseline'],
-                'improvement_plan' => "- Petakan proses dan validasi penyebab dominan bersama unit terkait\n- Uji coba perbaikan bertahap dan bandingkan dengan baseline\n- Perbarui prosedur bila hasilnya efektif",
+                'background' => $description['background']."\n\n".$description['current']."\n\n**Baseline:** ".$description['baseline'],
+                'current_situation' => null,
+                'improvement_plan' => null,
+                'supplementary_information' => null,
                 'target' => $description['target'],
                 'scope' => $description['scope'],
                 'cost_projection' => $index % 3 === 0
                     ? "- Pelatihan singkat tim: Rp 2.500.000\n- Materi sosialisasi SOP: Rp 750.000"
                     : 'Tidak ada biaya tambahan; memakai sumber daya unit.',
-                'learning_goals_json' => ['Analisis proses', 'Kolaborasi lintas fungsi', 'Pengukuran hasil perbaikan'],
+                'learning_goals_json' => null,
                 'step_timeline_json' => $this->demoTimeline($batch),
                 'problem_statement' => null,
                 'baseline' => null,
@@ -247,7 +248,8 @@ class DemoQccSeeder extends Seeder
     }
 
     /**
-     * Two weeks per QCC step from the batch start, with the result each step should deliver.
+     * Two weeks per QCC step planned in a proposal, from the batch start, with the result each
+     * step should deliver.
      *
      * @return list<array{step_number: int, target_date: string, deliverable: string}>
      */
@@ -259,9 +261,6 @@ class DemoQccSeeder extends Seeder
             QccStep::PossibleCauses->value => 'Diagram sebab-akibat',
             QccStep::DominantCauses->value => 'Diagram Pareto sebab dominan',
             QccStep::ImprovementPlan->value => 'Rencana perbaikan dengan PIC',
-            QccStep::Implementation->value => 'Hasil uji coba perbaikan',
-            QccStep::Evaluation->value => 'Perbandingan hasil terhadap baseline',
-            QccStep::Standardization->value => 'SOP baru dan rencana pencegahan',
         ];
 
         return array_map(fn (QccStep $step): array => [
@@ -269,7 +268,7 @@ class DemoQccSeeder extends Seeder
             'start_date' => $batch->starts_on->copy()->addWeeks(($step->value - 1) * 2)->toDateString(),
             'target_date' => $batch->starts_on->copy()->addWeeks($step->value * 2)->toDateString(),
             'deliverable' => $deliverables[$step->value],
-        ], QccStep::cases());
+        ], QccStep::proposalSteps());
     }
 
     /**

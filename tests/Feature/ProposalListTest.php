@@ -147,7 +147,8 @@ test('a proposer can view their submitted proposal details', function () {
     $project = Project::factory()->status(ProposalStatus::Submitted)->create([
         'proposer_id' => $proposer->id,
         'background' => 'Background details',
-        'learning_goals_json' => ['Improve problem analysis'],
+        'improvement_plan' => 'Old improvement plan',
+        'learning_goals_json' => ['Improve problem analysis', 'Lean'],
     ]);
 
     $this->actingAs($proposer)
@@ -159,7 +160,13 @@ test('a proposer can view their submitted proposal details', function () {
             ->where('proposal.code', sprintf('PRP-%04d', $project->id))
             ->where('proposal.status_label', 'Diajukan')
             ->where('proposal.background', 'Background details')
-            ->where('proposal.learning_goals.0', 'Improve problem analysis')
+            ->missing('proposal.learning_goals')
+            ->missing('proposal.improvement_plan')
+            // Parts removed from the form stay visible on proposals written before the change.
+            ->where('proposal.legacy_sections', [
+                ['label' => 'Rencana Perbaikan / Arah Solusi', 'value' => 'Old improvement plan'],
+                ['label' => 'Tiga Hal yang akan Dipelajari', 'value' => "1. Improve problem analysis\n2. Lean"],
+            ])
             ->where('proposal.can_edit_draft', false));
 });
 

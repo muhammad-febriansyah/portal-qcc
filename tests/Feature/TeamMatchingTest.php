@@ -128,9 +128,9 @@ test('starting without AI set up is refused with a clear message and queues noth
 
 test('matching prompt includes project context and mitigation schema', function () {
     $this->project->forceFill([
-        'current_situation' => 'Dokumen diverifikasi manual.',
-        'improvement_plan' => 'Otomatisasi verifikasi.',
-        'supplementary_information' => 'Baseline tervalidasi pada sampel 120 transaksi.',
+        'background' => 'Dokumen diverifikasi manual. Baseline 3 hari.',
+        'target' => 'Verifikasi selesai 1 hari.',
+        'scope' => 'Unit verifikasi.',
     ])->save();
 
     $shortlist = app(CandidateShortlist::class);
@@ -138,11 +138,11 @@ test('matching prompt includes project context and mitigation schema', function 
 
     expect($request['input']['project'])
         ->toMatchArray([
-            'current_situation' => 'Dokumen diverifikasi manual.',
-            'improvement_plan' => 'Otomatisasi verifikasi.',
-            'supplementary_information' => 'Baseline tervalidasi pada sampel 120 transaksi.',
+            'background' => 'Dokumen diverifikasi manual. Baseline 3 hari.',
+            'target' => 'Verifikasi selesai 1 hari.',
+            'scope' => 'Unit verifikasi.',
         ])
-        ->not->toHaveKeys(['problem_statement', 'baseline', 'root_cause_analysis', 'business_benefit'])
+        ->not->toHaveKeys(['current_situation', 'improvement_plan', 'learning_goals', 'supplementary_information', 'problem_statement', 'baseline', 'root_cause_analysis', 'business_benefit'])
         ->and($request['schema']['required'])->toContain('mitigations')
         ->and($request['schema']['properties']['mitigations']['items']['properties']['type']['enum'])
         ->toBe(['COACHING', 'TRAINING', 'MENTOR']);
@@ -152,6 +152,8 @@ test('matching prompt still carries sections an older proposal filled in before 
     $this->project->forceFill([
         'rca' => 'Proses belum terstandar.',
         'business_benefit' => 'Waktu proses turun.',
+        'improvement_plan' => 'Otomatisasi verifikasi.',
+        'learning_goals_json' => ['Analisis data', '', 'Lean'],
     ])->save();
 
     $shortlist = app(CandidateShortlist::class);
@@ -161,8 +163,10 @@ test('matching prompt still carries sections an older proposal filled in before 
         ->toMatchArray([
             'root_cause_analysis' => 'Proses belum terstandar.',
             'business_benefit' => 'Waktu proses turun.',
+            'improvement_plan' => 'Otomatisasi verifikasi.',
+            'learning_goals' => ['Analisis data', 'Lean'],
         ])
-        ->not->toHaveKeys(['problem_statement', 'baseline']);
+        ->not->toHaveKeys(['problem_statement', 'baseline', 'supplementary_information']);
 });
 
 test('starting with AI ready stores the snapshot and queues the job', function () {

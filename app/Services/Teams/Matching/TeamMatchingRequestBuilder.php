@@ -32,12 +32,8 @@ PROMPT;
                 'title' => $project->title,
                 'theme' => $project->theme,
                 'background' => $project->background,
-                'current_situation' => $project->current_situation,
-                'improvement_plan' => $project->improvement_plan,
                 'target' => $project->target,
                 'scope' => $project->scope,
-                'learning_goals' => $project->learning_goals_json,
-                'supplementary_information' => $project->supplementary_information,
                 ...$this->legacySections($project),
             ],
             'rules' => ['max_members' => 5, 'leaders' => 1, 'min_organizations' => 2],
@@ -57,7 +53,7 @@ PROMPT;
     /**
      * Sections removed from the proposal form are sent only when an older proposal still has them.
      *
-     * @return array<string, string>
+     * @return array<string, string|list<string>>
      */
     private function legacySections(Project $project): array
     {
@@ -65,8 +61,11 @@ PROMPT;
             'problem_statement' => $project->problem_statement,
             'baseline' => $project->baseline,
             'root_cause_analysis' => $project->rca,
+            'improvement_plan' => $project->improvement_plan,
             'business_benefit' => $project->business_benefit,
-        ], fn (?string $value): bool => filled($value));
+            'learning_goals' => array_values(array_filter($project->learning_goals_json ?? [], 'filled')),
+            'supplementary_information' => $project->supplementary_information,
+        ], fn (string|array|null $value): bool => filled($value));
     }
 
     /**

@@ -77,7 +77,7 @@ it('fills demo proposals with the current proposal sections', function () {
 
     expect($proposals)->each(fn ($proposal) => $proposal
         ->cost_projection->not->toBeEmpty()
-        ->step_timeline_json->toHaveCount(8)
+        ->step_timeline_json->toHaveCount(5)
         ->problem_statement->toBeNull()
         ->rca->toBeNull()
         ->business_benefit->toBeNull()

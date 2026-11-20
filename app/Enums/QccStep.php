@@ -35,9 +35,37 @@ enum QccStep: int
      */
     public static function catalog(): array
     {
+        return self::catalogOf(self::cases());
+    }
+
+    /**
+     * The steps a proposal plans: up to the improvement plan. The later steps are scheduled once
+     * the project runs.
+     *
+     * @return list<self>
+     */
+    public static function proposalSteps(): array
+    {
+        return array_values(array_filter(self::cases(), fn (self $step): bool => $step->value <= self::ImprovementPlan->value));
+    }
+
+    /**
+     * @return array<int, array{number: int, name: string}>
+     */
+    public static function proposalCatalog(): array
+    {
+        return self::catalogOf(self::proposalSteps());
+    }
+
+    /**
+     * @param  list<self>  $steps
+     * @return array<int, array{number: int, name: string}>
+     */
+    private static function catalogOf(array $steps): array
+    {
         return array_map(
             fn (self $step): array => ['number' => $step->value, 'name' => $step->label()],
-            self::cases(),
+            $steps,
         );
     }
 }

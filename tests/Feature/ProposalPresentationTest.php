@@ -80,13 +80,19 @@ test('a proposal downloads as a filled presentation', function () {
         'proposer_id' => $proposer->id,
         'title' => 'Digitalisasi verifikasi & arsip',
         'theme' => 'Proses verifikasi dokumen',
-        'theme_category' => ThemeCategory::Productivity,
+        'theme_category' => ThemeCategory::WorkforceCompetencyProductivity,
         'background' => "Verifikasi **masih manual**.\n- Banyak salah input\n- Lambat",
+        'target' => 'Verifikasi selesai dalam 1 hari',
+        'scope' => 'Unit verifikasi kantor pusat',
+        'cost_projection' => 'Lisensi tools Rp 5.000.000',
+        // Filled before these parts were removed from the form: no longer in the deck.
         'improvement_plan' => 'Checklist digital',
+        'supplementary_information' => 'Data pelengkap lama',
         'learning_goals_json' => ['Analisis data', 'Lean', 'SOP'],
         'step_timeline_json' => [
             ['step_number' => 1, 'start_date' => '2027-01-04', 'target_date' => '2027-01-15', 'deliverable' => 'Tema terpilih'],
             ['step_number' => 2, 'start_date' => '2027-01-18', 'target_date' => '2027-01-29', 'deliverable' => 'Target SMART'],
+            ['step_number' => 6, 'start_date' => '2027-02-01', 'target_date' => '2027-02-26', 'deliverable' => 'Hasil implementasi'],
         ],
         'submitted_at' => '2026-11-05 09:00:00',
     ]);
@@ -111,21 +117,31 @@ test('a proposal downloads as a filled presentation', function () {
 
     $slides = presentationSlides($response->baseResponse->getFile()->getPathname());
     $content = slideWith($slides, 'JUDUL PROYEK');
+    $plan = slideWith($slides, 'TARGET / TUJUAN');
     $schedule = slideWith($slides, 'Jadwal Proyek');
     $approval = slideWith($slides, 'Persetujuan Proposal');
     // Body rows of the gantt table; the two header rows come first.
     $bodyRows = implode('', array_slice(explode('<a:tr ', $schedule), 3));
 
     expect(implode('', $slides))->not->toContain('{{')
-        ->and($slides[1])->toContain('Digitalisasi verifikasi &amp; arsip', 'Ayu Pengusul  |  SIM ID 2551  |  DIV IT', 'Kategori tema: Productivity', 'SIMGROUP  |  QCC BATCH 4', '2026–2027')
+        ->and($slides[1])->toContain('Digitalisasi verifikasi &amp; arsip', 'Ayu Pengusul  |  SIM ID 2551  |  DIV IT', 'Kategori tema: Workforce Competency &amp; Productivity', 'SIMGROUP  |  QCC BATCH 4', '2026–2027')
+        // Title and theme above the background & baseline data, as in the new concept template.
+        ->and(slideText($content))->toContain('JUDUL PROYEK', 'TEMA IMPROVEMENT', 'Proses verifikasi dokumen', 'LATAR BELAKANG & BASELINE DATA')
         ->and($content)->toContain('masih manual</a:t>', ' b="1"', '<a:buChar char="•"/>', 'Banyak salah input')
-        ->and(slideText(slideWith($slides, '3 HAL YANG AKAN DIPELAJARI')))->toContain('1. Analisis data', '3. SOP')
+        // A short background stays in the left column, unbroken.
+        ->and($content)->not->toContain('name="Divider')
         ->and($content)->not->toContain('**')
-        // Flat white cards (no border, no shadow) and the QCC logo of the Batch 4 template.
-        ->and($content)->toContain('<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln><a:noFill/></a:ln>', '<a:blip r:embed=')
+        // Target beside the scope and the cost projection.
+        ->and(slideText($plan))->toContain('Verifikasi selesai dalam 1 hari', 'RUANG LINGKUP PROYEK', 'Unit verifikasi kantor pusat', 'PROYEKSI KEBUTUHAN BIAYA', 'Lisensi tools Rp 5.000.000')
+        // Removed parts of the form are left out.
+        ->and(implode(' ', array_map(slideText(...), $slides)))->not->toContain('RENCANA PERBAIKAN / ARAH SOLUSI', 'Checklist digital', 'Data pelengkap lama', 'DIPELAJARI', 'Analisis data')
+        // White cards with the template's thin border, no shadow, and the QCC logo.
+        ->and($content)->toContain('<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="D6DEE6"/></a:solidFill></a:ln>', '<a:blip r:embed=')
         ->and(implode('', $slides))->not->toMatch('/effectRef idx="[1-9]"/')
         ->and(implode('', $slides))->not->toContain('Aptos')
-        ->and(slideText($schedule))->toContain('Jan-27', '4 Jan 2027', '15 Jan 2027', 'Tema terpilih')
+        ->and(slideText($schedule))->toContain('Jan-27', 'Feb-27', 'Start Date', 'Finish Date', 'Deliverable Result', '4 Jan 2027', '15 Jan 2027', 'Tema terpilih', '5. Membuat Rencana Perbaikan')
+        // The proposal plans steps 1 to 5 only.
+        ->and(slideText($schedule))->not->toContain('6. Implementasi', 'Hasil implementasi', 'Mar-27')
         // Step 1 runs through weeks 1-3 of January, step 2 through weeks 3-4.
         ->and(substr_count($bodyRows, '<a:srgbClr val="'.ProposalPresentationBuilder::PRIMARY.'"/></a:solidFill></a:tcPr>'))->toBe(5)
         ->and(slideText($approval))->toContain('MENTOR', 'Citra Mentor', 'Dodi Mentor', 'DIV IT HEAD', 'Disetujui 7 Nov 2026')
@@ -139,7 +155,7 @@ test('long text continues on the next card instead of being cut', function () {
     $proposer = presentationViewer();
     $project = Project::factory()->status(ProposalStatus::Submitted)->create([
         'proposer_id' => $proposer->id,
-        'background' => str_repeat('Data proses verifikasi dokumen. ', 30),
+        'background' => str_repeat('Data proses verifikasi dokumen. ', 80),
         'scope' => str_repeat('Ruang lingkup yang sangat panjang sekali. ', 60),
     ]);
 
@@ -150,10 +166,12 @@ test('long text continues on the next card instead of being cut', function () {
     $approval = slideText(slideWith($slides, 'Persetujuan Proposal'));
 
     // Every word arrives, nothing ends in an ellipsis, and the overflow is labelled.
-    expect(substr_count($text, 'verifikasi'))->toBe(30)
+    expect(substr_count($text, 'verifikasi'))->toBe(80)
         ->and(substr_count($text, 'sekali'))->toBe(60)
         ->and($text)->not->toContain('…')
         ->and($text)->toContain('RUANG LINGKUP PROYEK (LANJUTAN)')
+        // A long background runs on into the right column of its card.
+        ->and(slideWith($slides, 'LATAR BELAKANG & BASELINE DATA'))->toContain('name="Divider')
         ->and(count($slides))->toBeGreaterThan(5)
         ->and($approval)->toContain('MENTOR', 'Belum ditentukan', 'Belum diajukan')
         ->and($approval)->not->toContain('DRAF')
@@ -190,18 +208,15 @@ function completeDraft(User $proposer): Project
         'proposer_id' => $proposer->id,
         'title' => 'Digitalisasi verifikasi',
         'theme' => 'Proses verifikasi',
-        'theme_category' => ThemeCategory::Productivity,
-        'background' => 'Latar belakang',
-        'current_situation' => 'Baseline 10 jam',
-        'improvement_plan' => 'Checklist digital',
+        'theme_category' => ThemeCategory::DigitalPlatform,
+        'background' => 'Latar belakang, baseline 10 jam',
         'target' => 'Target 5 jam',
         'scope' => 'Unit verifikasi',
-        'learning_goals_json' => ['Analisis data', 'Lean', 'SOP'],
         'step_timeline_json' => array_map(fn (QccStep $step): array => [
             'step_number' => $step->value,
             'start_date' => now()->addWeeks($step->value - 1)->toDateString(),
             'target_date' => now()->addWeeks($step->value)->toDateString(),
-        ], QccStep::cases()),
+        ], QccStep::proposalSteps()),
     ]);
     DB::table('project_requirements')->insert([
         'project_id' => $project->id,
@@ -229,15 +244,15 @@ test('a draft with mandatory parts missing cannot be exported and says what is m
     $proposer = presentationViewer();
     $proposer->givePermissionTo(Permission::findOrCreate('projects.update', 'web'));
     $project = completeDraft($proposer);
-    $project->forceFill(['target' => null, 'learning_goals_json' => ['Analisis data']])->save();
+    $project->forceFill(['target' => null])->save();
 
     $this->actingAs($proposer)->get(route('proposals.presentation', $project))->assertStatus(422);
 
     $this->get(route('proposals.show', $project))
         ->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('proposal.export_missing', ['Target/tujuan', '3 hal yang akan dipelajari']));
+            ->where('proposal.export_missing', ['Target/tujuan']));
 
     $this->get(route('proposals.edit', $project))
         ->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('project.export_missing', ['Target/tujuan', '3 hal yang akan dipelajari']));
+            ->where('project.export_missing', ['Target/tujuan']));
 });

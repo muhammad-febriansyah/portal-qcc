@@ -41,19 +41,16 @@ function preparedProposal(): array
         'proposer_id' => $proposer->id,
         'title' => 'Kurangi waktu proses',
         'theme' => 'Efisiensi',
-        'theme_category' => ThemeCategory::CostEfficiency,
-        'background' => 'Latar belakang',
-        'current_situation' => 'Kondisi saat ini, baseline 10 jam',
+        'theme_category' => ThemeCategory::WorkforceCompetencyProductivity,
+        'background' => 'Latar belakang, baseline 10 jam',
         'target' => 'Target 5 jam',
         'scope' => 'Proses internal',
-        'learning_goals_json' => ['Belajar A', 'Belajar B', 'Belajar C'],
-        'improvement_plan' => 'Rencana perbaikan',
         'cost_projection' => 'Tidak ada biaya',
         'step_timeline_json' => array_map(fn (QccStep $step): array => [
             'step_number' => $step->value,
             'start_date' => now()->addWeeks($step->value - 1)->toDateString(),
             'target_date' => now()->addWeeks($step->value)->toDateString(),
-        ], QccStep::cases()),
+        ], QccStep::proposalSteps()),
     ]);
     DB::table('project_requirements')->insert([
         'project_id' => $project->id,
@@ -136,6 +133,9 @@ test('proposal can be submitted revised resubmitted and approved with visible hi
         ->and($proposer->notifications()->where('data->decision', 'REQUEST_REVISION')->value('data')['message'])->toContain('Feedback mentor: Perjelas baseline pengukuran.')
         ->and($project->fresh()->steps)->toHaveCount(8)
         ->and($project->fresh()->steps->first()->target_date?->toDateString())->toBe(now()->addWeek()->toDateString())
+        // The proposal plans steps 1 to 5; the later steps start without a target date.
+        ->and($project->fresh()->steps->firstWhere('step_number', 5)->target_date?->toDateString())->toBe(now()->addWeeks(5)->toDateString())
+        ->and($project->fresh()->steps->firstWhere('step_number', 6)->target_date)->toBeNull()
         ->and(ReviewDecision::query()->where('project_id', $project->id)->count())->toBe(6);
 
     $this->actingAs($proposer)
@@ -177,7 +177,7 @@ test('proposal submission blocks a timeline without start dates', function () {
     $project->forceFill(['step_timeline_json' => array_map(fn (QccStep $step): array => [
         'step_number' => $step->value,
         'target_date' => now()->addWeeks($step->value)->toDateString(),
-    ], QccStep::cases())])->save();
+    ], QccStep::proposalSteps())])->save();
 
     $this->actingAs($proposer)
         ->post(route('proposals.submit', $project))
@@ -254,10 +254,9 @@ test('the mentor only approves or asks for a revision, and the proposer gets the
 
     $timeline = collect($project->step_timeline_json);
     $this->patch(route('proposals.update', $project), [
-        ...$project->only(['batch_id', 'theme', 'background', 'current_situation', 'improvement_plan', 'target', 'scope', 'cost_projection']),
+        ...$project->only(['batch_id', 'theme', 'background', 'target', 'scope', 'cost_projection']),
         'title' => 'Judul setelah revisi',
         'theme_category' => $project->theme_category->value,
-        'learning_goals' => $project->learning_goals_json,
         'step_start_dates' => $timeline->pluck('start_date')->all(),
         'step_timeline' => $timeline->pluck('target_date')->all(),
         'wizard_step' => 1,

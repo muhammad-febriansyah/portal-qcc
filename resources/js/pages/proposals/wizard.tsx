@@ -99,13 +99,9 @@ type ProjectDraft = {
     theme: string | null;
     theme_category: string | null;
     background: string | null;
-    current_situation: string | null;
-    improvement_plan: string | null;
     target: string | null;
     scope: string | null;
-    supplementary_information: string | null;
     cost_projection: string | null;
-    learning_goals: string[];
     step_start_dates: string[];
     step_timeline: string[];
     step_deliverables: string[];
@@ -140,13 +136,9 @@ type DraftForm = {
     theme: string;
     theme_category: string;
     background: string;
-    current_situation: string;
-    improvement_plan: string;
     target: string;
     scope: string;
-    supplementary_information: string;
     cost_projection: string;
-    learning_goals: string[];
     step_start_dates: string[];
     step_timeline: string[];
     step_deliverables: string[];
@@ -156,7 +148,6 @@ type DraftForm = {
 type DraftField = Exclude<
     keyof DraftForm,
     | 'batch_id'
-    | 'learning_goals'
     | 'step_start_dates'
     | 'step_timeline'
     | 'step_deliverables'
@@ -178,27 +169,27 @@ const steps: StepDefinition[] = [
     },
     {
         number: 2,
-        label: 'Latar Belakang & Situasi',
+        label: 'Latar Belakang & Baseline',
         description:
-            'Jelaskan latar belakang serta situasi saat ini beserta data baseline-nya.',
+            'Jelaskan latar belakang proyek beserta data baseline kondisi saat ini.',
     },
     {
         number: 3,
-        label: 'Rencana & Target',
+        label: 'Target & Ruang Lingkup',
         description:
-            'Uraikan arah solusi, target yang ingin dicapai, dan ruang lingkup proyek.',
+            'Uraikan target yang ingin dicapai dan ruang lingkup proyek.',
     },
     {
         number: 4,
-        label: 'Data Pelengkap & Biaya',
+        label: 'Biaya & Lampiran',
         description:
-            'Tambahkan informasi pendukung, lampiran, dan proyeksi kebutuhan biaya proyek.',
+            'Tambahkan proyeksi kebutuhan biaya proyek dan lampiran pendukung.',
     },
     {
         number: 5,
-        label: 'Pembelajaran & Timeline',
+        label: 'Timeline',
         description:
-            'Tulis tiga hal yang akan dipelajari serta tanggal mulai dan target selesai setiap step QCC.',
+            'Tentukan tanggal mulai, target selesai, dan deliverable step 1–5 QCC.',
     },
     {
         number: 6,
@@ -220,17 +211,10 @@ const fieldSteps: Record<string, { step: number; label: string }> = {
     batch_id: { step: 1, label: 'Batch QCC' },
     theme_category: { step: 1, label: 'Kategori Tema' },
     theme: { step: 1, label: 'Tema Improvement' },
-    background: { step: 2, label: 'Latar Belakang' },
-    current_situation: { step: 2, label: 'Situasi Saat Ini & Baseline' },
-    improvement_plan: { step: 3, label: 'Rencana Perbaikan' },
+    background: { step: 2, label: 'Latar Belakang & Baseline Data' },
     target: { step: 3, label: 'Target/Tujuan' },
     scope: { step: 3, label: 'Ruang Lingkup Proyek' },
-    supplementary_information: {
-        step: 4,
-        label: 'Informasi dan Data Pelengkap',
-    },
     cost_projection: { step: 4, label: 'Proyeksi Kebutuhan Biaya Proyek' },
-    learning_goals: { step: 5, label: 'Tiga Hal yang akan Dipelajari' },
     step_start_dates: { step: 5, label: 'Tanggal Mulai Timeline' },
     step_timeline: { step: 5, label: 'Target Selesai Timeline' },
     step_deliverables: { step: 5, label: 'Deliverable Timeline' },
@@ -283,16 +267,9 @@ function initialData(
         theme: project?.theme ?? '',
         theme_category: project?.theme_category ?? '',
         background: project?.background ?? '',
-        current_situation: project?.current_situation ?? '',
-        improvement_plan: project?.improvement_plan ?? '',
         target: project?.target ?? '',
         scope: project?.scope ?? '',
-        supplementary_information: project?.supplementary_information ?? '',
         cost_projection: project?.cost_projection ?? '',
-        learning_goals:
-            project?.learning_goals?.length === 3
-                ? project.learning_goals.map((goal) => goal ?? '')
-                : ['', '', ''],
         step_start_dates: Array.from(
             { length: stepCount },
             (_, index) => startDates[index] ?? '',
@@ -329,9 +306,6 @@ const stepDeliverableExamples: Record<number, string> = {
     3: 'Daftar potensi penyebab, diagram Fishbone (5M+1E)',
     4: 'Hasil validasi penyebab, diagram Pareto',
     5: 'Action plan 5W+1H',
-    6: 'Bukti implementasi, dokumentasi before-after',
-    7: 'Perbandingan baseline vs aktual, pencapaian target, benefit improvement',
-    8: 'SOP/standar kerja terbaru, rencana sustainability, tindak lanjut',
 };
 
 export default function ProposalWizard({
@@ -718,30 +692,15 @@ export default function ProposalWizard({
                 <div className="grid gap-6">
                     <FormField
                         id="proposal-background"
-                        label="Latar Belakang"
-                        hint="Jelaskan alasan mengapa proyek ini penting untuk dilakukan. Gambarkan permasalahan, kondisi, atau peluang yang melatarbelakangi munculnya ide proyek serta dampaknya terhadap perusahaan."
+                        label="Latar Belakang & Baseline Data"
+                        hint="Jelaskan alasan mengapa proyek ini penting: permasalahan, kondisi, atau peluang yang melatarbelakanginya serta dampaknya terhadap perusahaan. Sertakan kondisi aktual sebelum perbaikan dengan data kuantitatif maupun kualitatif, lengkap dengan periode pengukuran dan sumber datanya."
                         required
                         error={fieldError('background')}
                     >
                         <RichTextarea
                             value={form.data.background}
                             onChange={(value) => setField('background', value)}
-                            placeholder="Contoh: Proyek ini penting karena ... Masalah utama tim saat ini adalah ... Jika tidak segera diperbaiki, dampaknya ..."
-                        />
-                    </FormField>
-                    <FormField
-                        id="proposal-situation"
-                        label="Situasi Saat Ini & Baseline"
-                        hint="Tampilkan kondisi aktual sebelum perbaikan dilakukan dengan data kuantitatif maupun kualitatif. Pastikan baseline memiliki periode pengukuran dan sumber data yang jelas."
-                        required
-                        error={fieldError('current_situation')}
-                    >
-                        <RichTextarea
-                            value={form.data.current_situation}
-                            onChange={(value) =>
-                                setField('current_situation', value)
-                            }
-                            placeholder="Contoh: Saat ini revenue VAS 18 juta per bulan (data Oktober 2025)..."
+                            placeholder="Contoh: Proyek ini penting karena ... Saat ini revenue VAS 18 juta per bulan (data Oktober 2025) ..."
                         />
                     </FormField>
                 </div>
@@ -751,22 +710,6 @@ export default function ProposalWizard({
         if (stepNumber === 3) {
             return (
                 <div className="grid gap-6">
-                    <FormField
-                        id="proposal-improvement"
-                        label="Rencana Perbaikan / Arah Solusi / Improvement"
-                        hint="Jelaskan area yang akan dieksplorasi untuk menghasilkan perbaikan. Bukan merupakan solusi final sebelum akar penyebab dan peluang perbaikan dianalisis."
-                        example="Mengeksplorasi potensi peningkatan pendapatan melalui optimalisasi layanan tambahan kepada klien, termasuk mengidentifikasi peluang layanan yang dapat dikembangkan dan faktor-faktor yang memengaruhi pemanfaatannya."
-                        required
-                        error={fieldError('improvement_plan')}
-                    >
-                        <RichTextarea
-                            value={form.data.improvement_plan}
-                            onChange={(value) =>
-                                setField('improvement_plan', value)
-                            }
-                            placeholder="Jelaskan rencana perbaikan atau arah solusi"
-                        />
-                    </FormField>
                     <div className="grid gap-6 lg:grid-cols-2">
                         <FormField
                             id="proposal-target"
@@ -802,20 +745,6 @@ export default function ProposalWizard({
         if (stepNumber === 4) {
             return (
                 <div className="grid gap-6">
-                    <FormField
-                        id="proposal-supplementary-information"
-                        label="Informasi dan Data Pelengkap"
-                        hint="Cantumkan informasi atau data pendukung yang membantu memahami proyek, seperti grafik, foto kondisi aktual, laporan, hasil observasi, data historis, atau dokumen terkait. Jangan masukkan data pribadi yang tidak diperlukan."
-                        error={fieldError('supplementary_information')}
-                    >
-                        <RichTextarea
-                            value={form.data.supplementary_information}
-                            onChange={(value) =>
-                                setField('supplementary_information', value)
-                            }
-                            placeholder="Tambahkan data atau konteks pendukung"
-                        />
-                    </FormField>
                     <FormField
                         id="proposal-cost-projection"
                         label="Proyeksi Kebutuhan Biaya Proyek"
@@ -895,39 +824,8 @@ export default function ProposalWizard({
             return (
                 <div className="grid gap-6">
                     <SectionTitle
-                        title="Tiga hal yang akan dipelajari"
-                        description="Wajib diisi tiga. Ini dipakai untuk menilai kecocokan tim."
-                    />
-                    {form.data.learning_goals.map((goal, index) => (
-                        <FormField
-                            key={index}
-                            id={`learning-goal-${index + 1}`}
-                            label={`Hal yang akan Dipelajari ${index + 1}`}
-                            required
-                            error={fieldError(`learning_goals.${index}`)}
-                        >
-                            <Input
-                                value={goal}
-                                onChange={(event) =>
-                                    form.setData(
-                                        'learning_goals',
-                                        form.data.learning_goals.map(
-                                            (currentGoal, currentIndex) =>
-                                                currentIndex === index
-                                                    ? event.target.value
-                                                    : currentGoal,
-                                        ),
-                                    )
-                                }
-                                placeholder={`Contoh: ${['Analisis data proses', 'Penerapan metode improvement', 'Standardisasi hasil perbaikan'][index]}`}
-                                maxLength={255}
-                                className={controlClassName}
-                            />
-                        </FormField>
-                    ))}
-                    <SectionTitle
                         title="Timeline"
-                        description="Tanggal mulai, target selesai, dan hasil (deliverable) setiap step QCC. Step boleh berjalan bersamaan, jadi tanggalnya boleh tumpang tindih. Target selesai menjadi target step saat proyek berjalan."
+                        description="Tanggal mulai, target selesai, dan hasil (deliverable) step 1 sampai 5 QCC, hingga rencana perbaikan dibuat. Step boleh berjalan bersamaan, jadi tanggalnya boleh tumpang tindih. Target selesai menjadi target step saat proyek berjalan."
                     />
                     <div className="grid gap-4">
                         {qccSteps.map((qccStep, index) => (
@@ -1085,16 +983,8 @@ export default function ProposalWizard({
                         plain
                     />
                     <PreviewValue
-                        label="Latar Belakang"
+                        label="Latar Belakang & Baseline Data"
                         value={form.data.background}
-                    />
-                    <PreviewValue
-                        label="Situasi Saat Ini & Baseline"
-                        value={form.data.current_situation}
-                    />
-                    <PreviewValue
-                        label="Rencana Perbaikan / Arah Solusi / Improvement"
-                        value={form.data.improvement_plan}
                     />
                     <PreviewValue
                         label="Target / Tujuan"
@@ -1105,26 +995,9 @@ export default function ProposalWizard({
                         value={form.data.scope}
                     />
                     <PreviewValue
-                        label="Informasi dan Data Pelengkap"
-                        value={form.data.supplementary_information}
-                    />
-                    <PreviewValue
                         label="Proyeksi Kebutuhan Biaya Proyek"
                         value={form.data.cost_projection}
                     />
-                    <PreviewBlock label="Tiga Hal yang akan Dipelajari">
-                        {form.data.learning_goals.some(Boolean) ? (
-                            <ol className="list-decimal space-y-0.5 pl-5">
-                                {form.data.learning_goals.map((goal, index) => (
-                                    <li key={index}>
-                                        {goal.trim() || 'Belum diisi'}
-                                    </li>
-                                ))}
-                            </ol>
-                        ) : (
-                            'Belum diisi'
-                        )}
-                    </PreviewBlock>
                     <PreviewBlock label="Timeline">
                         <TimelineTable
                             rows={timelineRows}

@@ -7,22 +7,20 @@ namespace App\Enums;
  */
 enum ThemeCategory: string
 {
-    case NewRevenueStream = 'NEW_REVENUE_STREAM';
-    case QualityCustomerExperience = 'QUALITY_CUSTOMER_EXPERIENCE';
-    case CostEfficiency = 'COST_EFFICIENCY';
-    case Productivity = 'PRODUCTIVITY';
-    case DeliveryServiceExcellence = 'DELIVERY_SERVICE_EXCELLENCE';
-    case SafetyRiskCompliance = 'SAFETY_RISK_COMPLIANCE';
+    case EmploymentComplianceWorkforceProtection = 'EMPLOYMENT_COMPLIANCE_WORKFORCE_PROTECTION';
+    case WorkforceCompetencyProductivity = 'WORKFORCE_COMPETENCY_PRODUCTIVITY';
+    case WorkforceBusinessSolutionManagement = 'WORKFORCE_BUSINESS_SOLUTION_MANAGEMENT';
+    case DigitalPlatform = 'DIGITAL_PLATFORM';
+    case EmployeeWelfareSafetySustainability = 'EMPLOYEE_WELFARE_SAFETY_SUSTAINABILITY';
 
     public function label(): string
     {
         return match ($this) {
-            self::NewRevenueStream => 'New Revenue Stream',
-            self::QualityCustomerExperience => 'Quality & Customer Experience',
-            self::CostEfficiency => 'Cost & Efficiency',
-            self::Productivity => 'Productivity',
-            self::DeliveryServiceExcellence => 'Delivery & Service Excellence',
-            self::SafetyRiskCompliance => 'Safety, Risk, & Compliance',
+            self::EmploymentComplianceWorkforceProtection => 'Employment Compliance & Workforce Protection',
+            self::WorkforceCompetencyProductivity => 'Workforce Competency & Productivity',
+            self::WorkforceBusinessSolutionManagement => 'Workforce & Business Solution Management',
+            self::DigitalPlatform => 'Digital Platform',
+            self::EmployeeWelfareSafetySustainability => 'Employee Welfare, Safety & Sustainability',
         };
     }
 
@@ -32,12 +30,11 @@ enum ThemeCategory: string
     public function description(): string
     {
         return match ($this) {
-            self::NewRevenueStream => 'Proyek yang menciptakan sumber pendapatan baru melalui layanan tambahan, paket layanan terintegrasi, pemanfaatan kapabilitas atau teknologi, model bisnis baru, maupun perluasan pasar.',
-            self::QualityCustomerExperience => 'Proyek yang meningkatkan kualitas produk/layanan, akurasi proses, serta kepuasan pelanggan dengan mengurangi error, komplain, dan meningkatkan service level.',
-            self::CostEfficiency => 'Proyek yang mengurangi biaya, pemborosan (waste), dan mengoptimalkan penggunaan resource melalui proses yang lebih efisien.',
-            self::Productivity => 'Proyek yang meningkatkan output, kapasitas, efektivitas, dan produktivitas sumber daya (manpower, material, equipment, time).',
-            self::DeliveryServiceExcellence => 'Proyek yang meningkatkan ketepatan waktu, kecepatan, keandalan, dan pemenuhan layanan (SLA).',
-            self::SafetyRiskCompliance => 'Proyek yang memperkuat keselamatan kerja, pengendalian risiko, kepatuhan terhadap regulasi, dan pengendalian proses untuk memastikan operasional yang aman, andal, dan berkelanjutan.',
+            self::EmploymentComplianceWorkforceProtection => 'Kepatuhan hubungan kerja, perlindungan hak pekerja, administrasi ketenagakerjaan, dan pengelolaan dokumen.',
+            self::WorkforceCompetencyProductivity => 'Peningkatan kompetensi, reskilling, upskilling, produktivitas, dan kesiapan tenaga kerja.',
+            self::WorkforceBusinessSolutionManagement => 'Pengelolaan dan pengembangan solusi tenaga kerja serta layanan bisnis (bisnis proses servis) yang terintegrasi dengan kebutuhan dan target klien.',
+            self::DigitalPlatform => 'Pengembangan dan optimalisasi platform digital untuk mendukung operasional, kolaborasi, dan layanan bagi perusahaan dan klien.',
+            self::EmployeeWelfareSafetySustainability => 'K3, jaminan sosial, kesejahteraan pekerja, pengelolaan risiko, dan keberlanjutan layanan.',
         };
     }
 

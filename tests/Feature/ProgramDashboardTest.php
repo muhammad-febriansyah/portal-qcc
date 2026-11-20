@@ -90,7 +90,7 @@ test('owner QCC sees phase 1 figures while phases 2 and 3 stay locked', function
     MemberCompetency::factory()->create(['user_id' => $first->id, 'competency_id' => $competency->id]);
     MemberCompetency::factory()->create(['user_id' => $second->id, 'competency_id' => $competency->id]);
 
-    foreach ([[$first, ThemeCategory::CostEfficiency], [$second, ThemeCategory::CostEfficiency]] as [$proposer, $category]) {
+    foreach ([[$first, ThemeCategory::DigitalPlatform], [$second, ThemeCategory::DigitalPlatform]] as [$proposer, $category]) {
         Project::factory()->status(ProposalStatus::Submitted)->create([
             'batch_id' => $batch->id,
             'proposer_id' => $proposer->id,
@@ -119,7 +119,7 @@ test('owner QCC sees phase 1 figures while phases 2 and 3 stay locked', function
             ->where('program.registration.submitters', 2)
             ->where('program.registration.submitters_percent', 50)
             ->where('program.registration.submissions_by_organization.0', ['id' => $finance->id, 'name' => 'DIV FINANCE', 'count' => 2])
-            ->where('program.registration.themes.2', ['key' => ThemeCategory::CostEfficiency->value, 'label' => 'Cost & Efficiency', 'count' => 2, 'percent' => 100])
+            ->where('program.registration.themes.3', ['key' => ThemeCategory::DigitalPlatform->value, 'label' => 'Digital Platform', 'count' => 2, 'percent' => 100])
             ->where('program.registration.trend.0.date', '2026-11-09')
             ->where('program.registration.trend.9', ['date' => '2026-11-18', 'registered' => 0, 'submitted' => 2])
             ->where('program.registration.trend.11', ['date' => '2026-11-20', 'registered' => 3, 'submitted' => 2])
@@ -314,18 +314,35 @@ test('a switched-off LOB/Div keeps its proposals on the chart', function () {
             ->where('program.registration.submissions_by_organization', fn ($rows) => collect($rows)->doesntContain('name', 'DIV NONAKTIF TANPA PROPOSAL')));
 });
 
-test('proposals saved with the first theme categories move to the new ones', function () {
+test('proposals saved with the first theme categories move to the categories that replaced them', function () {
     $projects = collect(['REVENUE_GM', 'EFFICIENCY', 'RISK_COMPLIANCE_PROCESS_CONTROL', 'PRODUCTIVITY'])
         ->map(fn (string $old) => tap(Project::factory()->create(), fn (Project $project) => DB::table('projects')->where('id', $project->id)->update(['theme_category' => $old])));
 
     (require database_path('migrations/2026_11_06_134057_rename_theme_categories_on_projects_table.php'))->up();
 
-    expect($projects->map(fn (Project $project) => $project->fresh()->theme_category)->all())->toBe([
-        ThemeCategory::NewRevenueStream,
-        ThemeCategory::CostEfficiency,
-        ThemeCategory::SafetyRiskCompliance,
-        ThemeCategory::Productivity,
+    expect($projects->map(fn (Project $project) => DB::table('projects')->where('id', $project->id)->value('theme_category'))->all())->toBe([
+        'NEW_REVENUE_STREAM',
+        'COST_EFFICIENCY',
+        'SAFETY_RISK_COMPLIANCE',
+        'PRODUCTIVITY',
     ]);
+});
+
+test('proposals keep their background and baseline and drop a category of the old list in the new concept', function () {
+    $old = Project::factory()->create(['background' => 'Latar belakang', 'current_situation' => "Situasi saat ini\n\n**Baseline:** 3 hari"]);
+    DB::table('projects')->where('id', $old->id)->update(['theme_category' => 'COST_EFFICIENCY']);
+    $current = Project::factory()->create(['theme_category' => ThemeCategory::DigitalPlatform, 'background' => null, 'current_situation' => 'Hanya situasi']);
+    $merged = Project::factory()->create(['background' => "Latar\n\nSudah digabung", 'current_situation' => 'Sudah digabung']);
+
+    (require database_path('migrations/2026_11_20_110514_move_proposals_to_the_new_concept.php'))->up();
+
+    expect($old->fresh())
+        ->theme_category->toBeNull()
+        ->background->toBe("Latar belakang\n\nSituasi saat ini\n\n**Baseline:** 3 hari")
+        ->and($current->fresh())
+        ->theme_category->toBe(ThemeCategory::DigitalPlatform)
+        ->background->toBe('Hanya situasi')
+        ->and($merged->fresh()->background)->toBe("Latar\n\nSudah digabung");
 });
 
 test('a registration number opens the SIMers or proposals behind it', function () {
@@ -343,7 +360,7 @@ test('a registration number opens the SIMers or proposals behind it', function (
         'batch_id' => $batch->id,
         'proposer_id' => $proposer->id,
         'title' => 'Digitalisasi absensi',
-        'theme_category' => ThemeCategory::Productivity,
+        'theme_category' => ThemeCategory::WorkforceCompetencyProductivity,
         'submitted_at' => now(),
     ]);
     $owner = programOwner();
@@ -372,8 +389,8 @@ test('a registration number opens the SIMers or proposals behind it', function (
         ->assertJsonPath('rows.0.code', sprintf('PRP-%04d', $proposal->id))
         ->assertJsonPath('rows.0.title', 'Digitalisasi absensi')
         ->assertJsonPath('rows.0.url', route('proposals.show', $proposal));
-    $details('theme_proposals', ThemeCategory::Productivity->value)->assertJsonCount(1, 'rows');
-    $details('theme_proposals', ThemeCategory::CostEfficiency->value)->assertJsonCount(0, 'rows');
+    $details('theme_proposals', ThemeCategory::WorkforceCompetencyProductivity->value)->assertJsonCount(1, 'rows');
+    $details('theme_proposals', ThemeCategory::DigitalPlatform->value)->assertJsonCount(0, 'rows');
     $details('organizations')->assertJsonPath('rows.0', [
         'id' => $finance->id,
         'name' => 'DIV FINANCE',
