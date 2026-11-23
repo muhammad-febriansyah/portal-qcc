@@ -67,13 +67,9 @@ type Proposal = {
     theme: string | null;
     theme_category: string | null;
     background: string | null;
-    current_situation: string | null;
-    improvement_plan: string | null;
     target: string | null;
     scope: string | null;
-    supplementary_information: string | null;
     cost_projection: string | null;
-    learning_goals: string[];
     step_timeline: {
         step_number: number;
         name: string;
@@ -356,7 +352,7 @@ export default function ProposalShow({ proposal }: Props) {
                                     aria-hidden="true"
                                     data-icon="inline-start"
                                 />
-                                Ringkasan & situasi
+                                Ringkasan & latar belakang
                             </TabsTrigger>
                             <TabsTrigger value="plan">
                                 <ClipboardCheck
@@ -439,7 +435,7 @@ export default function ProposalShow({ proposal }: Props) {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="text-base">
-                                        Latar belakang & situasi
+                                        Latar belakang & baseline data
                                     </CardTitle>
                                     <CardDescription>
                                         Konteks dan data awal yang menjadi dasar
@@ -447,14 +443,10 @@ export default function ProposalShow({ proposal }: Props) {
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <dl className="grid gap-3 sm:grid-cols-2">
+                                    <dl className="grid gap-3">
                                         <DetailField
-                                            label="Latar belakang"
+                                            label="Latar belakang & baseline data"
                                             value={proposal.background}
-                                        />
-                                        <DetailField
-                                            label="Situasi saat ini & baseline"
-                                            value={proposal.current_situation}
                                         />
                                     </dl>
                                 </CardContent>
@@ -464,19 +456,15 @@ export default function ProposalShow({ proposal }: Props) {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="text-base">
-                                        Rencana & target
+                                        Target & ruang lingkup
                                     </CardTitle>
                                     <CardDescription>
-                                        Arah solusi, sasaran, ruang lingkup, dan
-                                        kebutuhan biaya proyek.
+                                        Sasaran, ruang lingkup, dan kebutuhan
+                                        biaya proyek.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <dl className="grid gap-3 sm:grid-cols-2">
-                                        <DetailField
-                                            label="Rencana perbaikan / arah solusi"
-                                            value={proposal.improvement_plan}
-                                        />
                                         <DetailField
                                             label="Target / tujuan"
                                             value={proposal.target}
@@ -486,45 +474,9 @@ export default function ProposalShow({ proposal }: Props) {
                                             value={proposal.scope}
                                         />
                                         <DetailField
-                                            label="Informasi dan data pelengkap"
-                                            value={
-                                                proposal.supplementary_information
-                                            }
-                                        />
-                                        <DetailField
                                             label="Proyeksi kebutuhan biaya proyek"
                                             value={proposal.cost_projection}
                                         />
-                                        <div className="min-w-0 rounded-lg border border-border/70 bg-muted/20 p-4">
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">
-                                                Tiga hal yang akan dipelajari
-                                            </dt>
-                                            <dd className="mt-2">
-                                                {proposal.learning_goals
-                                                    .length > 0 ? (
-                                                    <ol className="list-decimal space-y-1 pl-5 text-sm leading-6">
-                                                        {proposal.learning_goals.map(
-                                                            (
-                                                                goal,
-                                                                position,
-                                                            ) => (
-                                                                <li
-                                                                    key={
-                                                                        position
-                                                                    }
-                                                                >
-                                                                    {goal}
-                                                                </li>
-                                                            ),
-                                                        )}
-                                                    </ol>
-                                                ) : (
-                                                    <span className="text-sm text-foreground">
-                                                        —
-                                                    </span>
-                                                )}
-                                            </dd>
-                                        </div>
                                     </dl>
                                 </CardContent>
                             </Card>
@@ -536,7 +488,7 @@ export default function ProposalShow({ proposal }: Props) {
                                     </CardTitle>
                                     <CardDescription>
                                         Rencana waktu, target selesai, dan
-                                        deliverable setiap step QCC.
+                                        deliverable step 1–5 QCC.
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>

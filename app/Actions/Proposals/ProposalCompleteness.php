@@ -20,9 +20,7 @@ class ProposalCompleteness
         'title' => 'Judul proposal',
         'theme' => 'Tema improvement',
         'theme_category' => 'Kategori tema',
-        'background' => 'Latar belakang',
-        'current_situation' => 'Situasi saat ini & baseline',
-        'improvement_plan' => 'Rencana perbaikan',
+        'background' => 'Latar belakang & baseline data',
         'target' => 'Target/tujuan',
         'scope' => 'Ruang lingkup proyek',
     ];
@@ -42,18 +40,14 @@ class ProposalCompleteness
             }
         }
 
-        $goals = array_filter($project->learning_goals_json ?? [], fn ($goal): bool => filled($goal));
-
-        if (count($goals) !== 3) {
-            $missing['learning_goals'] = 'Isi tepat 3 hal yang akan dipelajari sebelum proposal diajukan.';
-        }
-
+        $proposalSteps = array_map(fn (QccStep $step): int => $step->value, QccStep::proposalSteps());
         $plannedSteps = array_filter(
             $project->step_timeline_json ?? [],
-            fn (array $step): bool => filled($step['start_date'] ?? null) && filled($step['target_date'] ?? null),
+            fn (array $step): bool => in_array((int) ($step['step_number'] ?? 0), $proposalSteps, true)
+                && filled($step['start_date'] ?? null) && filled($step['target_date'] ?? null),
         );
 
-        if (count($plannedSteps) !== count(QccStep::cases())) {
+        if (count($plannedSteps) !== count($proposalSteps)) {
             $missing['step_timeline'] = 'Isi tanggal mulai dan target selesai semua step QCC sebelum proposal diajukan.';
         }
 
@@ -73,7 +67,6 @@ class ProposalCompleteness
     {
         $labels = [
             ...self::REQUIRED_FIELDS,
-            'learning_goals' => '3 hal yang akan dipelajari',
             'step_timeline' => 'Tanggal mulai & target semua step QCC',
             'requirements' => 'Kebutuhan kompetensi',
         ];

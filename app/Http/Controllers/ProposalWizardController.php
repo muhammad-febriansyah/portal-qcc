@@ -37,7 +37,7 @@ class ProposalWizardController extends Controller
         return Inertia::render('proposals/wizard', [
             'project' => null,
             'step' => 1,
-            'qccSteps' => QccStep::catalog(),
+            'qccSteps' => QccStep::proposalCatalog(),
             'themeCategories' => ThemeCategory::options(),
             'batches' => $this->batchOptions(),
             'competencyOptions' => $this->competencyOptions(),
@@ -99,13 +99,9 @@ class ProposalWizardController extends Controller
                 'theme' => $project->theme,
                 'theme_category' => $project->theme_category?->value,
                 'background' => $project->background,
-                'current_situation' => $project->current_situation,
-                'improvement_plan' => $project->improvement_plan,
                 'target' => $project->target,
                 'scope' => $project->scope,
-                'supplementary_information' => $project->supplementary_information,
                 'cost_projection' => $project->cost_projection,
-                'learning_goals' => $project->learning_goals_json ?? ['', '', ''],
                 'step_start_dates' => $this->timelineValues($project, 'start_date'),
                 'step_timeline' => $this->timelineValues($project, 'target_date'),
                 'step_deliverables' => $this->timelineValues($project, 'deliverable'),
@@ -132,7 +128,7 @@ class ProposalWizardController extends Controller
                 ]),
             ],
             'step' => $project->wizard_step,
-            'qccSteps' => QccStep::catalog(),
+            'qccSteps' => QccStep::proposalCatalog(),
             'themeCategories' => ThemeCategory::options(),
             'batches' => $this->batchOptions($project->batch_id),
             'competencyOptions' => $this->competencyOptions(),
@@ -331,15 +327,10 @@ class ProposalWizardController extends Controller
      */
     private function draftAttributes(array $validated): array
     {
-        $learningGoals = $validated['learning_goals'] ?? null;
         $timeline = $validated['step_timeline'] ?? null;
         $startDates = array_values($validated['step_start_dates'] ?? []);
         $deliverables = $validated['step_deliverables'] ?? [];
-        unset($validated['learning_goals'], $validated['step_start_dates'], $validated['step_timeline'], $validated['step_deliverables']);
-
-        $validated['learning_goals_json'] = is_array($learningGoals)
-            ? array_values($learningGoals)
-            : null;
+        unset($validated['step_start_dates'], $validated['step_timeline'], $validated['step_deliverables']);
 
         $validated['step_timeline_json'] = is_array($timeline)
             ? array_map(fn (QccStep $step): array => [
@@ -347,14 +338,14 @@ class ProposalWizardController extends Controller
                 'start_date' => $startDates[$step->value - 1] ?? null,
                 'target_date' => $timeline[$step->value - 1] ?? null,
                 'deliverable' => filled($deliverables[$step->value - 1] ?? null) ? trim($deliverables[$step->value - 1]) : null,
-            ], QccStep::cases())
+            ], QccStep::proposalSteps())
             : null;
 
         return $validated;
     }
 
     /**
-     * One value per QCC step, in step order, for the wizard form.
+     * One value per QCC step planned in the proposal, in step order, for the wizard form.
      *
      * @return list<string>
      */
@@ -362,6 +353,6 @@ class ProposalWizardController extends Controller
     {
         $values = collect($project->step_timeline_json ?? [])->pluck($key, 'step_number');
 
-        return array_map(fn (QccStep $step): string => (string) ($values->get($step->value) ?? ''), QccStep::cases());
+        return array_map(fn (QccStep $step): string => (string) ($values->get($step->value) ?? ''), QccStep::proposalSteps());
     }
 }

@@ -16,13 +16,15 @@ use Throwable;
 use ZipArchive;
 
 /**
- * Builds the proposal deck from the template (resources/templates/proposal-presentation.pptx):
- * a cover, the proposal's sections as bordered white cards flowing over two columns, the QCC
- * step schedule as a weekly gantt table, the approval slide and a closing slide.
+ * Builds the proposal deck on the "QCC Batch 4 New Concept" template
+ * (resources/templates/proposal-presentation.pptx): a cover, two proposal slides laid out as in
+ * the template (title and theme above the background & baseline data; target beside the scope
+ * and the cost projection), the planned QCC steps 1–5 as a weekly gantt table, the approval
+ * slide and a closing slide.
  *
- * Nothing is ever cut short: a card that does not fit continues in the next column or on the
- * next slide, and a schedule too tall for one slide continues on the next, with its header
- * repeated.
+ * Nothing is ever cut short: text that does not fit its card continues on a following
+ * "(lanjutan)" slide, where cards flow over two columns, and a schedule too tall for one slide
+ * continues on the next, with its header repeated.
  */
 class ProposalPresentationBuilder
 {
@@ -50,6 +52,11 @@ class ProposalPresentationBuilder
 
     private const TABLE_LINE = 'A9B6C6';
 
+    private const CARD_BORDER = 'D6DEE6';
+
+    /** Corner radius of every card, in inches, whatever its size. */
+    private const CARD_CORNER = 0.1;
+
     /** Content area of a frame slide, in inches. */
     private const LEFT = 0.6;
 
@@ -60,11 +67,16 @@ class ProposalPresentationBuilder
 
     private const TABLE_TOP = 1.75;
 
-    private const BOTTOM = 6.95;
+    private const BOTTOM = 6.86;
 
     private const COLUMN_GAP = 0.3;
 
-    private const CARD_GAP = 0.2;
+    private const CARD_GAP = 0.25;
+
+    /** The title and theme cards above the background: at least this tall, and at most. */
+    private const HEADLINE_MIN = 1.28;
+
+    private const HEADLINE_MAX = 2.4;
 
     private const CARD_PADDING_X = 0.2;
 
@@ -79,21 +91,27 @@ class ProposalPresentationBuilder
     /** A card continued elsewhere still shows at least this many lines where it starts. */
     private const MIN_LINES = 3;
 
-    /** Months the schedule shows, four week columns each. */
-    private const SCHEDULE_MONTHS = 7;
+    /** Months the schedule shows, four week columns each: from its first month, at least two and at most seven. */
+    private const MIN_SCHEDULE_MONTHS = 2;
 
-    private const TABLE_SIZE = 8;
+    private const MAX_SCHEDULE_MONTHS = 7;
+
+    private const TABLE_SIZE = 10;
+
+    private const WEEK_SIZE = 8;
 
     /** Schedule columns: step, one per week, start, finish, deliverable (inches). */
-    private const STEP_COLUMN = 2.55;
+    private const STEP_COLUMN = 3.1;
 
-    private const WEEK_COLUMN = 0.2;
+    private const MAX_WEEK_COLUMN = 0.35;
 
-    private const DATE_COLUMN = 0.82;
+    private const DATE_COLUMN = 1.0;
 
-    private const HEADER_ROW = 0.28;
+    private const MIN_DELIVERABLE_COLUMN = 2.6;
 
-    private const MIN_ROW = 0.3;
+    private const HEADER_ROW = 0.32;
+
+    private const MIN_ROW = 0.45;
 
     /**
      * Single values on the cover and approval slides that shrink to fit their box:
@@ -162,8 +180,12 @@ class ProposalPresentationBuilder
         $frameRels = $package->templateRelationships(self::FRAME);
         $pages = [];
 
-        foreach ($this->sectionPages($this->sections($project)) as $index => $cards) {
-            $pages[] = ['title' => $index === 0 ? 'Proposal Proyek' : 'Proposal Proyek (lanjutan)', 'subtitle' => '', 'body' => $cards];
+        foreach ([$this->overviewPage($project), $this->planPage($project)] as $page) {
+            $pages[] = ['title' => 'Proposal Proyek', 'subtitle' => '', 'body' => $page['body']];
+
+            foreach ($this->sectionPages($page['overflow']) as $cards) {
+                $pages[] = ['title' => 'Proposal Proyek (lanjutan)', 'subtitle' => '', 'body' => $cards];
+            }
         }
 
         foreach ($this->schedulePages($project) as $index => $table) {
@@ -247,53 +269,145 @@ class ProposalPresentationBuilder
     }
 
     /**
-     * The proposal's sections in reading order, each a label and its text.
+     * The first proposal slide: the title and the theme side by side, and below them the
+     * background & baseline data in a wide card whose text runs over two columns.
      *
-     * @return list<array{label: string, text: string}>
+     * @return array{body: string, overflow: list<array{label: string, paragraphs: list<array{text: string, bullet: bool}>}>}
      */
-    private function sections(Project $project): array
+    private function overviewPage(Project $project): array
     {
-        $learning = array_values(array_filter((array) $project->learning_goals_json, 'filled'));
+        $columnWidth = $this->columnWidth();
+        $right = self::LEFT + $columnWidth + self::COLUMN_GAP;
+        $title = SlideText::paragraphs($project->title);
+        $theme = SlideText::paragraphs($project->theme);
+        $height = min(self::HEADLINE_MAX, max(self::HEADLINE_MIN, $this->cardHeight($title, $columnWidth), $this->cardHeight($theme, $columnWidth)));
+        $overflow = [];
+        $body = $this->fittedCard('Judul Proyek', $title, self::LEFT, self::TOP, $columnWidth, $height, $overflow)
+            .$this->fittedCard('Tema Improvement', $theme, $right, self::TOP, $columnWidth, $height, $overflow);
 
-        $sections = [
-            ['label' => 'Judul Proyek', 'text' => (string) $project->title],
-            ['label' => 'Tema Improvement', 'text' => (string) $project->theme],
-            ['label' => 'Latar Belakang', 'text' => (string) $project->background],
-            ['label' => 'Situasi Saat Ini / Baseline', 'text' => (string) $project->current_situation],
-            // Sections removed from the form; still shown for proposals written before the change.
-            ['label' => 'Pernyataan Masalah', 'text' => (string) $project->problem_statement, 'legacy' => true],
-            ['label' => 'Root Cause Analysis (RCA)', 'text' => (string) $project->rca, 'legacy' => true],
-            ['label' => 'Rencana Perbaikan / Arah Solusi', 'text' => (string) $project->improvement_plan],
-            ['label' => 'Ruang Lingkup Proyek', 'text' => (string) $project->scope],
-            ['label' => 'Target / Tujuan', 'text' => (string) $project->target],
-            ['label' => 'Manfaat Bisnis', 'text' => (string) $project->business_benefit, 'legacy' => true],
-            ['label' => 'Informasi Data Pelengkap', 'text' => (string) $project->supplementary_information],
-            ['label' => 'Proyeksi Kebutuhan Biaya', 'text' => (string) $project->cost_projection],
-            ['label' => '3 Hal yang Akan Dipelajari', 'text' => implode("\n", array_map(
-                fn (int $index): string => ($index + 1).'. '.($learning[$index] ?? '-'),
-                [0, 1, 2],
-            ))],
-        ];
+        $top = self::TOP + $height + self::CARD_GAP;
+        $label = 'Latar Belakang & Baseline Data';
+        $textWidth = $this->textColumnWidth();
+        $room = self::BOTTOM - $top - $this->cardChrome();
+        $paragraphs = SlideText::paragraphs($project->background);
 
-        return array_values(array_map(
-            fn (array $section): array => ['label' => $section['label'], 'text' => $section['text']],
-            array_filter($sections, fn (array $section): bool => ! ($section['legacy'] ?? false) || filled($section['text'])),
-        ));
+        // The text fills the left column first and runs on into the right one only when it is
+        // longer, so a short background is never broken mid-sentence.
+        [$first, $rest] = SlideText::split($paragraphs, $textWidth, self::BODY_SIZE, $room);
+        [$second, $rest] = SlideText::split($rest, $textWidth, self::BODY_SIZE, $room);
+
+        $body .= $this->twoColumnCard(Str::upper($label), $first, $second, self::LEFT, $top, self::WIDTH, self::BOTTOM - $top);
+
+        if ($rest !== []) {
+            $overflow[] = ['label' => Str::upper($label).' (LANJUTAN)', 'paragraphs' => $rest];
+        }
+
+        return ['body' => $body, 'overflow' => $overflow];
     }
 
     /**
-     * Lay the sections out as cards over two columns, column by column and slide by slide.
-     * A section that does not fit where it starts is split, and continues at the top of the
-     * next column with "(lanjutan)" after its label.
+     * The second proposal slide: the target down the left, the scope and the cost projection
+     * stacked on the right. Older sections removed from the form follow on continuation slides
+     * when a proposal still has them.
      *
-     * @param  list<array{label: string, text: string}>  $sections
+     * @return array{body: string, overflow: list<array{label: string, paragraphs: list<array{text: string, bullet: bool}>}>}
+     */
+    private function planPage(Project $project): array
+    {
+        $columnWidth = $this->columnWidth();
+        $right = self::LEFT + $columnWidth + self::COLUMN_GAP;
+        $columnHeight = self::BOTTOM - self::TOP;
+        $overflow = [];
+        $body = $this->fittedCard('Target / Tujuan', SlideText::paragraphs($project->target), self::LEFT, self::TOP, $columnWidth, $columnHeight, $overflow);
+
+        $scope = SlideText::paragraphs($project->scope);
+        $cost = SlideText::paragraphs($project->cost_projection);
+        $room = $columnHeight - self::CARD_GAP;
+        $scopeNeeds = $this->cardHeight($scope, $columnWidth);
+        $costNeeds = $this->cardHeight($cost, $columnWidth);
+
+        if ($scopeNeeds + $costNeeds <= $room) {
+            // Both fit: share the column, the longer card taking what the shorter one leaves.
+            $scopeHeight = max($room / 2, $scopeNeeds);
+            $scopeHeight = $room - max($room - $scopeHeight, $costNeeds);
+        } else {
+            $smallest = $this->cardChrome() + self::MIN_LINES * SlideText::lineHeight(self::BODY_SIZE);
+            $scopeHeight = max($smallest, min($scopeNeeds, $room - max($smallest, min($costNeeds, $room / 2))));
+        }
+
+        $body .= $this->fittedCard('Ruang Lingkup Proyek', $scope, $right, self::TOP, $columnWidth, $scopeHeight, $overflow)
+            .$this->fittedCard('Proyeksi Kebutuhan Biaya', $cost, $right, self::TOP + $scopeHeight + self::CARD_GAP, $columnWidth, $room - $scopeHeight, $overflow);
+
+        $legacy = [
+            'Pernyataan Masalah' => $project->problem_statement,
+            'Root Cause Analysis (RCA)' => $project->rca,
+            'Manfaat Bisnis' => $project->business_benefit,
+        ];
+
+        foreach (array_filter($legacy, 'filled') as $label => $text) {
+            $overflow[] = ['label' => Str::upper($label), 'paragraphs' => SlideText::paragraphs($text)];
+        }
+
+        return ['body' => $body, 'overflow' => $overflow];
+    }
+
+    /**
+     * A card of a fixed size holding as much of the text as fits; the rest is queued for the
+     * continuation slides.
+     *
+     * @param  list<array{text: string, bullet: bool}>  $paragraphs
+     * @param  list<array{label: string, paragraphs: list<array{text: string, bullet: bool}>}>  $overflow
+     */
+    private function fittedCard(string $label, array $paragraphs, float $x, float $y, float $width, float $height, array &$overflow): string
+    {
+        $label = Str::upper($label);
+        [$fits, $rest] = SlideText::split($paragraphs, $width - 2 * self::CARD_PADDING_X, self::BODY_SIZE, $height - $this->cardChrome());
+
+        if ($rest !== []) {
+            $overflow[] = ['label' => $label.' (LANJUTAN)', 'paragraphs' => $rest];
+        }
+
+        return $this->card($label, $fits === [] ? [['text' => '', 'bullet' => false]] : $fits, $x, $y, $width, $height);
+    }
+
+    /**
+     * @param  list<array{text: string, bullet: bool}>  $paragraphs
+     */
+    private function cardHeight(array $paragraphs, float $width): float
+    {
+        return $this->cardChrome() + SlideText::height($paragraphs, $width - 2 * self::CARD_PADDING_X, self::BODY_SIZE);
+    }
+
+    /** Height of a card without its text: padding and the label. */
+    private function cardChrome(): float
+    {
+        return 2 * self::CARD_PADDING_Y + SlideText::lineHeight(self::LABEL_SIZE) + self::LABEL_GAP / 72;
+    }
+
+    private function columnWidth(): float
+    {
+        return (self::WIDTH - self::COLUMN_GAP) / 2;
+    }
+
+    /** Width of each text column inside the wide background card. */
+    private function textColumnWidth(): float
+    {
+        return (self::WIDTH - 2 * self::CARD_PADDING_X - 2 * self::COLUMN_GAP) / 2;
+    }
+
+    /**
+     * Lay the text that did not fit its card out as cards over two columns, column by column
+     * and slide by slide. A section that does not fit where it starts is split, and continues
+     * at the top of the next column with "(lanjutan)" after its label.
+     *
+     * @param  list<array{label: string, paragraphs: list<array{text: string, bullet: bool}>}>  $sections
      * @return list<string> The card shapes of each slide.
      */
     private function sectionPages(array $sections): array
     {
-        $columnWidth = (self::WIDTH - self::COLUMN_GAP) / 2;
+        $columnWidth = $this->columnWidth();
         $textWidth = $columnWidth - 2 * self::CARD_PADDING_X;
-        $chrome = 2 * self::CARD_PADDING_Y + SlideText::lineHeight(self::LABEL_SIZE) + self::LABEL_GAP / 72;
+        $chrome = $this->cardChrome();
         $pages = [];
         $page = '';
         $column = 0;
@@ -312,8 +426,8 @@ class ProposalPresentationBuilder
         };
 
         foreach ($sections as $section) {
-            $paragraphs = SlideText::paragraphs($section['text']);
-            $label = Str::upper($section['label']);
+            $paragraphs = $section['paragraphs'];
+            $label = $section['label'];
 
             while ($paragraphs !== []) {
                 $x = self::LEFT + $column * ($columnWidth + self::COLUMN_GAP);
@@ -341,7 +455,7 @@ class ProposalPresentationBuilder
                     if ($fits !== []) {
                         $page .= $this->card($label, $fits, $x, $y, $columnWidth, $room);
                         $paragraphs = $rest;
-                        $label = Str::upper($section['label']).' (LANJUTAN)';
+                        $label = str_ends_with($section['label'], ' (LANJUTAN)') ? $section['label'] : $section['label'].' (LANJUTAN)';
                     }
                 }
 
@@ -357,27 +471,88 @@ class ProposalPresentationBuilder
     }
 
     /**
-     * A bordered white card holding a label and its paragraphs.
+     * A white card with a thin border, holding a label and its paragraphs.
      *
      * @param  list<array{text: string, bullet: bool}>  $paragraphs
      */
     private function card(string $label, array $paragraphs, float $x, float $y, float $width, float $height): string
     {
-        $id = $this->shapeId++;
-        $label = '<a:p><a:pPr algn="l"><a:spcAft><a:spcPts val="'.(self::LABEL_GAP * 100).'"/></a:spcAft><a:buNone/></a:pPr>'
+        return $this->shape('Card', $x, $y, $width, $height, $this->cardFrame(), $this->labelXml($label).$this->bodyXml($paragraphs));
+    }
+
+    /**
+     * The wide background card: one label above two text columns split by a thin line.
+     *
+     * @param  list<array{text: string, bullet: bool}>  $first
+     * @param  list<array{text: string, bullet: bool}>  $second
+     */
+    private function twoColumnCard(string $label, array $first, array $second, float $x, float $y, float $width, float $height): string
+    {
+        $textTop = $y + self::CARD_PADDING_Y + SlideText::lineHeight(self::LABEL_SIZE) + self::LABEL_GAP / 72;
+        $textHeight = $y + $height - self::CARD_PADDING_Y - $textTop;
+        $columnWidth = $this->textColumnWidth();
+        $secondX = $x + self::CARD_PADDING_X + $columnWidth + 2 * self::COLUMN_GAP;
+        $noInset = '<a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" anchor="t" rtlCol="0"><a:noAutofit/></a:bodyPr>';
+        $labelHeight = SlideText::lineHeight(self::LABEL_SIZE) + self::LABEL_GAP / 72;
+        // The label is a text box of its own, so it lines up with the text columns below it.
+        $xml = $this->shape('Card', $x, $y, $width, $height, $this->cardFrame(), '')
+            .$this->shape('Text', $x + self::CARD_PADDING_X, $y + self::CARD_PADDING_Y, $width - 2 * self::CARD_PADDING_X, $labelHeight, '<a:noFill/><a:ln><a:noFill/></a:ln>', $this->labelXml($label), $noInset)
+            .$this->shape('Text', $x + self::CARD_PADDING_X, $textTop, $columnWidth, $textHeight, '<a:noFill/><a:ln><a:noFill/></a:ln>', $this->bodyXml($first === [] ? [['text' => '-', 'bullet' => false]] : $first), $noInset);
+
+        if ($second !== []) {
+            $id = $this->shapeId++;
+            $xml .= '<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="'.$id.'" name="Divider '.$id.'"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr>'
+                .'<p:spPr><a:xfrm><a:off x="'.SlideText::emu($x + $width / 2).'" y="'.SlideText::emu($textTop).'"/><a:ext cx="0" cy="'.SlideText::emu($textHeight).'"/></a:xfrm>'
+                .'<a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:ln w="9525"><a:solidFill><a:srgbClr val="'.self::CARD_BORDER.'"/></a:solidFill></a:ln></p:spPr></p:cxnSp>'
+                .$this->shape('Text', $secondX, $textTop, $columnWidth, $textHeight, '<a:noFill/><a:ln><a:noFill/></a:ln>', $this->bodyXml($second), $noInset);
+        }
+
+        return $xml;
+    }
+
+    /**
+     * The rounded-rectangle adjustment giving a card the same corner radius at any size; it is
+     * a share (in 1/100000) of the card's shorter side.
+     */
+    private function cornerAdjustment(float $width, float $height): int
+    {
+        return (int) min(50000, round(100000 * self::CARD_CORNER / max(0.01, min($width, $height))));
+    }
+
+    private function cardFrame(): string
+    {
+        // White card with the template's thin border and no shadow.
+        return '<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="'.self::CARD_BORDER.'"/></a:solidFill></a:ln>';
+    }
+
+    private function labelXml(string $label): string
+    {
+        return '<a:p><a:pPr algn="l"><a:spcAft><a:spcPts val="'.(self::LABEL_GAP * 100).'"/></a:spcAft><a:buNone/></a:pPr>'
             .'<a:r>'.SlideText::runProperties(self::LABEL_SIZE, self::PRIMARY, true).'<a:t>'.SlideText::escape($label).'</a:t></a:r></a:p>';
-        $body = implode('', array_map(
+    }
+
+    /**
+     * @param  list<array{text: string, bullet: bool}>  $paragraphs
+     */
+    private function bodyXml(array $paragraphs): string
+    {
+        return implode('', array_map(
             fn (array $paragraph): string => SlideText::paragraphXml($paragraph, self::BODY_SIZE, self::TEXT),
             $paragraphs,
         ));
+    }
 
-        return '<p:sp><p:nvSpPr><p:cNvPr id="'.$id.'" name="Card '.$id.'"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
+    private function shape(string $name, float $x, float $y, float $width, float $height, string $frame, string $paragraphs, ?string $bodyProperties = null): string
+    {
+        $id = $this->shapeId++;
+        $bodyProperties ??= '<a:bodyPr wrap="square" lIns="'.SlideText::emu(self::CARD_PADDING_X).'" tIns="'.SlideText::emu(self::CARD_PADDING_Y).'" rIns="'.SlideText::emu(self::CARD_PADDING_X).'" bIns="'.SlideText::emu(self::CARD_PADDING_Y).'" anchor="t" rtlCol="0"><a:noAutofit/></a:bodyPr>';
+        $isTextBox = $name === 'Text' ? ' txBox="1"' : '';
+
+        return '<p:sp><p:nvSpPr><p:cNvPr id="'.$id.'" name="'.$name.' '.$id.'"/><p:cNvSpPr'.$isTextBox.'/><p:nvPr/></p:nvSpPr>'
             .'<p:spPr><a:xfrm><a:off x="'.SlideText::emu($x).'" y="'.SlideText::emu($y).'"/><a:ext cx="'.SlideText::emu($width).'" cy="'.SlideText::emu($height).'"/></a:xfrm>'
-            .'<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 8000"/></a:avLst></a:prstGeom>'
-            // Flat white card: no border and no shadow.
-            .'<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln><a:noFill/></a:ln></p:spPr>'
-            .'<p:txBody><a:bodyPr wrap="square" lIns="'.SlideText::emu(self::CARD_PADDING_X).'" tIns="'.SlideText::emu(self::CARD_PADDING_Y).'" rIns="'.SlideText::emu(self::CARD_PADDING_X).'" bIns="'.SlideText::emu(self::CARD_PADDING_Y).'" anchor="t" rtlCol="0"><a:noAutofit/></a:bodyPr><a:lstStyle/>'
-            .$label.$body.'</p:txBody></p:sp>';
+            .'<a:prstGeom prst="'.($name === 'Text' ? 'rect' : 'roundRect').'"><a:avLst>'.($name === 'Text' ? '' : '<a:gd name="adj" fmla="val '.$this->cornerAdjustment($width, $height).'"/>').'</a:avLst></a:prstGeom>'
+            .$frame.'</p:spPr>'
+            .'<p:txBody>'.$bodyProperties.'<a:lstStyle/>'.($paragraphs === '' ? '<a:p><a:endParaRPr lang="id-ID" dirty="0"/></a:p>' : $paragraphs).'</p:txBody></p:sp>';
     }
 
     /**
@@ -388,7 +563,9 @@ class ProposalPresentationBuilder
     private function schedulePages(Project $project): array
     {
         $schedule = $this->schedule($project);
-        $deliverableWidth = self::WIDTH - self::STEP_COLUMN - self::SCHEDULE_MONTHS * 4 * self::WEEK_COLUMN - 2 * self::DATE_COLUMN;
+        $weeks = count($schedule['months']) * 4;
+        $weekWidth = min(self::MAX_WEEK_COLUMN, (self::WIDTH - self::STEP_COLUMN - 2 * self::DATE_COLUMN - self::MIN_DELIVERABLE_COLUMN) / $weeks);
+        $deliverableWidth = self::WIDTH - self::STEP_COLUMN - $weeks * $weekWidth - 2 * self::DATE_COLUMN;
         $room = self::BOTTOM - self::TABLE_TOP - 2 * self::HEADER_ROW;
         $pages = [];
         $rows = '';
@@ -402,7 +579,7 @@ class ProposalPresentationBuilder
             $height = max(self::MIN_ROW, $lines * SlideText::lineHeight(self::TABLE_SIZE) + 0.1);
 
             if ($rows !== '' && $used + $height > $room) {
-                $pages[] = $this->scheduleTable($schedule['months'], $rows, $used, $deliverableWidth);
+                $pages[] = $this->scheduleTable($schedule['months'], $rows, $used, $weekWidth, $deliverableWidth);
                 $rows = '';
                 $used = 0.0;
             }
@@ -411,7 +588,7 @@ class ProposalPresentationBuilder
             $used += $height;
         }
 
-        $pages[] = $this->scheduleTable($schedule['months'], $rows, $used, $deliverableWidth);
+        $pages[] = $this->scheduleTable($schedule['months'], $rows, $used, $weekWidth, $deliverableWidth);
 
         return $pages;
     }
@@ -419,12 +596,12 @@ class ProposalPresentationBuilder
     /**
      * @param  list<string>  $months
      */
-    private function scheduleTable(array $months, string $rows, float $rowsHeight, float $deliverableWidth): string
+    private function scheduleTable(array $months, string $rows, float $rowsHeight, float $weekWidth, float $deliverableWidth): string
     {
         $id = $this->shapeId++;
-        $weeks = self::SCHEDULE_MONTHS * 4;
+        $weeks = count($months) * 4;
         $grid = '<a:gridCol w="'.SlideText::emu(self::STEP_COLUMN).'"/>'
-            .str_repeat('<a:gridCol w="'.SlideText::emu(self::WEEK_COLUMN).'"/>', $weeks)
+            .str_repeat('<a:gridCol w="'.SlideText::emu($weekWidth).'"/>', $weeks)
             .str_repeat('<a:gridCol w="'.SlideText::emu(self::DATE_COLUMN).'"/>', 2)
             .'<a:gridCol w="'.SlideText::emu($deliverableWidth).'"/>';
 
@@ -434,12 +611,12 @@ class ProposalPresentationBuilder
             $monthRow .= $this->cell($month, header: true, gridSpan: 4).str_repeat($this->cell('', header: true, hMerge: true, narrow: true), 3);
         }
 
-        $monthRow .= $this->cell('Mulai', header: true, rowSpan: 2).$this->cell('Selesai', header: true, rowSpan: 2).$this->cell('Deliverable', header: true, align: 'l', rowSpan: 2);
+        $monthRow .= $this->cell('Start Date', header: true, rowSpan: 2).$this->cell('Finish Date', header: true, rowSpan: 2).$this->cell('Deliverable Result', header: true, align: 'l', rowSpan: 2);
 
         $weekRow = $this->cell('', header: true, vMerge: true);
 
         for ($week = 0; $week < $weeks; $week++) {
-            $weekRow .= $this->cell((string) ($week % 4 + 1), header: true, narrow: true);
+            $weekRow .= $this->cell((string) ($week % 4 + 1), header: true, narrow: true, size: self::WEEK_SIZE);
         }
 
         $weekRow .= str_repeat($this->cell('', header: true, vMerge: true), 3);
@@ -481,6 +658,7 @@ class ProposalPresentationBuilder
         bool $hMerge = false,
         bool $vMerge = false,
         bool $narrow = false,
+        int $size = self::TABLE_SIZE,
     ): string {
         if ($header) {
             [$fill, $color, $bold] = [self::TABLE_HEADER, self::NAVY, true];
@@ -489,19 +667,20 @@ class ProposalPresentationBuilder
         $attributes = ($gridSpan > 1 ? ' gridSpan="'.$gridSpan.'"' : '').($rowSpan > 1 ? ' rowSpan="'.$rowSpan.'"' : '')
             .($hMerge ? ' hMerge="1"' : '').($vMerge ? ' vMerge="1"' : '');
         $paragraph = $text === ''
-            ? '<a:p><a:pPr algn="'.$align.'"/><a:endParaRPr lang="id-ID" sz="'.(self::TABLE_SIZE * 100).'" dirty="0"/></a:p>'
-            : '<a:p><a:pPr algn="'.$align.'"/><a:r>'.SlideText::runProperties(self::TABLE_SIZE, $color, $bold).'<a:t>'.SlideText::escape($text).'</a:t></a:r></a:p>';
+            ? '<a:p><a:pPr algn="'.$align.'"/><a:endParaRPr lang="id-ID" sz="'.($size * 100).'" dirty="0"/></a:p>'
+            : '<a:p><a:pPr algn="'.$align.'"/><a:r>'.SlideText::runProperties($size, $color, $bold).'<a:t>'.SlideText::escape($text).'</a:t></a:r></a:p>';
         $border = fn (string $side): string => '<a:'.$side.' w="6350"><a:solidFill><a:srgbClr val="'.self::TABLE_LINE.'"/></a:solidFill></a:'.$side.'>';
 
         return '<a:tc'.$attributes.'><a:txBody><a:bodyPr/><a:lstStyle/>'.$paragraph.'</a:txBody>'
-            // Week cells are 0.2" wide: no side margins, so viewers keep them at their set width.
+            // Week cells are narrow: no side margins, so viewers keep them at their set width.
             .'<a:tcPr marL="'.($narrow ? 0 : 54864).'" marR="'.($narrow ? 0 : 54864).'" marT="36576" marB="36576" anchor="ctr">'
             .$border('lnL').$border('lnR').$border('lnT').$border('lnB')
             .'<a:solidFill><a:srgbClr val="'.$fill.'"/></a:solidFill></a:tcPr></a:tc>';
     }
 
     /**
-     * The eight QCC steps with their dates and the weeks they run through, and the months shown.
+     * The QCC steps planned in the proposal (1–5) with their dates and the weeks they run
+     * through, and the months shown: from the month of the first date to the month of the last.
      *
      * @return array{months: list<string>, steps: list<array{label: string, start: string, finish: string, deliverable: string, bars: list<bool>}>}
      */
@@ -511,7 +690,7 @@ class ProposalPresentationBuilder
         $steps = [];
         $previousFinish = null;
 
-        foreach (QccStep::cases() as $step) {
+        foreach (QccStep::proposalSteps() as $step) {
             $row = (array) $timeline->get($step->value, []);
             $finish = $this->parseDate($row['target_date'] ?? null);
             $start = $this->parseDate($row['start_date'] ?? null)
@@ -526,22 +705,24 @@ class ProposalPresentationBuilder
             $previousFinish = $finish ?? $previousFinish;
         }
 
-        $firstDate = collect($steps)->flatMap(fn (array $step): array => [$step['start'], $step['finish']])->filter()->min()
-            ?? CarbonImmutable::parse($project->batch?->execution_starts_on ?? $project->submitted_at ?? now());
+        $dates = collect($steps)->flatMap(fn (array $step): array => [$step['start'], $step['finish']])->filter();
+        $firstDate = $dates->min() ?? CarbonImmutable::parse($project->batch?->execution_starts_on ?? $project->submitted_at ?? now());
         $firstMonth = CarbonImmutable::parse($firstDate)->startOfMonth();
+        $lastMonth = CarbonImmutable::parse($dates->max() ?? $firstMonth)->startOfMonth();
+        $monthCount = max(self::MIN_SCHEDULE_MONTHS, min(self::MAX_SCHEDULE_MONTHS, (int) $firstMonth->diffInMonths($lastMonth) + 1));
 
         $months = [];
 
-        for ($month = 0; $month < self::SCHEDULE_MONTHS; $month++) {
+        for ($month = 0; $month < $monthCount; $month++) {
             $months[] = $firstMonth->addMonths($month)->format('M-y');
         }
 
         return [
             'months' => $months,
-            'steps' => array_map(function (array $step) use ($firstMonth): array {
+            'steps' => array_map(function (array $step) use ($firstMonth, $monthCount): array {
                 $bars = [];
 
-                for ($column = 0; $column < self::SCHEDULE_MONTHS * 4; $column++) {
+                for ($column = 0; $column < $monthCount * 4; $column++) {
                     $month = $firstMonth->addMonths(intdiv($column, 4));
                     $week = $column % 4;
                     $weekStart = $month->addDays($week * 7);

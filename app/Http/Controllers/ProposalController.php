@@ -198,19 +198,18 @@ class ProposalController extends Controller
                 'theme' => $project->theme,
                 'theme_category' => $project->theme_category?->label(),
                 'background' => $project->background,
-                'current_situation' => $project->current_situation,
-                'improvement_plan' => $project->improvement_plan,
                 'target' => $project->target,
                 'scope' => $project->scope,
-                'supplementary_information' => $project->supplementary_information,
                 'cost_projection' => $project->cost_projection,
-                'learning_goals' => $project->learning_goals_json ?? [],
                 'step_timeline' => $this->stepTimeline($project),
                 // Sections removed from the form; still shown for proposals written before the change.
                 'legacy_sections' => array_values(array_filter([
                     ['label' => 'Pernyataan Masalah', 'value' => $project->problem_statement],
                     ['label' => 'Root Cause Analysis (RCA)', 'value' => $project->rca],
                     ['label' => 'Manfaat Bisnis', 'value' => $project->business_benefit],
+                    ['label' => 'Rencana Perbaikan / Arah Solusi', 'value' => $project->improvement_plan],
+                    ['label' => 'Informasi dan Data Pelengkap', 'value' => $project->supplementary_information],
+                    ['label' => 'Tiga Hal yang akan Dipelajari', 'value' => $this->learningGoalsText($project)],
                 ], fn (array $section): bool => filled($section['value']))),
                 'updated_at' => $project->updated_at?->toIso8601String(),
                 'attachments' => $project->attachments->map(fn (ProjectAttachment $attachment): array => [
@@ -356,6 +355,23 @@ class ProposalController extends Controller
     }
 
     /**
+     * The learning goals of a proposal written before they were removed from the form, as a
+     * numbered list.
+     */
+    private function learningGoalsText(Project $project): ?string
+    {
+        $goals = array_values(array_filter($project->learning_goals_json ?? [], 'filled'));
+
+        return $goals === [] ? null : implode("\n", array_map(
+            fn (string $goal, int $index): string => ($index + 1).'. '.$goal,
+            $goals,
+            array_keys($goals),
+        ));
+    }
+
+    /**
+     * The steps planned in the proposal, up to the improvement plan.
+     *
      * @return list<array{step_number: int, name: string, start_date: string|null, target_date: string|null, deliverable: string|null}>
      */
     private function stepTimeline(Project $project): array
@@ -368,7 +384,7 @@ class ProposalController extends Controller
             'start_date' => $planned->get($step->value)['start_date'] ?? null,
             'target_date' => $planned->get($step->value)['target_date'] ?? null,
             'deliverable' => $planned->get($step->value)['deliverable'] ?? null,
-        ], QccStep::cases());
+        ], QccStep::proposalSteps());
     }
 
     /**

@@ -34,7 +34,7 @@ class SaveProposalDraftRequest extends FormRequest
     /** @return array<string, ValidationRule|array<mixed>|string> */
     public function rules(): array
     {
-        $timelineSize = count(QccStep::cases());
+        $timelineSize = count(QccStep::proposalSteps());
 
         $rules = [
             'batch_id' => ['required', 'integer'],
@@ -42,14 +42,9 @@ class SaveProposalDraftRequest extends FormRequest
             'theme' => ['nullable', 'string', 'max:5000'],
             'theme_category' => ['nullable', Rule::enum(ThemeCategory::class)],
             'background' => ['nullable', 'string', 'max:20000'],
-            'current_situation' => ['nullable', 'string', 'max:20000'],
-            'improvement_plan' => ['nullable', 'string', 'max:20000'],
             'target' => ['nullable', 'string', 'max:20000'],
             'scope' => ['nullable', 'string', 'max:5000'],
-            'supplementary_information' => ['nullable', 'string', 'max:20000'],
             'cost_projection' => ['nullable', 'string', 'max:20000'],
-            'learning_goals' => ['nullable', 'array', 'max:3'],
-            'learning_goals.*' => ['nullable', 'string', 'max:255'],
             'step_start_dates' => ['nullable', 'array', "max:{$timelineSize}"],
             'step_start_dates.*' => ['nullable', 'date_format:Y-m-d'],
             'step_timeline' => ['nullable', 'array', "max:{$timelineSize}"],
@@ -79,16 +74,12 @@ class SaveProposalDraftRequest extends FormRequest
                 ],
                 2 => [
                     'background' => ['required', 'string', 'max:20000'],
-                    'current_situation' => ['required', 'string', 'max:20000'],
                 ],
                 3 => [
-                    'improvement_plan' => ['required', 'string', 'max:20000'],
                     'target' => ['required', 'string', 'max:20000'],
                     'scope' => ['required', 'string', 'max:5000'],
                 ],
                 5 => [
-                    'learning_goals' => ['required', 'array', 'size:3'],
-                    'learning_goals.*' => ['required', 'string', 'max:255'],
                     'step_start_dates' => ['required', 'array', "size:{$timelineSize}"],
                     'step_start_dates.*' => ['required', 'date_format:Y-m-d'],
                     'step_timeline' => ['required', 'array', "size:{$timelineSize}"],
@@ -124,19 +115,15 @@ class SaveProposalDraftRequest extends FormRequest
             'title' => 'judul proposal',
             'theme' => 'tema improvement',
             'theme_category' => 'kategori tema',
-            'background' => 'latar belakang',
-            'current_situation' => 'situasi saat ini & baseline',
-            'improvement_plan' => 'rencana perbaikan',
+            'background' => 'latar belakang & baseline data',
             'target' => 'target/tujuan',
             'scope' => 'ruang lingkup proyek',
-            'supplementary_information' => 'informasi dan data pelengkap',
             'cost_projection' => 'proyeksi kebutuhan biaya proyek',
-            'learning_goals' => 'tiga hal yang akan dipelajari',
             'step_start_dates' => 'tanggal mulai timeline',
             'step_timeline' => 'timeline',
         ];
 
-        foreach (QccStep::cases() as $index => $step) {
+        foreach (QccStep::proposalSteps() as $index => $step) {
             $attributes["step_start_dates.{$index}"] = "tanggal mulai step {$step->value}";
             $attributes["step_timeline.{$index}"] = "target selesai step {$step->value}";
             $attributes["step_deliverables.{$index}"] = "deliverable step {$step->value}";
@@ -154,11 +141,9 @@ class SaveProposalDraftRequest extends FormRequest
             'max' => ':Attribute maksimal :max karakter.',
             'date_format' => ':Attribute harus berupa tanggal yang valid.',
             'theme_category.enum' => 'Pilih kategori tema dari daftar.',
-            'learning_goals.size' => 'Isi tepat 3 hal yang akan dipelajari.',
-            'learning_goals.*.required' => 'Semua hal yang akan dipelajari wajib diisi.',
-            'step_start_dates.size' => 'Isi tanggal mulai untuk semua 8 step QCC.',
+            'step_start_dates.size' => 'Isi tanggal mulai untuk semua 5 step QCC.',
             'step_start_dates.*.required' => ':Attribute wajib diisi.',
-            'step_timeline.size' => 'Isi target selesai untuk semua 8 step QCC.',
+            'step_timeline.size' => 'Isi target selesai untuk semua 5 step QCC.',
             'step_timeline.*.required' => ':Attribute wajib diisi.',
             'wizard_step.between' => 'Langkah proposal tidak valid.',
         ];

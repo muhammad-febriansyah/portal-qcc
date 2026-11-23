@@ -39,17 +39,13 @@ function proposalDraftPayload(QccBatch $batch, array $overrides = []): array
         'batch_id' => $batch->id,
         'title' => 'Mengurangi waktu tunggu proses',
         'theme' => 'Efisiensi proses',
-        'theme_category' => ThemeCategory::CostEfficiency->value,
+        'theme_category' => ThemeCategory::WorkforceBusinessSolutionManagement->value,
         'background' => '',
-        'current_situation' => '',
-        'improvement_plan' => '',
         'target' => '',
         'scope' => '',
-        'supplementary_information' => '',
         'cost_projection' => '',
-        'learning_goals' => ['', '', ''],
-        'step_start_dates' => array_fill(0, count(QccStep::cases()), ''),
-        'step_timeline' => array_fill(0, count(QccStep::cases()), ''),
+        'step_start_dates' => array_fill(0, count(QccStep::proposalSteps()), ''),
+        'step_timeline' => array_fill(0, count(QccStep::proposalSteps()), ''),
         'wizard_step' => 1,
         'advance' => false,
         ...$overrides,
@@ -67,9 +63,12 @@ it('creates and resumes a proposal draft with its saved wizard step', function (
             ->component('proposals/wizard')
             ->where('project', null)
             ->has('batches', 1)
-            ->has('themeCategories', 6)
-            ->where('themeCategories.0.label', 'New Revenue Stream')
-            ->where('themeCategories.0.description', 'Proyek yang menciptakan sumber pendapatan baru melalui layanan tambahan, paket layanan terintegrasi, pemanfaatan kapabilitas atau teknologi, model bisnis baru, maupun perluasan pasar.'));
+            ->has('themeCategories', 5)
+            ->where('themeCategories.0.label', 'Employment Compliance & Workforce Protection')
+            ->where('themeCategories.0.description', 'Kepatuhan hubungan kerja, perlindungan hak pekerja, administrasi ketenagakerjaan, dan pengelolaan dokumen.')
+            ->where('themeCategories.4.label', 'Employee Welfare, Safety & Sustainability')
+            ->has('qccSteps', 5)
+            ->where('qccSteps.4.name', 'Membuat Rencana Perbaikan'));
 
     $response = $this->post(route('proposals.store'), proposalDraftPayload($batch, [
         'proposer_id' => 999999,
@@ -141,7 +140,6 @@ it('rejects advancing past the next available wizard step', function () {
             'advance' => true,
             'target' => 'Turunkan waktu proses',
             'scope' => 'Proses verifikasi dokumen',
-            'improvement_plan' => 'Satukan pemeriksaan',
         ]))
         ->assertSessionHasErrors(['wizard_step']);
 
@@ -173,7 +171,7 @@ it('rejects drafts for inactive batches', function () {
     expect(Project::query()->count())->toBe(0);
 });
 
-it('requires background and the merged situation and baseline before advancing', function () {
+it('requires the background and baseline data before advancing', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 2]);
 
@@ -182,13 +180,13 @@ it('requires background and the merged situation and baseline before advancing',
             'wizard_step' => 2,
             'advance' => true,
         ]))
-        ->assertSessionHasErrors(['background', 'current_situation'])
-        ->assertSessionDoesntHaveErrors(['problem_statement', 'baseline']);
+        ->assertSessionHasErrors(['background'])
+        ->assertSessionDoesntHaveErrors(['current_situation', 'problem_statement', 'baseline']);
 
     expect($project->fresh()->wizard_step)->toBe(2);
 });
 
-it('requires the improvement plan, target and scope before advancing', function () {
+it('requires the target and scope, but no longer an improvement plan, before advancing', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 3]);
 
@@ -197,13 +195,13 @@ it('requires the improvement plan, target and scope before advancing', function 
             'wizard_step' => 3,
             'advance' => true,
         ]))
-        ->assertSessionHasErrors(['improvement_plan', 'target', 'scope'])
-        ->assertSessionDoesntHaveErrors(['rca', 'business_benefit']);
+        ->assertSessionHasErrors(['target', 'scope'])
+        ->assertSessionDoesntHaveErrors(['improvement_plan', 'rca', 'business_benefit']);
 
     expect($project->fresh()->wizard_step)->toBe(3);
 });
 
-it('advances past supplementary data and cost without either being filled in', function () {
+it('advances past the cost projection without it being filled in', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 4]);
 
@@ -217,7 +215,7 @@ it('advances past supplementary data and cost without either being filled in', f
     expect($project->fresh()->wizard_step)->toBe(5);
 });
 
-it('requires three learning goals and a start and target date for every QCC step before advancing', function () {
+it('requires a start and target date for QCC steps 1 to 5 only before advancing', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 5]);
 
@@ -226,7 +224,8 @@ it('requires three learning goals and a start and target date for every QCC step
             'wizard_step' => 5,
             'advance' => true,
         ]))
-        ->assertSessionHasErrors(['learning_goals.0', 'learning_goals.1', 'learning_goals.2', 'step_start_dates.0', 'step_start_dates.7', 'step_timeline.0', 'step_timeline.7']);
+        ->assertSessionHasErrors(['step_start_dates.0', 'step_start_dates.4', 'step_timeline.0', 'step_timeline.4'])
+        ->assertSessionDoesntHaveErrors(['learning_goals', 'step_start_dates.5', 'step_timeline.7']);
 
     expect($project->fresh()->wizard_step)->toBe(5);
 });
@@ -234,25 +233,24 @@ it('requires three learning goals and a start and target date for every QCC step
 it('stores overlapping step timelines and refuses a step that finishes before it starts', function () {
     $user = proposalWizardCreator();
     $project = Project::factory()->create(['proposer_id' => $user->id, 'wizard_step' => 5]);
-    $startDates = array_map(fn (QccStep $step): string => now()->addWeeks($step->value - 1)->toDateString(), QccStep::cases());
-    $dates = array_map(fn (QccStep $step): string => now()->addWeeks($step->value)->toDateString(), QccStep::cases());
+    $startDates = array_map(fn (QccStep $step): string => now()->addWeeks($step->value - 1)->toDateString(), QccStep::proposalSteps());
+    $dates = array_map(fn (QccStep $step): string => now()->addWeeks($step->value)->toDateString(), QccStep::proposalSteps());
     // Steps 3 and 4 run at the same time, which is allowed.
     $startDates[3] = $startDates[2];
     $dates[3] = $dates[2];
     $payload = proposalDraftPayload($project->batch, [
         'wizard_step' => 5,
         'advance' => true,
-        'learning_goals' => ['Satu', 'Dua', 'Tiga'],
         'step_start_dates' => $startDates,
     ]);
 
     $finishesBeforeStart = $dates;
-    $finishesBeforeStart[5] = now()->toDateString();
+    $finishesBeforeStart[4] = now()->toDateString();
     $this->actingAs($user)
         ->patch(route('proposals.update', $project), [...$payload, 'step_timeline' => $finishesBeforeStart])
-        ->assertSessionHasErrors(['step_timeline.5' => 'Target selesai step 6 tidak boleh lebih awal dari tanggal mulainya.']);
+        ->assertSessionHasErrors(['step_timeline.4' => 'Target selesai step 5 tidak boleh lebih awal dari tanggal mulainya.']);
 
-    $deliverables = array_fill(0, count(QccStep::cases()), '');
+    $deliverables = array_fill(0, count(QccStep::proposalSteps()), '');
     $deliverables[0] = '  Tema dan data awal  ';
 
     $this->patch(route('proposals.update', $project), [...$payload, 'step_timeline' => $dates, 'step_deliverables' => $deliverables])
@@ -265,13 +263,15 @@ it('stores overlapping step timelines and refuses a step that finishes before it
             'start_date' => $startDates[$step->value - 1],
             'target_date' => $dates[$step->value - 1],
             'deliverable' => $step === QccStep::Theme ? 'Tema dan data awal' : null,
-        ], QccStep::cases()));
+        ], QccStep::proposalSteps()));
 
     $this->get(route('proposals.edit', $project))
         ->assertInertia(fn (Assert $page) => $page
             ->where('project.step_deliverables.0', 'Tema dan data awal')
             ->where('project.step_start_dates.3', $startDates[3])
-            ->where('project.step_timeline.7', $dates[7]));
+            ->where('project.step_timeline.4', $dates[4])
+            ->has('project.step_timeline', 5)
+            ->has('qccSteps', 5));
 });
 
 it('requires at least one competency need before advancing to the preview', function () {
@@ -404,19 +404,16 @@ it('lets SIMer submit without a team and tells them Owner QCC will form it', fun
         'proposal_status' => ProposalStatus::Draft,
         'title' => 'Perbaikan waktu proses',
         'theme' => 'Efisiensi',
-        'theme_category' => ThemeCategory::CostEfficiency,
-        'background' => 'Latar belakang',
-        'current_situation' => 'Situasi saat ini dan baseline',
-        'improvement_plan' => 'Rencana',
+        'theme_category' => ThemeCategory::EmploymentComplianceWorkforceProtection,
+        'background' => 'Latar belakang dan baseline',
         'target' => 'Target',
         'scope' => 'Ruang lingkup',
         'cost_projection' => 'Tidak ada biaya',
-        'learning_goals_json' => ['Tujuan satu', 'Tujuan dua', 'Tujuan tiga'],
         'step_timeline_json' => array_map(fn (QccStep $step): array => [
             'step_number' => $step->value,
             'start_date' => now()->addWeeks($step->value - 1)->toDateString(),
             'target_date' => now()->addWeeks($step->value)->toDateString(),
-        ], QccStep::cases()),
+        ], QccStep::proposalSteps()),
     ]);
     DB::table('project_requirements')->insert([
         'project_id' => $project->id,
@@ -432,7 +429,7 @@ it('lets SIMer submit without a team and tells them Owner QCC will form it', fun
             ->where('proposal.team_confirmed', false)
             ->where('proposal.can_submit', true)
             ->where('proposal.cost_projection', 'Tidak ada biaya')
-            ->has('proposal.step_timeline', 8)
+            ->has('proposal.step_timeline', 5)
             ->where('proposal.team_status_message', null));
 
     $this->post(route('proposals.submit', $project))->assertSessionHasNoErrors();
@@ -464,12 +461,9 @@ it('no longer asks Owner QCC to compose a team while the proposal is a draft', f
     $this->actingAs($user)->patch(route('proposals.update', $project), proposalDraftPayload($batch, [
         'wizard_step' => 7,
         'background' => 'Latar belakang lengkap',
-        'current_situation' => 'Kondisi saat ini',
-        'improvement_plan' => 'Rencana perbaikan',
         'target' => 'Target proses',
         'scope' => 'Ruang lingkup proses',
         'cost_projection' => 'Tidak ada biaya',
-        'learning_goals' => ['Tujuan satu', 'Tujuan dua', 'Tujuan tiga'],
     ]))->assertRedirect();
 
     expect($owner->notifications()->where('type', ProposalWorkflowNotification::class)->count())->toBe(0);
